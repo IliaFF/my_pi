@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "patchedPackages": [
+    {
+      "package": "@beyona/pi-zai-usage",
+      "version": "0.4.0",
+      "settingsSpec": "npm:@beyona/pi-zai-usage@0.4.0",
+      "patch": "patches/beyona-pi-zai-usage+0.4.0.patch",
+      "files": [
+        "dist/codex-api.js",
+        "dist/index.js",
+        "dist/codex-api.d.ts"
+      ],
+      "reason": "Handle absent Codex quota windows and preserve custom usage footer output."
+    },
+    {
+      "package": "@mporenta/pi-verifier-agent",
+      "version": "0.1.21",
+      "settingsSpec": "npm:@mporenta/pi-verifier-agent@0.1.21",
+      "patch": "patches/mporenta-pi-verifier-agent+0.1.21.patch",
+      "files": [
+        "verifiable-footer.ts",
+        "verifiable.ts",
+        "verifier.ts"
+      ],
+      "reason": "Preserve shared footer/status UI and hardened verifier input lifecycle."
+    },
+    {
+      "package": "pi-canary",
+      "version": "1.4.0",
+      "settingsSpec": "npm:pi-canary@1.4.0",
+      "patch": "patches/pi-canary+1.4.0.patch",
+      "files": [
+        "extensions/canary.ts"
+      ],
+      "reason": "Skip Canary hidden pre-turn in PI_SUBAGENT_CHILD one-shot processes."
+    },
+    {
+      "package": "pi-caveman",
+      "version": "1.0.7",
+      "settingsSpec": "npm:pi-caveman@1.0.7",
+      "patch": "patches/pi-caveman+1.0.7.patch",
+      "files": [
+        "extensions/caveman.ts"
+      ],
+      "reason": "Retain local prompt and UI integration fixes."
+    },
+    {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.80.6",
+      "location": "pi-core",
+      "pinRequired": false,
+      "patch": "patches/earendil-works-pi-coding-agent+0.80.6.patch",
+      "files": [
+        "dist/modes/interactive/interactive-mode.js"
+      ],
+      "reason": "Preserve queued-message streaming mode when pi-continue resumes after compaction."
+    }
+  ],
+  "managedConfigs": [
+    {
+      "source": "settings.json",
+      "snapshot": "configs/settings.json",
+      "restore": false,
+      "reason": "Audit snapshot only. Never overwrite live global settings automatically."
+    },
+    {
+      "source": "APPEND_SYSTEM.md",
+      "snapshot": "configs/APPEND_SYSTEM.md",
+      "restore": true,
+      "reason": "Preserve Russian-language and context-efficient tool policy."
+    },
+    {
+      "source": "extensions/quotas.json",
+      "snapshot": "configs/quotas.json",
+      "restore": true,
+      "reason": "Preserve quota and token status UI settings."
+    },
+    {
+      "source": "extensions/pi-fast-resume.json",
+      "snapshot": "configs/pi-fast-resume.json",
+      "restore": true,
+      "reason": "Preserve native /resume ownership and fast-resume configuration."
+    },
+    {
+      "source": "npm/node_modules/pi-canary/extensions/canary.json",
+      "snapshot": "configs/pi-canary.json",
+      "restore": true,
+      "reason": "Preserve COUNT=3, POSITION=end, VARIANT=fixed, FAIL_COMPACT=3."
+    },
+    {
+      "source": "extensions/tools.ts",
+      "snapshot": "local-extensions/tools.ts",
+      "restore": true,
+      "reason": "Install Pi's official /tools selector globally for every session."
+    }
+  ]
+}

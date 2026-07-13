@@ -1,0 +1,8 @@
+backups/
+last-update.log
+__pycache__/
+*.pyc
+*.orig
+*.rej
+.pi-subagents/
+.my-pi-last-backup

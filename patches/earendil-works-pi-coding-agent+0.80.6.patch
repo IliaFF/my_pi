@@ -1,0 +1,40 @@
+--- a/dist/modes/interactive/interactive-mode.js
++++ b/dist/modes/interactive/interactive-mode.js
+@@ -3293,7 +3293,7 @@
+                 // When retry is pending, queue messages for the retry turn
+                 for (const message of queuedMessages) {
+                     if (this.isExtensionCommand(message.text)) {
+-                        await this.session.prompt(message.text);
++                        await this.session.prompt(message.text, { streamingBehavior: message.mode });
+                     }
+                     else if (message.mode === "followUp") {
+                         await this.session.followUp(message.text);
+@@ -3310,7 +3310,7 @@
+             if (firstPromptIndex === -1) {
+                 // All extension commands - execute them all
+                 for (const message of queuedMessages) {
+-                    await this.session.prompt(message.text);
++                    await this.session.prompt(message.text, { streamingBehavior: message.mode });
+                 }
+                 return;
+             }
+@@ -3319,16 +3319,16 @@
+             const firstPrompt = queuedMessages[firstPromptIndex];
+             const rest = queuedMessages.slice(firstPromptIndex + 1);
+             for (const message of preCommands) {
+-                await this.session.prompt(message.text);
++                await this.session.prompt(message.text, { streamingBehavior: message.mode });
+             }
+             // Send first prompt (starts streaming)
+-            const promptPromise = this.session.prompt(firstPrompt.text).catch((error) => {
++            const promptPromise = this.session.prompt(firstPrompt.text, { streamingBehavior: firstPrompt.mode }).catch((error) => {
+                 restoreQueue(error);
+             });
+             // Queue remaining messages
+             for (const message of rest) {
+                 if (this.isExtensionCommand(message.text)) {
+-                    await this.session.prompt(message.text);
++                    await this.session.prompt(message.text, { streamingBehavior: message.mode });
+                 }
+                 else if (message.mode === "followUp") {
+                     await this.session.followUp(message.text);

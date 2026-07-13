@@ -1,0 +1,31 @@
+{
+  "name": "my-pi-extensions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Exact extension set for IliaFF/my_pi",
+  "dependencies": {
+    "@beyona/pi-zai-usage": "0.4.0",
+    "@ff-labs/pi-fff": "0.9.6",
+    "@juicesharp/rpiv-ask-user-question": "1.20.0",
+    "@juicesharp/rpiv-todo": "1.20.0",
+    "@monotykamary/pi-retry": "0.6.3",
+    "@mporenta/pi-verifier-agent": "0.1.21",
+    "@narumitw/pi-goal": "0.14.1",
+    "@narumitw/pi-wait-what": "0.13.1",
+    "context-mode": "1.0.169",
+    "pi-canary": "1.4.0",
+    "pi-caveman": "1.0.7",
+    "pi-context": "2.0.0",
+    "pi-continue": "0.9.3",
+    "pi-diff-review": "0.1.26",
+    "pi-fast-resume": "1.4.2",
+    "pi-intercom": "0.6.0",
+    "pi-markdown-preview": "0.10.0",
+    "pi-my-setup": "0.4.12",
+    "pi-readseek": "0.5.12",
+    "pi-subagents": "0.34.0",
+    "pi-token-speed": "0.7.0",
+    "pi-web-access": "0.13.0",
+    "pine-of-glass": "0.6.1"
+  }
+}

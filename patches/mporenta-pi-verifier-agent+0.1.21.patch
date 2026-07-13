@@ -1,0 +1,69 @@
+--- a/verifiable-footer.ts
++++ b/verifiable-footer.ts
+@@ -157,13 +157,8 @@
+     const topRight = theme.fg(phaseFg, ` ${glyph} verifier ${phase} `);
+     lines[0] = fitBorder("", topRight, width, bc);
+ 
+-    // ─── Bottom border: model (left) + ctx % (right) ─────────────────────
+-    const model = safeCtx(() => this.ctx.model?.id ?? "no-model", "no-model");
+-    const usage = safeCtx(() => this.ctx.getContextUsage?.(), undefined);
+-    const pct = usage && usage.percent !== null ? usage.percent : 0;
+-    const bottomLeft = theme.fg("dim", ` ${model} `);
+-    const bottomRight = theme.fg("dim", ` ${Math.round(pct)}% `);
+-    lines[lines.length - 1] = fitBorder(bottomLeft, bottomRight, width, bc);
++    // Keep bottom border plain. Model/context/token/usage details belong to
++    // Pi's normal footer, so usage/TPS/caveman extensions can stay visible.
+ 
+     return lines;
+   }
+--- a/verifiable.ts
++++ b/verifiable.ts
+@@ -235,21 +235,9 @@
+         },
+       );
+ 
+-      // Hide pi's default footer entirely. The input-bar borders already
+-      // carry model + ctx % + verifier-status; pi's default footer (model +
+-      // thinking level + token stats) would just duplicate part of that and
+-      // add visual noise. setFooter(undefined) RESTORES the default; we
+-      // need to install a custom factory that renders zero lines to hide
+-      // it. Restored on session_shutdown.
+-      try {
+-        ctx.ui.setFooter(() => ({
+-          dispose: () => {},
+-          invalidate() {},
+-          render: () => [],
+-        }));
+-      } catch {
+-        // best-effort — non-critical
+-      }
++      // Preserve Pi's normal footer/status stack. Other extensions (usage, TPS,
++      // caveman, etc.) render there; hiding it makes verifier visually clobber
++      // existing setup. Verifier status stays in the input border only.
+     }
+ 
+     if (pi.getFlag("verifiable")) {
+--- a/verifier.ts
++++ b/verifier.ts
+@@ -488,11 +488,18 @@
+   });
+ 
+   // ── Defense-in-depth input lock (Q7) ─────────────────────────────────────
+-  // Block any input event that didn't originate from `pi.sendUserMessage`
+-  // (extension source). The CustomEditor swallows typing already; this is
+-  // belt-and-suspenders for RPC clients and other surprise sources.
++  // Block arbitrary operator/RPC input, but allow Pi's own recovery/replay
++  // prompts after auto-compaction. Those can be re-injected as non-extension
++  // input; blocking them strands the verifier after compaction and leaves
++  // queued `Follow-up: # Verification Cycle` prompts.
+   pi.on("input", async (event: InputEvent, ctx): Promise<InputEventResult> => {
+     if (event.source === "extension") return { action: "continue" };
++    const text = event.text.trim();
++    const isRecoveryReplay =
++      text.startsWith("# Verification Cycle") ||
++      text.startsWith("Продолжай после автосжатия") ||
++      text.includes("Recovery packet:");
++    if (isRecoveryReplay) return { action: "continue" };
+     ctx.ui.notify(
+       "Verifier input is disabled — driven by builder events only.",
+       "warning",

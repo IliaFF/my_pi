@@ -1,0 +1,13 @@
+--- a/extensions/canary.ts
++++ b/extensions/canary.ts
+@@ -84,6 +84,10 @@
+ type Phase = "idle" | "verifying" | "responding";
+ 
+ export default function (pi: ExtensionAPI) {
++  // pi-subagents runs child agents in one-shot `pi -p` mode. Canary's hidden
++  // verification turn consumes that single turn and leaves the child output empty.
++  // Keep Canary active in normal sessions, but skip it in subagent children.
++  if (process.env.PI_SUBAGENT_CHILD === "1") return;
+   let phase: Phase = "idle";
+   let currentTokens: string[] | null = null;
+   // Reused across turns in fixed mode; null forces regeneration

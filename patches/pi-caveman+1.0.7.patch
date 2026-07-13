@@ -1,0 +1,50 @@
+--- a/extensions/caveman.ts
++++ b/extensions/caveman.ts
+@@ -208,16 +208,36 @@
+ 
+ 	function syncStatus(ctx: Pick<ExtensionContext, "ui">) {
+ 		stopAnimation();
+-		const theme = ctx.ui.theme;
++
++		let theme: Theme;
++		try {
++			theme = ctx.ui.theme;
++		} catch {
++			// Session was replaced/reloaded while an animation timer from an older
++			// extension context was still alive. Do not let status rendering crash Pi.
++			return;
++		}
++
++		const clearStatus = () => {
++			try {
++				ctx.ui.setStatus("caveman", "");
++			} catch {
++				stopAnimation();
++			}
++		};
+ 
+ 		if (level === "off" || !config.showStatus) {
+-			ctx.ui.setStatus("caveman", "");
++			clearStatus();
+ 			return;
+ 		}
+ 
+ 		const anim = ANIMATIONS[level];
+ 		const setFrame = (frame: string) => {
+-			ctx.ui.setStatus("caveman", frame + " " + theme.fg("muted", "caveman level: ") + theme.fg("text", anim.label));
++			try {
++				ctx.ui.setStatus("caveman", frame + " " + theme.fg("muted", "caveman level: ") + theme.fg("text", anim.label));
++			} catch {
++				stopAnimation();
++			}
+ 		};
+ 
+ 		if (!isActive) {
+@@ -229,7 +249,6 @@
+ 			setFrame(anim.frames[frameIndex % anim.frames.length]!);
+ 			frameIndex++;
+ 		};
+-
+ 		renderFrame();
+ 		timer = setInterval(renderFrame, anim.interval);
+ 	}

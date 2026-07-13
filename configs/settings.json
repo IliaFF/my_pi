@@ -1,0 +1,63 @@
+{
+  "lastChangelogVersion": "0.80.6",
+  "defaultProvider": "openai-codex",
+  "defaultModel": "gpt-5.6-sol",
+  "defaultThinkingLevel": "medium",
+  "packages": [
+    "npm:pi-web-access",
+    "npm:context-mode",
+    "npm:pi-subagents",
+    "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@juicesharp/rpiv-todo",
+    "npm:@ff-labs/pi-fff",
+    "npm:pi-caveman@1.0.7",
+    "npm:@narumitw/pi-goal",
+    "npm:pi-intercom",
+    "npm:pi-token-speed",
+    "npm:pi-context",
+    "npm:@monotykamary/pi-retry",
+    "npm:@narumitw/pi-wait-what",
+    "npm:pi-my-setup",
+    "npm:@mporenta/pi-verifier-agent@0.1.21",
+    "npm:pi-markdown-preview",
+    "npm:pi-continue",
+    "npm:@beyona/pi-zai-usage@0.4.0",
+    "npm:pi-readseek@0.5.12",
+    "npm:pi-canary@1.4.0",
+    "npm:pi-fast-resume",
+    {
+      "source": "npm:pine-of-glass@0.6.1",
+      "extensions": [
+        "extensions/pi-traceline/**"
+      ]
+    },
+    "npm:pi-diff-review@0.1.26"
+  ],
+  "readseek": {
+    "replacedTools": [
+      "read",
+      "edit",
+      "write"
+    ],
+    "imageMode": "off",
+    "syntaxValidation": "warn",
+    "timeoutMs": 120000
+  },
+  "hideThinkingBlock": true,
+  "theme": "dark",
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 880000,
+    "keepRecentTokens": 20000
+  },
+  "thresholds": {
+    "checkpoint": 98,
+    "standard": 99,
+    "hard": 100
+  },
+  "cooldownMs": 120000,
+  "experimentalToolOutputPruning": false,
+  "toolOutputPruningMode": "off",
+  "toolOutputPruneStrategy": "stub",
+  "enableSkillCommands": true
+}
