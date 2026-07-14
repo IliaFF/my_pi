@@ -22,11 +22,11 @@
     "npm:pi-markdown-preview",
     "npm:pi-continue",
     "npm:@beyona/pi-zai-usage@0.4.0",
-    "npm:pi-readseek@0.5.12",
+    "npm:pi-readseek@0.5.18",
     "npm:pi-canary@1.4.0",
     "npm:pi-fast-resume",
     {
-      "source": "npm:pine-of-glass@0.6.1",
+      "source": "npm:pine-of-glass@0.6.2",
       "extensions": [
         "extensions/pi-traceline/**"
       ]

@@ -8,16 +8,24 @@
 - Node.js `>=22.19.0`
 - 23 прямые зависимости расширений с точными версиями
 - 367 записей пакетов в `package-lock.json`
+- `@narumitw/pi-goal@0.15.1`, `pi-context@2.1.0`, `pi-readseek@0.5.18`
 - `pi-continue@0.9.3` как единственный владелец compaction continuation
 - Canary `1.4.0`: `COUNT=3`, `POSITION=end`, `VARIANT=fixed`, `FAIL_COMPACT=3`
 - native `/resume`, `pi-fast-resume` работает с `hijackResume=false`
 - ReadSeek владеет `read`, `edit`, `write`
 - FFF владеет `find`, `grep`
 - shell остаётся нативным инструментом Pi
-- Traceline загружается выборочно из `pine-of-glass@0.6.1`
+- Traceline загружается выборочно из `pine-of-glass@0.6.2`
 - `pi-diff-review@0.1.26`
 
 Репозиторий содержит пять локальных патчей с проверкой точной версии. Патч Pi core устраняет потерю `streamingBehavior` при отправке сообщений из очереди после compaction.
+
+## Обновление после `343b932`
+
+- Обновлены `@narumitw/pi-goal` с `0.14.1` до `0.15.1` и `pi-context` с `2.0.0` до `2.1.0`.
+- Обновлены `pi-readseek` с `0.5.12` до `0.5.18` и его платформенные бинарные пакеты до `0.5.18`.
+- Обновлён `pine-of-glass` с `0.6.1` до `0.6.2`. Версия исправляет зависание Traceline при восстановлении сессии с пустым блоком рассуждений.
+- Исправлена установка в отсутствующий `PI_CODING_AGENT_DIR`: пустой список резервируемых файлов больше не передаёт `tar` пустое имя.
 
 ## Что намеренно исключено
 

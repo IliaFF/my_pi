@@ -73,7 +73,7 @@ present = [item for item in targets if (agent / item).exists()]
 (backup / "state.json").write_text(json.dumps({"agentDir": str(agent), "present": present, "oldCoreVersion": old_core}, indent=2) + "\n")
 PY
 
-mapfile -t present < <(python3 -c 'import json,sys; print("\n".join(json.load(open(sys.argv[1]))["present"]))' "$state")
+mapfile -t present < <(python3 -c 'import json,sys; sys.stdout.write("\n".join(json.load(open(sys.argv[1]))["present"]))' "$state")
 if ((${#present[@]})); then
   tar -C "$AGENT_DIR" -czf "$backup/agent-files.tar.gz" -- "${present[@]}"
   tar -tzf "$backup/agent-files.tar.gz" >/dev/null
