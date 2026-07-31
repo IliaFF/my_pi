@@ -40,6 +40,8 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
+    if manifest.get("piCoreVersion") != "0.83.0":
+        fail("unexpected Pi core version")
     package_json = json.loads((ROOT / "npm/package.json").read_text())
     package_lock = json.loads((ROOT / "npm/package-lock.json").read_text())
     root_lock = package_lock["packages"][""]
@@ -56,8 +58,31 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
+    settings_files = [ROOT / "configs/settings.json"]
+    for profile in manifest.get("profiles", []):
+        for name in profile["files"]:
+            snapshot = ROOT / "profiles" / profile["name"] / name
+            if not snapshot.is_file():
+                fail(f"missing profile snapshot: {profile['name']}/{name}")
+            if snapshot.suffix == ".json":
+                json.loads(snapshot.read_text())
+            if name == "settings.json":
+                settings_files.append(snapshot)
+    for settings_file in settings_files:
+        settings = json.loads(settings_file.read_text())
+        for spec in settings.get("packages", []):
+            source = spec if isinstance(spec, str) else spec.get("source", "")
+            if not source.startswith("npm:"):
+                continue
+            raw = source.removeprefix("npm:")
+            package = raw.rsplit("@", 1)[0] if (raw.startswith("@") and raw.count("@") > 1) or (not raw.startswith("@") and "@" in raw) else raw
+            if package not in package_json["dependencies"]:
+                fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
+    launcher = ROOT / manifest["launcher"]["snapshot"]
+    if not launcher.is_file() or not (launcher.stat().st_mode & 0o111):
+        fail("pi-profile launcher missing or not executable")
 
-    forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|mcp-cache(?:\.json)?)($|/)")
+    forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):
         if ".git" in path.parts or not path.is_file():
@@ -100,7 +125,8 @@ def main() -> int:
             print(f"PASS patch {item['package']}@{item['version']}")
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS release contains no known credential, session, cache, or recovery paths")
+    print(f"PASS portable profiles: {len(manifest.get('profiles', []))}")
+    print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 
 

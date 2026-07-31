@@ -6,3 +6,11 @@ __pycache__/
 *.rej
 .pi-subagents/
 .my-pi-last-backup
+auth.json
+sessions/
+recovery/
+context-store/
+logs/
+node_modules/
+.env
+.env.*

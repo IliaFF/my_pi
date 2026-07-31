@@ -1,5 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "piCoreVersion": "0.83.0",
+  "nodeMinimum": "22.19.0",
   "patchedPackages": [
     {
       "package": "@beyona/pi-zai-usage",
@@ -11,29 +13,17 @@
         "dist/index.js",
         "dist/codex-api.d.ts"
       ],
-      "reason": "Handle absent Codex quota windows and preserve custom usage footer output."
-    },
-    {
-      "package": "@mporenta/pi-verifier-agent",
-      "version": "0.1.21",
-      "settingsSpec": "npm:@mporenta/pi-verifier-agent@0.1.21",
-      "patch": "patches/mporenta-pi-verifier-agent+0.1.21.patch",
-      "files": [
-        "verifiable-footer.ts",
-        "verifiable.ts",
-        "verifier.ts"
-      ],
-      "reason": "Preserve shared footer/status UI and hardened verifier input lifecycle."
+      "reason": "Preserve current Codex quota handling and custom usage footer output."
     },
     {
       "package": "pi-canary",
       "version": "1.4.0",
-      "settingsSpec": "npm:pi-canary@1.4.0",
+      "pinRequired": false,
       "patch": "patches/pi-canary+1.4.0.patch",
       "files": [
         "extensions/canary.ts"
       ],
-      "reason": "Skip Canary hidden pre-turn in PI_SUBAGENT_CHILD one-shot processes."
+      "reason": "Preserve current child-process guard; package remains locked but disabled in active profiles."
     },
     {
       "package": "pi-caveman",
@@ -43,18 +33,7 @@
       "files": [
         "extensions/caveman.ts"
       ],
-      "reason": "Retain local prompt and UI integration fixes."
-    },
-    {
-      "package": "@earendil-works/pi-coding-agent",
-      "version": "0.80.6",
-      "location": "pi-core",
-      "pinRequired": false,
-      "patch": "patches/earendil-works-pi-coding-agent+0.80.6.patch",
-      "files": [
-        "dist/modes/interactive/interactive-mode.js"
-      ],
-      "reason": "Preserve queued-message streaming mode when pi-continue resumes after compaction."
+      "reason": "Retain current concise-response prompt and UI integration fixes."
     }
   ],
   "managedConfigs": [
@@ -62,13 +41,19 @@
       "source": "settings.json",
       "snapshot": "configs/settings.json",
       "restore": false,
-      "reason": "Audit snapshot only. Never overwrite live global settings automatically."
+      "reason": "Audit snapshot; installer applies it, maintenance updates never overwrite it silently."
     },
     {
       "source": "APPEND_SYSTEM.md",
       "snapshot": "configs/APPEND_SYSTEM.md",
       "restore": true,
-      "reason": "Preserve Russian-language and context-efficient tool policy."
+      "reason": "Preserve language, recovery markers, tool policy, and task tracking."
+    },
+    {
+      "source": "PROFILES.md",
+      "snapshot": "configs/PROFILES.md",
+      "restore": true,
+      "reason": "Document current lean profile topology and compaction policy."
     },
     {
       "source": "extensions/quotas.json",
@@ -80,19 +65,53 @@
       "source": "extensions/pi-fast-resume.json",
       "snapshot": "configs/pi-fast-resume.json",
       "restore": true,
-      "reason": "Preserve native /resume ownership and fast-resume configuration."
+      "reason": "Preserve native /resume ownership."
     },
     {
-      "source": "npm/node_modules/pi-canary/extensions/canary.json",
-      "snapshot": "configs/pi-canary.json",
+      "source": "extensions/auto-ultra-compact/index.ts",
+      "snapshot": "local-extensions/auto-ultra-compact/index.ts",
       "restore": true,
-      "reason": "Preserve COUNT=3, POSITION=end, VARIANT=fixed, FAIL_COMPACT=3."
+      "reason": "Recovery-aware automatic compaction and bounded emergency packets."
+    },
+    {
+      "source": "extensions/context-compaction.ts",
+      "snapshot": "local-extensions/context-compaction.ts",
+      "restore": true,
+      "reason": "Luna summarizer, validation/retry/fallback, external excerpt store, and context_recall."
+    },
+    {
+      "source": "extensions/lean-tools.ts",
+      "snapshot": "local-extensions/lean-tools.ts",
+      "restore": true,
+      "reason": "Keep noisy replacement tools disabled by default."
+    },
+    {
+      "source": "extensions/loop-profiler.ts",
+      "snapshot": "local-extensions/loop-profiler.ts",
+      "restore": true,
+      "reason": "Opt-in provider/tool-loop profiler."
     },
     {
       "source": "extensions/tools.ts",
       "snapshot": "local-extensions/tools.ts",
       "restore": true,
-      "reason": "Install Pi's official /tools selector globally for every session."
+      "reason": "Lean core tools, prompt routing, and precise post-compaction context_recall restoration."
+    },
+    {
+      "source": "npm/node_modules/pi-canary/extensions/canary.json",
+      "snapshot": "configs/pi-canary.json",
+      "restore": true,
+      "reason": "Preserve dormant Canary configuration if package is enabled later."
     }
-  ]
+  ],
+  "profiles": [
+    { "name": "research", "files": ["settings.json"] },
+    { "name": "typed", "files": ["settings.json"] },
+    { "name": "fabric", "files": ["settings.json", "fabric.json"] },
+    { "name": "tmux", "files": ["settings.json"] }
+  ],
+  "launcher": {
+    "snapshot": "bin/pi-profile",
+    "target": ".local/bin/pi-profile"
+  }
 }

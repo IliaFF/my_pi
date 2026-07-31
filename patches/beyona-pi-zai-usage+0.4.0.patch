@@ -39,21 +39,69 @@
      const models = codexAuthCandidateModels(ctx);
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -143,12 +143,12 @@
- /** Render OpenAI Codex usage data using the same 5h/week shape as Z.ai. */
+@@ -89,26 +89,20 @@
+     }
+     return result;
+ }
++function renderQuotaWindow(label, quota, theme) {
++    const pct = Math.round(quota.percentage * 10) / 10;
++    const base = `${theme.fg("muted", label)} ${colorForPercentage(pct, theme)(`${pct}%`)}`;
++    const reset = quota.timeRemaining;
++    return reset && reset !== "0" ? `${base} ${theme.fg("dim", `(${reset})`)}` : base;
++}
+ /** Render Z.ai usage data into a themed string showing 5h, weekly, and monthly quotas */
+ export function renderZaiStatus(data, theme) {
+-    const parts = [];
+-    // 5-hour quota
+-    {
+-        const pct = Math.round(data.fiveHour.percentage * 10) / 10;
+-        const reset = data.fiveHour.timeRemaining ?? "";
+-        parts.push(`${theme.fg("muted", "5h")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
+-    }
+-    // Weekly quota
+-    {
+-        const pct = Math.round(data.weekly.percentage * 10) / 10;
+-        const reset = data.weekly.timeRemaining ?? "";
+-        parts.push(`${theme.fg("muted", "W")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
+-    }
+-    // Monthly quota
++    const parts = [
++        renderQuotaWindow("5h", data.fiveHour, theme),
++        renderQuotaWindow("W", data.weekly, theme),
++    ];
+     if (data.monthly) {
+-        const pct = Math.round(data.monthly.percentage * 10) / 10;
+-        const reset = data.monthly.timeRemaining ?? "";
+-        parts.push(`${theme.fg("muted", "M")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
++        parts.push(renderQuotaWindow("M", data.monthly, theme));
+     }
+     return `${theme.fg("muted", "Z.ai:")} ${parts.join(` ${theme.fg("dim", "·")} `)}`;
+ }
+@@ -140,18 +134,14 @@
+         : currencies.map((currency) => theme.fg("error", formatMoney(0, currency)));
+     return `${theme.fg("muted", "DeepSeek:")} ${renderedBalances.join(" ")}`;
+ }
+-/** Render OpenAI Codex usage data using the same 5h/week shape as Z.ai. */
++/** Render OpenAI Codex usage data using whichever quota windows the API provides. */
  export function renderCodexStatus(data, theme) {
      const parts = [];
 -    {
-+    if (data.fiveHour) {
-         const pct = Math.round(data.fiveHour.percentage * 10) / 10;
-         const reset = data.fiveHour.timeRemaining ?? "";
-         parts.push(`${theme.fg("muted", "5h")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
-     }
+-        const pct = Math.round(data.fiveHour.percentage * 10) / 10;
+-        const reset = data.fiveHour.timeRemaining ?? "";
+-        parts.push(`${theme.fg("muted", "5h")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
+-    }
 -    {
+-        const pct = Math.round(data.weekly.percentage * 10) / 10;
+-        const reset = data.weekly.timeRemaining ?? "";
+-        parts.push(`${theme.fg("muted", "W")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
++    if (data.fiveHour) {
++        parts.push(renderQuotaWindow("5h", data.fiveHour, theme));
++    }
 +    if (data.weekly) {
-         const pct = Math.round(data.weekly.percentage * 10) / 10;
-         const reset = data.weekly.timeRemaining ?? "";
-         parts.push(`${theme.fg("muted", "W")} ${colorForPercentage(pct, theme)(`${pct}%`)} ${theme.fg("dim", `(${reset})`)}`);
++        parts.push(renderQuotaWindow("W", data.weekly, theme));
+     }
+     return `${theme.fg("muted", "Codex:")} ${parts.join(` ${theme.fg("dim", "·")} `)}`;
+ }
 --- a/dist/codex-api.d.ts
 +++ b/dist/codex-api.d.ts
 @@ -4,8 +4,8 @@

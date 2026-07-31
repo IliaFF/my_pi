@@ -21,6 +21,8 @@ import urllib.request
 BASE = Path(__file__).resolve().parent.parent
 MANIFEST_PATH = BASE / "manifest.json"
 AGENT_DIR = Path(os.environ.get("PI_CODING_AGENT_DIR", Path.home() / ".pi" / "agent")).expanduser()
+PROFILE_ROOT = Path.home() / ".pi" / "profiles"
+LOCAL_BIN = Path.home() / ".local" / "bin"
 NPM_ROOT = AGENT_DIR / "npm" / "node_modules"
 
 
@@ -137,7 +139,8 @@ def capture() -> int:
 
 def snapshot() -> int:
     failures = 0
-    for item in load_manifest()["managedConfigs"]:
+    manifest = load_manifest()
+    for item in manifest["managedConfigs"]:
         source = AGENT_DIR / item["source"]
         target = BASE / item["snapshot"]
         if not source.is_file():
@@ -147,6 +150,17 @@ def snapshot() -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
         print(f"SNAPSHOT {source} -> {target.relative_to(BASE)}")
+    for profile in manifest.get("profiles", []):
+        for name in profile["files"]:
+            source = PROFILE_ROOT / profile["name"] / name
+            target = BASE / "profiles" / profile["name"] / name
+            if not source.is_file():
+                print(f"FAIL missing profile config: {source}")
+                failures += 1
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+            print(f"SNAPSHOT {source} -> {target.relative_to(BASE)}")
     return 1 if failures else 0
 
 
@@ -269,7 +283,8 @@ def restore_backup(path_string: str | None) -> int:
 
 def restore_configs() -> int:
     failures = 0
-    for item in load_manifest()["managedConfigs"]:
+    manifest = load_manifest()
+    for item in manifest["managedConfigs"]:
         if not item.get("restore"):
             continue
         source = BASE / item["snapshot"]
@@ -283,6 +298,24 @@ def restore_configs() -> int:
             print(f"UNCHANGED {target}")
             continue
         shutil.copy2(source, target)
+        print(f"RESTORED {target}")
+    for profile in manifest.get("profiles", []):
+        for name in profile["files"]:
+            source = BASE / "profiles" / profile["name"] / name
+            target = PROFILE_ROOT / profile["name"] / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.is_file() and sha256(source) == sha256(target):
+                print(f"UNCHANGED {target}")
+            else:
+                shutil.copy2(source, target)
+                print(f"RESTORED {target}")
+    launcher = manifest.get("launcher", {})
+    if launcher:
+        source = BASE / launcher["snapshot"]
+        target = LOCAL_BIN / "pi-profile"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        target.chmod(0o755)
         print(f"RESTORED {target}")
     return 1 if failures else 0
 
@@ -304,7 +337,7 @@ def verify() -> int:
         pinned = not pin_required or item.get("settingsSpec") in specs
         label = f"{item['package']}@{item['version']}"
         if state == "applied" and pinned:
-            pin_note = "package pinned" if pin_required else "core version matched"
+            pin_note = "package pinned" if pin_required else "exact package-lock version matched"
             print(f"PASS {label}: patch applied, {pin_note}")
         else:
             print(f"FAIL {label}: patch={state}, pinned={pinned}")
@@ -320,6 +353,24 @@ def verify() -> int:
             failures += 1
         else:
             print(f"WARN audit snapshot drift: {item['source']} (run snapshot after review)")
+            warnings += 1
+    for profile in manifest.get("profiles", []):
+        for name in profile["files"]:
+            live = PROFILE_ROOT / profile["name"] / name
+            saved = BASE / "profiles" / profile["name"] / name
+            if live.is_file() and saved.is_file() and sha256(live) == sha256(saved):
+                print(f"PASS profile {profile['name']}/{name}")
+            else:
+                print(f"FAIL profile drift: {profile['name']}/{name}")
+                failures += 1
+    launcher = manifest.get("launcher", {})
+    if launcher:
+        live = LOCAL_BIN / "pi-profile"
+        saved = BASE / launcher["snapshot"]
+        if live.is_file() and saved.is_file() and sha256(live) == sha256(saved):
+            print("PASS launcher pi-profile")
+        else:
+            print("WARN launcher drift: pi-profile (portable repo version differs from host snapshot)")
             warnings += 1
     print(f"SUMMARY failures={failures} warnings={warnings}")
     return 1 if failures else 0
