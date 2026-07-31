@@ -58,17 +58,7 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
-    settings_files = [ROOT / "configs/settings.json"]
-    for profile in manifest.get("profiles", []):
-        for name in profile["files"]:
-            snapshot = ROOT / "profiles" / profile["name"] / name
-            if not snapshot.is_file():
-                fail(f"missing profile snapshot: {profile['name']}/{name}")
-            if snapshot.suffix == ".json":
-                json.loads(snapshot.read_text())
-            if name == "settings.json":
-                settings_files.append(snapshot)
-    for settings_file in settings_files:
+    for settings_file in [ROOT / "configs/settings.json"]:
         settings = json.loads(settings_file.read_text())
         for spec in settings.get("packages", []):
             source = spec if isinstance(spec, str) else spec.get("source", "")
@@ -78,10 +68,6 @@ def main() -> int:
             package = raw.rsplit("@", 1)[0] if (raw.startswith("@") and raw.count("@") > 1) or (not raw.startswith("@") and "@" in raw) else raw
             if package not in package_json["dependencies"]:
                 fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
-    launcher = ROOT / manifest["launcher"]["snapshot"]
-    if not launcher.is_file() or not (launcher.stat().st_mode & 0o111):
-        fail("pi-profile launcher missing or not executable")
-
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):
@@ -125,7 +111,7 @@ def main() -> int:
             print(f"PASS patch {item['package']}@{item['version']}")
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print(f"PASS portable profiles: {len(manifest.get('profiles', []))}")
+    print("PASS single default configuration")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 

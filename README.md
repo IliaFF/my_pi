@@ -6,10 +6,8 @@
 
 - Pi core `@earendil-works/pi-coding-agent@0.83.0`
 - Node.js `>=22.19.0` (рабочий хост: Node.js 24)
-- 21 прямое расширение с точными версиями и полный `package-lock.json`
-- default-профиль с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
-- дополнительные профили: `research`, `typed`, `fabric`, `tmux`
-- launcher `pi-profile`
+- 14 прямых расширений с точными версиями и полный `package-lock.json`
+- единая default-конфигурация с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
 - recovery-aware compaction `recovery-v2-10k`
 - основной summarizer `openai-codex/gpt-5.6-luna`
 - deterministic validation, один corrective retry, current-model fallback и Pi built-in fallback
@@ -30,7 +28,7 @@
 - project-specific конфиги
 - абсолютные host-specific пути
 
-Авторизацию провайдера нужно создать отдельно. Профили ссылаются на общий `auth.json`, но сам файл не публикуется.
+Авторизацию провайдера нужно создать отдельно; `auth.json` не публикуется.
 
 ## Предварительная проверка
 
@@ -60,13 +58,11 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 
 1. Проверяет Node.js, npm, Python, `patch` и `tar`.
 2. Проверяет release и exact-version patch replay.
-3. Создаёт rollback backup управляемых agent/profile/launcher файлов.
+3. Создаёт rollback backup управляемых agent-файлов.
 4. Выполняет `npm ci --ignore-scripts --legacy-peer-deps` по lock-файлу.
 5. Устанавливает default config, пять local extensions и UI configs.
-6. Создаёт четыре profile directories и безопасные symlink на общие extensions/npm/auth.
-7. Устанавливает `~/.local/bin/pi-profile`.
-8. Применяет совместимые patch и запускает verification.
-9. При ошибке восстанавливает backup.
+6. Применяет совместимые patch и запускает verification.
+7. При ошибке восстанавливает backup.
 
 Другой основной agent directory:
 
@@ -74,31 +70,11 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 ```
 
-Профили и launcher устанавливаются относительно текущего `$HOME`: `~/.pi/profiles` и `~/.local/bin`.
-
 После установки авторизуйте provider отдельно и перезапустите Pi.
-
-## Профили
-
-```bash
-pi-profile default
-pi-profile research -p "Analyze this build log"
-pi-profile typed
-pi-profile fabric -p "Run repetitive checked operations"
-pi-profile tmux
-```
-
-- `default` — lean native core, FFF, lazy web/Telegram/context recall.
-- `research` — default + Pi Context + Context Mode.
-- `typed` — ReadSeek 0.5.18 + Lens с отключённым noisy context injection/auto-fix.
-- `fabric` — один `fabric_exec`, QuickJS, без network/agents/MCP/UI.
-- `tmux` — Pi Context + Goal + Intercom + Telegram.
-
-Подробности: `configs/PROFILES.md`.
 
 ## Compaction
 
-Каждый профиль использует:
+Default-конфигурация использует:
 
 - `reserveTokens: 12500`
 - `keepRecentTokens: 24000`
@@ -127,9 +103,7 @@ python3 scripts/test-release.py
 Smoke startup:
 
 ```bash
-for profile in default research typed fabric tmux; do
-  timeout 20 pi-profile "$profile" --mode rpc --no-session </dev/null
- done
+timeout 20 pi --mode rpc --no-session </dev/null
 ```
 
 ## Безопасное обновление расширений
@@ -157,15 +131,13 @@ Update script создаёт backup npm tree, обновляет расшире�
 ./uninstall.sh
 ```
 
-Откат восстанавливает agent configs, profiles и launcher из backup перед установкой. Pi core автоматически не понижается.
+Откат восстанавливает agent configs из backup перед установкой. Pi core автоматически не понижается.
 
 ## Структура
 
 - `npm/` — exact dependency set и lock
 - `configs/` — default configs без секретов
-- `profiles/` — profile-specific settings
 - `local-extensions/` — compaction, tool routing и profiler
-- `bin/pi-profile` — portable profile launcher
 - `patches/` — exact-version diffs
 - `scripts/maintenance.py` — snapshot, backup, patch, restore и verify
 - `scripts/update-safe.sh` — контролируемое обновление

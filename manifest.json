@@ -23,7 +23,7 @@
       "files": [
         "extensions/canary.ts"
       ],
-      "reason": "Preserve current child-process guard; package remains locked but disabled in active profiles."
+      "reason": "Preserve current child-process guard; package remains locked but disabled in default settings."
     },
     {
       "package": "pi-caveman",
@@ -48,12 +48,6 @@
       "snapshot": "configs/APPEND_SYSTEM.md",
       "restore": false,
       "reason": "Portable baseline only; host-specific policies stay local and maintenance updates do not overwrite them."
-    },
-    {
-      "source": "PROFILES.md",
-      "snapshot": "configs/PROFILES.md",
-      "restore": true,
-      "reason": "Document current lean profile topology and compaction policy."
     },
     {
       "source": "extensions/quotas.json",
@@ -103,15 +97,5 @@
       "restore": true,
       "reason": "Preserve dormant Canary configuration if package is enabled later."
     }
-  ],
-  "profiles": [
-    { "name": "research", "files": ["settings.json"] },
-    { "name": "typed", "files": ["settings.json"] },
-    { "name": "fabric", "files": ["settings.json", "fabric.json"] },
-    { "name": "tmux", "files": ["settings.json"] }
-  ],
-  "launcher": {
-    "snapshot": "bin/pi-profile",
-    "target": ".local/bin/pi-profile"
-  }
+  ]
 }

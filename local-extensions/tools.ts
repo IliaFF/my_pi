@@ -109,9 +109,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	let manualSelection = false;
 	let savedToolNames: Set<string> = new Set();
 
-	function fabricOwnsToolSet() {
-		return pi.getActiveTools().includes("fabric_exec");
-	}
 	// Persist current state
 	function persistState() {
 		pi.appendEntry<ToolsState>("tools-config", {
@@ -219,7 +216,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("before_agent_start", (event) => {
-		if (fabricOwnsToolSet()) return;
 		pendingPrompt = event.prompt;
 		allTools = pi.getAllTools();
 		if (!manualSelection) {
@@ -230,7 +226,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_start", () => {
-		if (fabricOwnsToolSet()) return;
 		// Some packages register tools late; resolve saved/core names again.
 		allTools = pi.getAllTools();
 		if (manualSelection) {
