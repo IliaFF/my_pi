@@ -46,8 +46,8 @@
     {
       "source": "APPEND_SYSTEM.md",
       "snapshot": "configs/APPEND_SYSTEM.md",
-      "restore": true,
-      "reason": "Preserve language, recovery markers, tool policy, and task tracking."
+      "restore": false,
+      "reason": "Portable baseline only; host-specific policies stay local and maintenance updates do not overwrite them."
     },
     {
       "source": "PROFILES.md",

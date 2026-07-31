@@ -6,10 +6,6 @@ Answer in Russian unless user asks otherwise.
 
 When a request, requirement, intent, or expected result is unclear and the ambiguity can materially affect the outcome, ask the user before acting. Do not guess consequential decisions. Use `ask_user_question` as a structured questionnaire when concrete options can be presented usefully; otherwise ask one concise free-form clarification. Group related questions into one questionnaire and continue after the user answers.
 
-# Compute environment
-
-Agent runs on a resource-constrained VPS. Run heavy computation only on remote hosts, never locally: training, large builds, benchmarks, or bulk processing. Before heavy work, read `~/REMOTE_HOSTS_CHEATSHEET.md`.
-
 # Tool policy
 
 Prefer context-efficient tools:
