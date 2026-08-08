@@ -645,6 +645,42 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		});
 	}
 
+	pi.registerCommand("clear-context", {
+		description: "Clear all LLM conversation context while keeping the current session file and history branch.",
+		handler: async (_args, ctx) => {
+			await ctx.waitForIdle();
+			const previousLeafId = ctx.sessionManager.getLeafId();
+			const contextMessages = ctx.sessionManager.buildSessionContext().messages;
+			if (!previousLeafId || contextMessages.length === 0) {
+				ctx.ui.setEditorText("");
+				notify(ctx, "Context already empty", "info");
+				return;
+			}
+			const firstInput = ctx.sessionManager.getBranch().find((entry) =>
+				(entry.type === "message" && entry.message.role === "user") || entry.type === "custom_message",
+			);
+			if (!firstInput) {
+				notify(ctx, "Cannot clear context safely: no root user/custom input found", "error");
+				return;
+			}
+			// Ensure target is not current leaf: navigateTree intentionally no-ops when
+			// targetId equals leafId, which is common for a lone custom/user input.
+			pi.appendEntry("clear-context-pending", { requestedAt: new Date().toISOString(), previousLeafId });
+			const result = await ctx.navigateTree(firstInput.id, { summarize: false });
+			if (result.cancelled) {
+				notify(ctx, "Context clear cancelled", "warning");
+				return;
+			}
+			ctx.ui.setEditorText("");
+			pi.appendEntry("clear-context", {
+				clearedAt: new Date().toISOString(),
+				previousLeafId,
+				removedMessages: contextMessages.length,
+			});
+			notify(ctx, `Context cleared: ${contextMessages.length} messages removed; session history preserved`, "info");
+		},
+	});
+
 	registerStatusCommand("auto-ultra-compact-status");
 	registerStatusCommand("auto-ultra-compact-diagnostics");
 }

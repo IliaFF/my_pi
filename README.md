@@ -85,7 +85,7 @@ Default-конфигурация использует:
 - external exact excerpts под `~/.pi/agent/context-store/`
 - lazy `context_recall`
 
-После auto-compaction validated summary продолжает работу напрямую. Ручной `/compact` остаётся idle и не отправляет continuation prompt. Recovery packet читается только при явной потере state.
+После auto-compaction validated summary продолжает работу напрямую. Ручной `/compact` остаётся idle и не отправляет continuation prompt. `/clear-context` полностью очищает LLM-контекст без model call и новой сессии; прежняя история остаётся отдельной веткой текущего session-файла. Recovery packet читается только при явной потере state.
 
 ## Проверка установленного стека
 
