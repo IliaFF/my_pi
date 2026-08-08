@@ -505,6 +505,10 @@ function runCompact(ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: 
 	}
 }
 
+export function shouldSendContinuation(reason: "manual" | "threshold" | "overflow", extensionTriggered: boolean): boolean {
+	return extensionTriggered || reason !== "manual";
+}
+
 function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: number, cooldownTurns: number, followup: boolean): string {
 	const cooldownRemaining = Math.max(0, cooldownTurns - (runtime.turn - runtime.lastCompactTurn));
 	const summaryModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unavailable";
@@ -591,6 +595,10 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 	pi.on("session_before_compact", async (event, ctx) => {
 		try {
 			const prep = asRecord(asRecord(event)?.preparation);
+			const extensionTriggered = runtime.compactInFlight && runtime.lastTrigger === "threshold";
+			const compactionReason = event.reason;
+			const shouldFollowUp = shouldSendContinuation(compactionReason, extensionTriggered);
+			const trigger = extensionTriggered ? "threshold" : compactionReason;
 			const usage = ctx.getContextUsage?.();
 			const tokensFromPrep = typeof prep?.tokensBefore === "number" ? prep.tokensBefore : undefined;
 			const tokens = usage?.tokens ?? tokensFromPrep ?? 0;
@@ -599,11 +607,11 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 			runtime.lastTokens = tokens;
 			runtime.lastWindow = window;
 			runtime.lastPercent = percent;
-			runtime.lastTrigger = "manual_or_pi_threshold";
+			runtime.lastTrigger = trigger;
 			runtime.compactInFlight = true;
 			runtime.lastCompactTurn = runtime.turn;
-			runtime.followupPending = true;
-			writeRecoveryFiles(ctx, runtime, "manual_or_pi_threshold", percent, tokens, window, event);
+			runtime.followupPending = shouldFollowUp;
+			writeRecoveryFiles(ctx, runtime, trigger, percent, tokens, window, event);
 		} catch (error) {
 			runtime.lastError = `recovery write failed: ${error instanceof Error ? error.message : String(error)}`;
 			notify(ctx, `auto-ultra-compact recovery write failed: ${runtime.lastError}`, "warning");
@@ -611,11 +619,11 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_compact", async (event, ctx) => {
-		if (!runtime.followupPending) return;
+		const shouldFollowUp = runtime.followupPending;
 		runtime.followupPending = false;
 		runtime.compactInFlight = false;
 		runtime.lastCompletedAt = new Date().toISOString();
-		if (!followup) return;
+		if (!followup || !shouldFollowUp) return;
 		const message = recoveryFollowupMessage(event, runtime.lastRecoveryPath);
 		// Never silently drop recovery replay. In ordinary sessions, Pi can still
 		// report pending messages immediately after compaction (queued user input,

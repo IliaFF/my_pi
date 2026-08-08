@@ -79,7 +79,7 @@ def pristine_files(item: dict) -> dict[str, bytes]:
 
 
 def run_patch(root: Path, patch_file: Path, *, reverse: bool, dry_run: bool) -> subprocess.CompletedProcess[str]:
-    args = ["patch", "--batch", "--silent", "-p1", "-d", str(root)]
+    args = ["patch", "--batch", "--force", "--silent", "-p1", "-d", str(root)]
     if reverse:
         args.append("--reverse")
     if dry_run:
