@@ -41,7 +41,8 @@ type RuntimeState = {
 
 const DEFAULT_EFFECTIVE_TOKENS = 170_000;
 const DEFAULT_CONTEXT_WINDOW = 200_000;
-const DEFAULT_THRESHOLD_PERCENT = 70;
+const DEFAULT_THRESHOLD_TOKENS = 150_000;
+const DEFAULT_THRESHOLD_PERCENT = (DEFAULT_THRESHOLD_TOKENS / DEFAULT_EFFECTIVE_TOKENS) * 100;
 const DEFAULT_COOLDOWN_TURNS = 3;
 export const ULTRA_INSTRUCTIONS = `These rules override conflicting preservation guidance above.
 
@@ -366,6 +367,7 @@ function recoveryBody(ctx: ExtensionContext, reason: string, usagePercent: numbe
 	const cwd = (ctx as unknown as { cwd?: string }).cwd ?? process.cwd();
 	const now = new Date().toISOString();
 	const state = extractRecoveryState(event, ctx);
+	const summaryModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "current-pi-model";
 	return `---
 agent_id: ${yamlString(agentId(cwd))}
 project: ${yamlString(projectSlug(cwd))}
@@ -376,8 +378,8 @@ reason: ${yamlString(reason)}
 context_tokens: ${tokens}
 effective_window: ${window}
 context_usage_percent: ${usagePercent.toFixed(1)}
-summary_engine: luna-custom-with-pi-built-in-fallback
-summary_model: openai-codex/gpt-5.6-luna
+summary_engine: current-model-custom-with-pi-built-in-fallback
+summary_model: ${yamlString(summaryModel)}
 summary_contract: ${yamlString(SUMMARY_CONTRACT_ID)}
 summary_contract_source: "~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULTRA_INSTRUCTIONS"
 ---
@@ -439,7 +441,7 @@ ${mdList(state.nextSteps, "- Continue from latest unfinished user request. If am
 - Project recovery mirror: \`${projectRecoveryPath(ctx) ?? "disabled"}\`
 - Context usage: ${tokens}/${window} tokens (${usagePercent.toFixed(1)}%)
 - Trigger reason: ${reason}
-- Summary path: Luna custom compaction with deterministic validation and one corrective retry; Pi built-in current-model compaction is fallback. Contract \`${SUMMARY_CONTRACT_ID}\` comes from \`~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULTRA_INSTRUCTIONS\`.
+- Summary path: one attempt with the current selected Pi model and deterministic validation; any failure immediately uses Pi built-in compaction. Contract \`${SUMMARY_CONTRACT_ID}\` comes from \`~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULTRA_INSTRUCTIONS\`.
 
 ## Do not reread by default
 
@@ -503,8 +505,9 @@ function runCompact(ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: 
 	}
 }
 
-function statusText(runtime: RuntimeState, threshold: number, cooldownTurns: number, followup: boolean): string {
+function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: number, cooldownTurns: number, followup: boolean): string {
 	const cooldownRemaining = Math.max(0, cooldownTurns - (runtime.turn - runtime.lastCompactTurn));
+	const summaryModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unavailable";
 	return [
 		"auto-ultra-compact status",
 		`enabled: true`,
@@ -524,8 +527,8 @@ function statusText(runtime: RuntimeState, threshold: number, cooldownTurns: num
 		`lastProjectRecovery: ${runtime.lastProjectRecoveryPath ?? "disabled"}`,
 		`lastCompletedAt: ${runtime.lastCompletedAt ?? "none"}`,
 		`lastError: ${runtime.lastError ?? "none"}`,
-		`summaryEngine: luna-custom-with-pi-built-in-fallback`,
-		`summaryModel: openai-codex/gpt-5.6-luna`,
+		`summaryEngine: current-model-custom-with-pi-built-in-fallback`,
+		`summaryModel: ${summaryModel}`,
 		`summaryContract: ${SUMMARY_CONTRACT_ID}`,
 		`summaryMaxTokens: 10000`,
 		`untrustedCodeExecution: disabled`,
@@ -626,7 +629,7 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		pi.registerCommand(name, {
 			description: "Show auto-ultra-compact diagnostics and last recovery packet.",
 			handler: async (_args, ctx) => {
-				const text = statusText(runtime, threshold, cooldownTurns, followup);
+				const text = statusText(ctx, runtime, threshold, cooldownTurns, followup);
 				notify(ctx, text, runtime.lastError ? "warning" : "info");
 				const sender = (pi as unknown as { sendMessage?: (message: unknown, options?: unknown) => void }).sendMessage;
 				if (typeof sender === "function") sender({ customType: "auto-ultra-compact-status", content: text, display: true }, { deliverAs: "nextTurn" });

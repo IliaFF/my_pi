@@ -9,8 +9,8 @@
 - 14 прямых расширений с точными версиями и полный `package-lock.json`
 - единая default-конфигурация с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
 - recovery-aware compaction `recovery-v2-10k`
-- основной summarizer `openai-codex/gpt-5.6-luna`
-- deterministic validation, один corrective retry, current-model fallback и Pi built-in fallback
+- summarizer всегда использует текущую выбранную модель Pi
+- deterministic validation и немедленный Pi built-in fallback после первой неудачной попытки
 - checksum-verified external excerpts и lazy `context_recall`
 - bounded recovery packet как emergency fallback, а не обязательный повтор summary
 - precise tool restoration: compacted history восстанавливает только `context_recall` по `ctxref://`
@@ -79,10 +79,9 @@ Default-конфигурация использует:
 - `reserveTokens: 12500`
 - `keepRecentTokens: 24000`
 - hard summary output cap 10k
-- Luna custom compaction
+- custom compaction на текущей выбранной модели Pi
 - deterministic validator
-- один corrective retry
-- current-model fallback
+- одна custom-попытка, затем немедленный Pi built-in fallback
 - external exact excerpts под `~/.pi/agent/context-store/`
 - lazy `context_recall`
 

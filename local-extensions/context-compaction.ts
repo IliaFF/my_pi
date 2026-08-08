@@ -33,8 +33,6 @@ type StoreManifest = {
 	items: StoredItem[];
 };
 
-const PROVIDER = "openai-codex";
-const MODEL_ID = process.env.PI_CONTEXT_COMPACTION_MODEL?.trim() || "gpt-5.6-luna";
 const SUMMARY_MAX_TOKENS = 9_000;
 const MAX_ARCHIVE_ITEMS = 8;
 const MAX_SOURCE_IDS_PER_ITEM = 8;
@@ -166,26 +164,6 @@ export function validateSummary(summary: string, preparation: RecordValue, entri
 	return [...new Set(errors)];
 }
 
-export function combineUsage(first: Usage | undefined, second: Usage | undefined): Usage | undefined {
-	if (!first) return second;
-	if (!second) return first;
-	return {
-		input: first.input + second.input,
-		output: first.output + second.output,
-		cacheRead: first.cacheRead + second.cacheRead,
-		cacheWrite: first.cacheWrite + second.cacheWrite,
-		reasoning: (first.reasoning ?? 0) + (second.reasoning ?? 0),
-		totalTokens: first.totalTokens + second.totalTokens,
-		cost: {
-			input: first.cost.input + second.cost.input,
-			output: first.cost.output + second.cost.output,
-			cacheRead: first.cost.cacheRead + second.cost.cacheRead,
-			cacheWrite: first.cost.cacheWrite + second.cost.cacheWrite,
-			total: first.cost.total + second.cost.total,
-		},
-	};
-}
-
 function slug(value: string, fallback: string): string {
 	return value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || fallback;
 }
@@ -299,26 +277,17 @@ export function recall(pointer: string, query: string | undefined, maxBytes: num
 	return result.length <= cap ? result : `${result.slice(0, cap)}\n[truncated: ${result.length - cap} chars]`;
 }
 
-export async function summarizeWithRetry(
+export async function summarizeOnce(
 	call: (prompt: string) => Promise<CompletionResult>,
 	prompt: string,
 	preparation: RecordValue,
 	entries: RecordValue[],
 ): Promise<{ parsed: ParsedResponse; usage?: Usage; validation: string[] } | undefined> {
-	const first = await call(prompt);
-	if (first.stopReason === "error") return undefined;
-	let parsed = parseResponse(responseText(first));
-	let validation = validateSummary(parsed.summary, preparation, entries);
-	let usage = first.usage;
-	if (validation.length) {
-		const correction = `${prompt}\n\nYour previous candidate violated the contract:\n${validation.map((item) => `- ${item}`).join("\n")}\n\nPrevious candidate:\n${responseText(first)}\n\nReturn a corrected response only.`;
-		const second = await call(correction);
-		usage = combineUsage(usage, second.usage);
-		if (second.stopReason === "error") return undefined;
-		parsed = parseResponse(responseText(second));
-		validation = validateSummary(parsed.summary, preparation, entries);
-	}
-	return { parsed, usage, validation };
+	const response = await call(prompt);
+	if (response.stopReason === "error") return undefined;
+	const parsed = parseResponse(responseText(response));
+	const validation = validateSummary(parsed.summary, preparation, entries);
+	return { parsed, usage: response.usage, validation };
 }
 
 async function summarizeWithModel(event: RecordValue, ctx: ExtensionContext, model: NonNullable<ExtensionContext["model"]>): Promise<{ parsed: ParsedResponse; usage?: Usage; validation: string[] } | undefined> {
@@ -332,7 +301,7 @@ async function summarizeWithModel(event: RecordValue, ctx: ExtensionContext, mod
 	const prompt = `<source-entries>\n${serializeEntries(entries)}\n</source-entries>\n\n${previousSummary ? `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n` : ""}${OUTPUT_PROTOCOL}\n\nCompaction contract:\n${ULTRA_INSTRUCTIONS}`;
 	const signal = event.signal instanceof AbortSignal ? event.signal : undefined;
 	const call = async (text: string): Promise<CompletionResult> => complete(model, { systemPrompt: SYSTEM_PROMPT, messages: [{ role: "user", content: [{ type: "text", text }], timestamp: Date.now() }] }, { apiKey: auth.apiKey, headers: auth.headers, env: auth.env, maxTokens: SUMMARY_MAX_TOKENS, reasoning: "low", cacheRetention: "none", sessionId: uuidv7(), signal });
-	return summarizeWithRetry(call, prompt, preparation, entries);
+	return summarizeOnce(call, prompt, preparation, entries);
 }
 
 export default function contextCompaction(pi: ExtensionAPI): void {
@@ -368,18 +337,13 @@ export default function contextCompaction(pi: ExtensionAPI): void {
 					return undefined;
 				}
 			};
-			const luna = ctx.modelRegistry.find(PROVIDER, MODEL_ID);
-			const primary = luna ? await attempt(luna, "Luna") : undefined;
-			let result = primary;
-			let summarizer = luna ? `${luna.provider}/${luna.id}` : `${PROVIDER}/${MODEL_ID}`;
-			let usedCurrentModelFallback = false;
 			const current = ctx.model;
-			if ((!result || result.validation.length) && current && (!luna || current.provider !== luna.provider || current.id !== luna.id)) {
-				const fallback = await attempt(current, "Current-model fallback");
-				if (fallback) result = { ...fallback, usage: combineUsage(primary?.usage, fallback.usage) };
-				summarizer = `${current.provider}/${current.id}`;
-				usedCurrentModelFallback = true;
+			if (!current) {
+				if (ctx.hasUI) ctx.ui.notify("No current model available; using Pi built-in compaction", "warning");
+				return;
 			}
+			const result = await attempt(current, "Current-model");
+			const summarizer = `${current.provider}/${current.id}`;
 			if (!result || result.validation.length) {
 				if (ctx.hasUI) ctx.ui.notify(`Compaction summary rejected; Pi built-in fallback${result?.validation.length ? `: ${result.validation.join("; ")}` : ""}`, "warning");
 				return;
@@ -395,7 +359,7 @@ export default function contextCompaction(pi: ExtensionAPI): void {
 					firstKeptEntryId: preparation.firstKeptEntryId,
 					tokensBefore: preparation.tokensBefore,
 					usage: result.usage,
-					details: { contract: SUMMARY_CONTRACT_ID, summarizer, currentModelFallback: usedCurrentModelFallback, validator: "passed", pointers: stored.pointers, manifest: stored.manifest ? join(STORE_ROOT, stored.manifest.sessionId, stored.manifest.compactionId, "manifest.json") : undefined },
+					details: { contract: SUMMARY_CONTRACT_ID, summarizer, modelSource: "current", validator: "passed", pointers: stored.pointers, manifest: stored.manifest ? join(STORE_ROOT, stored.manifest.sessionId, stored.manifest.compactionId, "manifest.json") : undefined },
 				},
 			};
 		} catch (error) {

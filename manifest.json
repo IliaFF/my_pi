@@ -71,7 +71,7 @@
       "source": "extensions/context-compaction.ts",
       "snapshot": "local-extensions/context-compaction.ts",
       "restore": true,
-      "reason": "Luna summarizer, validation/retry/fallback, external excerpt store, and context_recall."
+      "reason": "Single-attempt current-model summarizer, validation, immediate fallback, external excerpt store, and context_recall."
     },
     {
       "source": "extensions/lean-tools.ts",
