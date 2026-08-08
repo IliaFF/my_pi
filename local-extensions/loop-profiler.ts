@@ -9,6 +9,8 @@ const OBSERVABILITY_DIR = join(AGENT_ROOT, "observability");
 const RUNS_PATH = process.env.PI_LOOP_RUNS_OUT || join(OBSERVABILITY_DIR, "loop-runs.jsonl");
 const MAX_RUNS_BYTES = 5 * 1024 * 1024;
 const MAX_RUNS = 500;
+const BATCHING_POLICY = "fabric-batching-v1";
+const PILOT_RUNS = 10;
 
 type Counter = Record<string, number>;
 type LoopRun = {
@@ -38,6 +40,19 @@ type LoopRun = {
   toolErrors: number;
   toolOutputChars: number;
   toolDurationMs: number;
+  batchingPolicy?: string;
+  fabricPrograms?: number;
+  nestedOperations?: number;
+  directToolCalls?: number;
+  outerToolCalls?: number;
+  outerSingleToolBatches?: number;
+  outerParallelToolBatches?: number;
+  outerToolErrors?: number;
+  nestedToolErrors?: number;
+  outerToolDurationMs?: number;
+  nestedToolDurationMs?: number;
+  outerTools?: Counter;
+  nestedTools?: Counter;
   providerResponseMs: number;
   validationRounds: number;
   payloadBytes: number;
@@ -50,10 +65,15 @@ type LoopRun = {
   providerStatuses: Counter;
 };
 
+type ToolBoundary = "fabric" | "nested" | "direct";
+type ToolExecution = { startedNs: bigint; boundary: ToolBoundary };
+
 type MutableRun = LoopRun & {
   startedNs: bigint;
-  toolStartedNs: Map<string, bigint>;
+  toolStartedNs: Map<string, ToolExecution>;
+  activeFabricCalls: Set<string>;
   turnTools: string[];
+  outerTurnTools: string[];
   previousTool?: string;
   requestStartedNs?: bigint;
   turnHasValidation: boolean;
@@ -154,17 +174,56 @@ function topCounter(counter: Counter, limit = 5): string {
     .join(", ") || "none";
 }
 
-export function formatLoopReport(runs: LoopRun[], mode: "last" | "baseline" = "last"): string {
+function cohortSummary(label: string, runs: LoopRun[]): string {
+  if (runs.length === 0) return `${label} 0: no eligible runs`;
+  const modelCalls = runs.map((run) => run.modelCalls);
+  const durations = runs.map((run) => run.durationMs);
+  return `${label} ${runs.length}: model p50 ${percentile(modelCalls, 0.5)}, mean ${(modelCalls.reduce((a, b) => a + b, 0) / runs.length).toFixed(2)} · duration p50 ${formatDuration(percentile(durations, 0.5))}, mean ${formatDuration(durations.reduce((a, b) => a + b, 0) / runs.length)}`;
+}
+
+function formatBatchingReport(runs: LoopRun[]): string {
+  const eligible = runs.filter((run) => run.modelCalls > 0 && run.contextChars >= 1_000);
+  const baseline = eligible.filter((run) => !run.batchingPolicy).slice(-PILOT_RUNS);
+  const policy = eligible.filter((run) => run.batchingPolicy === BATCHING_POLICY).slice(-PILOT_RUNS);
+  const fabric = policy.reduce((total, run) => total + (run.fabricPrograms ?? 0), 0);
+  const nested = policy.reduce((total, run) => total + (run.nestedOperations ?? 0), 0);
+  const direct = policy.reduce((total, run) => total + (run.directToolCalls ?? 0), 0);
+  const lines = [
+    `Batching pilot · ${BATCHING_POLICY} · post-policy ${policy.length}/${PILOT_RUNS} real runs`,
+    cohortSummary("baseline", baseline),
+    cohortSummary("policy", policy),
+    `policy boundaries: fabric ${fabric} · nested ${nested} (${fabric > 0 ? (nested / fabric).toFixed(2) : "0.00"}/fabric) · direct ${direct}`,
+  ];
+  if (policy.length < PILOT_RUNS) lines.push(`collecting: ${PILOT_RUNS - policy.length} more non-synthetic runs required before conclusion`);
+  else if (baseline.length > 0) {
+    const beforeCalls = baseline.reduce((sum, run) => sum + run.modelCalls, 0) / baseline.length;
+    const afterCalls = policy.reduce((sum, run) => sum + run.modelCalls, 0) / policy.length;
+    const beforeDuration = baseline.reduce((sum, run) => sum + run.durationMs, 0) / baseline.length;
+    const afterDuration = policy.reduce((sum, run) => sum + run.durationMs, 0) / policy.length;
+    lines.push(`before/after (task mix not randomized): model ${((afterCalls / beforeCalls - 1) * 100).toFixed(1)}% · duration ${((afterDuration / beforeDuration - 1) * 100).toFixed(1)}%`);
+  }
+  return lines.join("\n");
+}
+
+export function formatLoopReport(runs: LoopRun[], mode: "last" | "baseline" | "batching" = "last"): string {
+  if (mode === "batching") return formatBatchingReport(runs);
   if (runs.length === 0) return `No loop baseline records yet. Recorder: ${RUNS_PATH}`;
   if (mode === "last") {
     const run = runs[runs.length - 1]!;
+    const fabric = run.fabricPrograms ?? 0;
+    const nested = run.nestedOperations ?? 0;
+    const batching = run.batchingPolicy
+      ? `batching ${run.batchingPolicy} · fabric ${fabric} · nested ${nested} (${fabric > 0 ? (nested / fabric).toFixed(2) : "0.00"}/fabric) · direct ${run.directToolCalls ?? 0}`
+      : "batching legacy record: outer/nested unavailable";
     return [
       `Loop last · ${run.project} · ${formatDuration(run.durationMs)} · model ${run.modelCalls} · turns ${run.turns} · tools ${run.toolCalls}`,
       `TTFT ${formatDuration(run.ttftMs)} · provider headers ${formatDuration(run.providerResponseMs)} · validation rounds ${run.validationRounds ?? 0}`,
-      `batches single ${run.singleToolBatches}, parallel ${run.parallelToolBatches} · errors ${run.toolErrors}`,
+      batching,
+      `outer ${run.outerToolCalls ?? 0} · batches single ${run.outerSingleToolBatches ?? 0}, parallel ${run.outerParallelToolBatches ?? 0}`,
+      `durations outer ${formatDuration(run.outerToolDurationMs)}, nested ${formatDuration(run.nestedToolDurationMs)} · errors outer ${run.outerToolErrors ?? 0}, nested ${run.nestedToolErrors ?? 0}`,
       `context ${run.contextMessages} msg/${run.contextChars} ch · tool output ${run.toolOutputChars} ch · payload ${run.payloadBytes} B`,
       `tokens in ${run.inputTokens} + cache ${run.cacheReadTokens} (${(cacheShare(run) * 100).toFixed(1)}%) · out ${run.outputTokens}`,
-      `tools ${topCounter(run.tools)} · transitions ${topCounter(run.transitions)}`,
+      `outer tools ${topCounter(run.outerTools ?? {})} · nested ${topCounter(run.nestedTools ?? {})}`,
     ].join("\n");
   }
   const modelCalls = runs.map((run) => run.modelCalls);
@@ -220,7 +279,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     const {
       startedNs,
       toolStartedNs: _toolStartedNs,
+      activeFabricCalls: _activeFabricCalls,
       turnTools: _turnTools,
+      outerTurnTools: _outerTurnTools,
       previousTool: _previousTool,
       requestStartedNs: _requestStartedNs,
       turnHasValidation: _turnHasValidation,
@@ -228,6 +289,8 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     } = current;
     run.durationMs = round(elapsedMs(startedNs));
     run.toolDurationMs = round(run.toolDurationMs);
+    run.outerToolDurationMs = round(run.outerToolDurationMs ?? 0);
+    run.nestedToolDurationMs = round(run.nestedToolDurationMs ?? 0);
     run.providerResponseMs = round(run.providerResponseMs);
     if (recordRuns) appendRun(run);
     current = undefined;
@@ -236,15 +299,16 @@ export default function loopProfiler(pi: ExtensionAPI): void {
   rawMark("profiler_loaded", { pid: process.pid, output: rawOutput, runs: RUNS_PATH, recordRuns });
 
   pi.registerCommand("loop-report", {
-    description: "Show last or baseline agent-loop metrics: /loop-report [last|baseline]",
+    description: "Show agent-loop metrics: /loop-report [last|baseline|batching]",
     handler: async (args, ctx) => {
       const requested = args.trim().toLowerCase();
-      if (requested && requested !== "last" && requested !== "baseline") {
-        ctx.ui.notify("Usage: /loop-report last|baseline", "warning");
+      if (requested && requested !== "last" && requested !== "baseline" && requested !== "batching") {
+        ctx.ui.notify("Usage: /loop-report last|baseline|batching", "warning");
         return;
       }
       const projectHash = createHash("sha256").update(ctx.cwd).digest("hex").slice(0, 12);
-      ctx.ui.notify(formatLoopReport(readRuns(projectHash), requested === "baseline" ? "baseline" : "last"), "info");
+      const mode = requested === "baseline" ? "baseline" : requested === "batching" ? "batching" : "last";
+      ctx.ui.notify(formatLoopReport(readRuns(projectHash), mode), "info");
     },
   });
 
@@ -290,6 +354,19 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       toolErrors: 0,
       toolOutputChars: 0,
       toolDurationMs: 0,
+      batchingPolicy: BATCHING_POLICY,
+      fabricPrograms: 0,
+      nestedOperations: 0,
+      directToolCalls: 0,
+      outerToolCalls: 0,
+      outerSingleToolBatches: 0,
+      outerParallelToolBatches: 0,
+      outerToolErrors: 0,
+      nestedToolErrors: 0,
+      outerToolDurationMs: 0,
+      nestedToolDurationMs: 0,
+      outerTools: {},
+      nestedTools: {},
       providerResponseMs: 0,
       validationRounds: 0,
       payloadBytes: 0,
@@ -302,7 +379,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       providerStatuses: {},
       startedNs,
       toolStartedNs: new Map(),
+      activeFabricCalls: new Set(),
       turnTools: [],
+      outerTurnTools: [],
       turnHasValidation: false,
     };
     rawMark("before_agent_start", {
@@ -320,6 +399,7 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     rawTurn = event.turnIndex;
     if (current) {
       current.turnTools = [];
+      current.outerTurnTools = [];
       current.turnHasValidation = false;
     }
     rawMark("turn_start");
@@ -373,27 +453,55 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     }
   });
   pi.on("tool_execution_start", (event) => {
+    let boundary: ToolBoundary | undefined;
     if (current) {
+      const nested = event.toolName !== "fabric_exec" && current.activeFabricCalls.size > 0;
+      boundary = nested ? "nested" : event.toolName === "fabric_exec" ? "fabric" : "direct";
       current.toolCalls += 1;
       current.turnTools.push(event.toolName);
-      current.toolStartedNs.set(event.toolCallId, process.hrtime.bigint());
+      current.toolStartedNs.set(event.toolCallId, { startedNs: process.hrtime.bigint(), boundary });
       increment(current.tools, event.toolName);
       if (current.previousTool) increment(current.transitions, `${current.previousTool}->${event.toolName}`);
       current.previousTool = event.toolName;
+      if (boundary === "nested") {
+        current.nestedOperations = (current.nestedOperations ?? 0) + 1;
+        increment(current.nestedTools ?? (current.nestedTools = {}), event.toolName);
+      } else {
+        current.outerToolCalls = (current.outerToolCalls ?? 0) + 1;
+        current.outerTurnTools.push(event.toolName);
+        increment(current.outerTools ?? (current.outerTools = {}), event.toolName);
+        if (boundary === "fabric") {
+          current.fabricPrograms = (current.fabricPrograms ?? 0) + 1;
+          current.activeFabricCalls.add(event.toolCallId);
+        } else current.directToolCalls = (current.directToolCalls ?? 0) + 1;
+      }
       if (isValidationTool(event.toolName, event.args)) current.turnHasValidation = true;
     }
-    rawMark("tool_start", { id: event.toolCallId, tool: event.toolName });
+    rawMark("tool_start", { id: event.toolCallId, tool: event.toolName, boundary });
   });
   pi.on("tool_call", (event) => rawMark("tool_preflight", { id: event.toolCallId, tool: event.toolName }));
   pi.on("tool_execution_end", (event) => {
+    let boundary: ToolBoundary | undefined;
     if (current) {
       current.toolOutputChars += contentChars(event.result?.content);
       if (event.isError) current.toolErrors += 1;
-      const started = current.toolStartedNs.get(event.toolCallId);
-      if (started) current.toolDurationMs += elapsedMs(started);
+      const execution = current.toolStartedNs.get(event.toolCallId);
+      boundary = execution?.boundary;
+      if (execution) {
+        const duration = elapsedMs(execution.startedNs);
+        current.toolDurationMs += duration;
+        if (execution.boundary === "nested") {
+          current.nestedToolDurationMs = (current.nestedToolDurationMs ?? 0) + duration;
+          if (event.isError) current.nestedToolErrors = (current.nestedToolErrors ?? 0) + 1;
+        } else {
+          current.outerToolDurationMs = (current.outerToolDurationMs ?? 0) + duration;
+          if (event.isError) current.outerToolErrors = (current.outerToolErrors ?? 0) + 1;
+        }
+        if (execution.boundary === "fabric") current.activeFabricCalls.delete(event.toolCallId);
+      }
       current.toolStartedNs.delete(event.toolCallId);
     }
-    rawMark("tool_end", { id: event.toolCallId, tool: event.toolName, error: event.isError });
+    rawMark("tool_end", { id: event.toolCallId, tool: event.toolName, boundary, error: event.isError });
   });
   pi.on("message_end", (event) => {
     if (event.message.role !== "assistant") return;
@@ -419,6 +527,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       const count = current.turnTools.length || event.toolResults.length;
       if (count === 1) current.singleToolBatches += 1;
       if (count > 1) current.parallelToolBatches += 1;
+      const outerCount = current.outerTurnTools.length;
+      if (outerCount === 1) current.outerSingleToolBatches = (current.outerSingleToolBatches ?? 0) + 1;
+      if (outerCount > 1) current.outerParallelToolBatches = (current.outerParallelToolBatches ?? 0) + 1;
       if (current.turnHasValidation) current.validationRounds += 1;
     }
     rawMark("turn_end", { tools: event.toolResults.length });

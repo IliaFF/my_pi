@@ -52,3 +52,17 @@ For every project task, maintain a `TODO.md` file at the project root as the aut
 - Never mark work completed while implementation is partial, validation fails, or required work remains.
 - Whenever you create `TODO.md` or change any entry/status in it, explicitly report that change in chat with a short `TODO.md:` status line.
 - After compaction, resume, or context handoff, re-read `TODO.md` and reconcile it with current files and external state before continuing.
+
+
+# Fabric batching
+
+For project work, use `fabric_exec` as default boundary for related core operations. One model round should represent one new semantic decision, not one filesystem or shell action.
+
+- Discovery: combine independent bounded `grep`/`find`/`read` calls in one Fabric program; keep dependent reads sequential inside it.
+- Mutation: after exact anchors are known, coalesce edits from one source snapshot, then run targeted syntax/tests in same Fabric program when deterministic.
+- Validation: batch independent checks; keep install → verify and test → publish ordered and stop on failure.
+- Finalization: combine mechanical diff, registration/config checks, commit/push verification, and TODO status updates when prerequisites are already proven.
+- Return compact decisions and failure evidence, not raw logs or unused intermediate outputs. Keep each program bounded by current QuickJS timeout/memory limits.
+- Avoid separate direct `read`, `edit`, `write`, or `bash` calls when they can join an existing Fabric program. Direct calls remain allowed for one isolated small action, Fabric failure recovery, clarification/security boundaries, or when model reasoning must inspect a result before choosing the next action.
+
+Do not hide failures or perform ambiguous, security-sensitive, or irreversible choices inside automatic batching.

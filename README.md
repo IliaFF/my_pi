@@ -16,7 +16,7 @@
 - precise tool restoration: compacted history восстанавливает только `context_recall` по `ctxref://`
 - Contextimate для оценки статического context footprint
 - Cachemire для cache/turn cost diagnostics
-- persistent агрегированный agent-loop baseline и `/loop-report`
+- persistent агрегированный agent-loop baseline, outer/nested Fabric telemetry и `/loop-report batching`
 
 Репозиторий содержит три version-gated patch для `@beyona/pi-zai-usage@0.4.0`, `pi-canary@1.4.0` и `pi-caveman@1.0.7`.
 
@@ -48,7 +48,7 @@
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
 | `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, deterministic validation, Pi fallback, external excerpts и `context_recall`. |
-| `loop-profiler.ts` | активен | Хранит только bounded агрегаты последних 500 runs; `/loop-report`; raw trace только при `PI_PROFILE=1`. |
+| `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; различает outer Fabric/direct calls и nested operations; `/loop-report batching`; raw trace только при `PI_PROFILE=1`. |
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
 | `tools.ts` | активен | Держит `fabric_exec` core-active, сохраняет tool selection и точное восстановление `context_recall` после compaction. |
 | `lean-tools.ts` | активен | Убирает дублирующие/noisy `ffgrep`, `readSeek_search`, `readSeek_rename`, `readSeek_hover`; `fffind`, `readSeek_grep`, `readSeek_refs`, `readSeek_def` остаются доступны. |
@@ -161,9 +161,12 @@ Default-конфигурация включает `pi-contextimate`, `pi-cachemi
 ```text
 /loop-report last
 /loop-report baseline
+/loop-report batching
 ```
 
-Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, single/parallel batches, validation rounds, tool-output size, cache usage и частые tool transitions. Новое поле `sessionHash` позволяет Decision Observer связать marker с этим агрегатом без хранения session id.
+Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, validation rounds, tool-output size и cache usage. `last` отдельно считает outer `fabric_exec`, direct model-facing calls и nested operations, их durations/errors и operations per Fabric program; legacy records остаются читаемыми. `batching` ведёт before/after pilot: последние 10 legacy и первые 10 policy-labelled non-synthetic runs (`contextChars >= 1000`), показывая progress и помечая сравнение как нерандомизированное. Новое поле `sessionHash` позволяет Decision Observer связать marker с агрегатом без хранения session id.
+
+`configs/APPEND_SYSTEM.md` задаёт soft policy: связанные discovery/edit/test/finalization operations группируются в bounded `fabric_exec`, один model round соответствует новому семантическому решению. Direct tools не блокируются: они остаются fallback для isolated action, Fabric failure, clarification/security boundary или результата, который модель должна осмыслить до следующего шага.
 
 ## Decision observability
 

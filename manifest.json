@@ -89,7 +89,7 @@
       "source": "extensions/loop-profiler.ts",
       "snapshot": "local-extensions/loop-profiler.ts",
       "restore": true,
-      "reason": "Persistent bounded aggregate loop baseline and /loop-report; raw trace remains opt-in."
+      "reason": "Persistent bounded loop baseline with outer/nested Fabric batching pilot and /loop-report; raw trace remains opt-in."
     },
     {
       "source": "extensions/decision-observer.ts",
