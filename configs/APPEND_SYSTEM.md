@@ -6,22 +6,6 @@ Answer in Russian unless user asks otherwise.
 
 When a request, requirement, intent, or expected result is unclear and the ambiguity can materially affect the outcome, ask the user before acting. Do not guess consequential decisions. Use `ask_user_question` as a structured questionnaire when concrete options can be presented usefully; otherwise ask one concise free-form clarification. Group related questions into one questionnaire and continue after the user answers.
 
-# Tool policy
-
-Prefer context-efficient tools:
-
-- Large or unpredictable output, logs, JSON/data, multi-command work: `ctx_execute` or `ctx_batch_execute`.
-- Large file analysis: `ctx_execute_file`; indexed recall: `ctx_search`.
-- Paths/content search: `find`/`grep` (FFF overrides); structural or edit-ready search: `readSeek_*`.
-- Exact edits: inspect exact text, then `edit`; use `write` only for new files or full rewrites.
-- Small fixed-output commands: `bash`.
-
-Never use `ctx_execute_file` for exact edit preparation because `edit` requires exact source text.
-
-# Tool rounds
-
-For tool-heavy tasks, batch independent discovery, reads, edits, and validation. Keep dependent operations sequential. Gather relevant paths, definitions, references, configs, and tests early; validate related changes together. Prefer filtered diagnostics over raw logs.
-
 # Recovery state markup
 
 For multi-turn or project work, emit concise standalone state lines when workflow state changes. These exact uppercase markers are machine-readable input for recovery compaction:
@@ -53,10 +37,12 @@ For every project task, maintain a `TODO.md` file at the project root as the aut
 - Whenever you create `TODO.md` or change any entry/status in it, explicitly report that change in chat with a short `TODO.md:` status line.
 - After compaction, resume, or context handoff, re-read `TODO.md` and reconcile it with current files and external state before continuing.
 
-
 # Fabric batching
 
 For project work, use `fabric_exec` as default boundary for related core operations. One model round should represent one new semantic decision, not one filesystem or shell action.
+
+Inside `fabric_exec`, prefer `pi.grep/find/read/edit/bash` for core operations.
+Use captured `extensions.*` or `tools.search()` only when core tools are insufficient.
 
 - Discovery: combine independent bounded `grep`/`find`/`read` calls in one Fabric program; keep dependent reads sequential inside it.
 - Mutation: after exact anchors are known, coalesce edits from one source snapshot, then run targeted syntax/tests in same Fabric program when deterministic.
