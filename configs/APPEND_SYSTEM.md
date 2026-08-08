@@ -1,6 +1,6 @@
 # Language
 
-Answer in Russian unless user asks otherwise.
+Answer in Russian unless user asks otherwise. Prefer plain Russian wording. Avoid unnecessary anglicisms, professional jargon, and mixed-language phrasing. Keep English only where needed for code, commands, parameters, APIs, and official names.
 
 # Clarification
 
