@@ -87,6 +87,14 @@ Default-конфигурация использует:
 
 После auto-compaction validated summary продолжает работу напрямую. Ручной `/compact` остаётся idle и не отправляет continuation prompt. `/clear-context` полностью очищает LLM-контекст без model call и новой сессии; прежняя история остаётся отдельной веткой текущего session-файла. Recovery packet читается только при явной потере state.
 
+Для старого проекта можно сразу пропустить custom summarizer и всегда использовать штатное сжатие Pi:
+
+```text
+/compaction-mode builtin
+```
+
+Режим сохраняется в `~/.pi/agent/extensions/context-compaction.json`. Возврат: `/compaction-mode custom`. Проверка: `/compaction-mode status`. Default — `custom`.
+
 ## Проверка установленного стека
 
 ```bash

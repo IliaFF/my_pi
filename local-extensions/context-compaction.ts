@@ -12,6 +12,7 @@ type RecordValue = Record<string, unknown>;
 type ArchiveCandidate = { id: string; title: string; tags: string[]; sourceEntryIds: string[]; reason: string };
 type ParsedResponse = { summary: string; candidates: ArchiveCandidate[] };
 type CompletionResult = { content: unknown[]; stopReason: string; usage?: Usage };
+type CompactionMode = "custom" | "builtin";
 type StoredItem = {
 	id: string;
 	title: string;
@@ -40,7 +41,9 @@ const MAX_EXCERPT_BYTES = 32 * 1024;
 const MAX_STORE_BYTES_PER_COMPACTION = 128 * 1024;
 const RECALL_DEFAULT_BYTES = 12_000;
 const RECALL_MAX_BYTES = 50_000;
-const STORE_ROOT = resolve(homedir(), ".pi", "agent", "context-store");
+const AGENT_ROOT = resolve(process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"));
+const STORE_ROOT = join(AGENT_ROOT, "context-store");
+const CONFIG_PATH = join(AGENT_ROOT, "extensions", "context-compaction.json");
 
 const SYSTEM_PROMPT = `You are a context compaction engine. Produce continuation state, not a conversational answer. Follow the output protocol exactly. Never call tools or invent source entry IDs.`;
 
@@ -55,6 +58,20 @@ A JSON array with at most 8 objects. Each object has: id, title, tags, sourceEnt
 
 function asRecord(value: unknown): RecordValue | undefined {
 	return typeof value === "object" && value !== null ? value as RecordValue : undefined;
+}
+
+function readCompactionMode(): CompactionMode {
+	try {
+		const config = asRecord(JSON.parse(readFileSync(CONFIG_PATH, "utf8")));
+		return config?.mode === "builtin" ? "builtin" : "custom";
+	} catch {
+		return "custom";
+	}
+}
+
+function writeCompactionMode(mode: CompactionMode): void {
+	mkdirSync(join(AGENT_ROOT, "extensions"), { recursive: true, mode: 0o700 });
+	atomicWrite(CONFIG_PATH, `${JSON.stringify({ mode }, null, 2)}\n`);
 }
 
 function textFromContent(content: unknown): string {
@@ -305,6 +322,26 @@ async function summarizeWithModel(event: RecordValue, ctx: ExtensionContext, mod
 }
 
 export default function contextCompaction(pi: ExtensionAPI): void {
+	let compactionMode = readCompactionMode();
+
+	pi.registerCommand("compaction-mode", {
+		description: "Select custom or immediate Pi built-in compaction: /compaction-mode [custom|builtin|status]",
+		handler: async (args, ctx) => {
+			const requested = args.trim().toLowerCase();
+			if (!requested || requested === "status") {
+				ctx.ui.notify(`Compaction mode: ${compactionMode}`, "info");
+				return;
+			}
+			if (requested !== "custom" && requested !== "builtin") {
+				ctx.ui.notify("Usage: /compaction-mode custom|builtin|status", "warning");
+				return;
+			}
+			compactionMode = requested;
+			writeCompactionMode(compactionMode);
+			ctx.ui.notify(`Compaction mode saved: ${compactionMode}`, "info");
+		},
+	});
+
 	pi.registerTool({
 		name: "context_recall",
 		label: "Context Recall",
@@ -327,6 +364,10 @@ export default function contextCompaction(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_before_compact", async (rawEvent, ctx) => {
+		if (compactionMode === "builtin") {
+			if (ctx.hasUI) ctx.ui.notify("Using Pi built-in compaction mode", "info");
+			return;
+		}
 		const event = rawEvent as unknown as RecordValue;
 		try {
 			const attempt = async (model: NonNullable<ExtensionContext["model"]>, label: string) => {

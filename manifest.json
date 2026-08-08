@@ -62,6 +62,12 @@
       "reason": "Preserve native /resume ownership."
     },
     {
+      "source": "extensions/context-compaction.json",
+      "snapshot": "configs/context-compaction.json",
+      "restore": true,
+      "reason": "Persist custom or immediate Pi built-in compaction mode."
+    },
+    {
       "source": "extensions/auto-ultra-compact/index.ts",
       "snapshot": "local-extensions/auto-ultra-compact/index.ts",
       "restore": true,
