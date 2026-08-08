@@ -14,6 +14,9 @@
 - checksum-verified external excerpts и lazy `context_recall`
 - bounded recovery packet как emergency fallback, а не обязательный повтор summary
 - precise tool restoration: compacted history восстанавливает только `context_recall` по `ctxref://`
+- Contextimate для оценки статического context footprint
+- Cachemire для cache/turn cost diagnostics
+- persistent агрегированный agent-loop baseline и `/loop-report`
 
 Репозиторий содержит три version-gated patch для `@beyona/pi-zai-usage@0.4.0`, `pi-canary@1.4.0` и `pi-caveman@1.0.7`.
 
@@ -60,7 +63,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 2. Проверяет release и exact-version patch replay.
 3. Создаёт rollback backup управляемых agent-файлов.
 4. Выполняет `npm ci --ignore-scripts --legacy-peer-deps` по lock-файлу.
-5. Устанавливает default config, пять local extensions и UI configs.
+5. Устанавливает default config, local extensions и UI configs.
 6. Применяет совместимые patch и запускает verification.
 7. При ошибке восстанавливает backup.
 
@@ -94,6 +97,19 @@ Default-конфигурация использует:
 ```
 
 Режим сохраняется в `~/.pi/agent/extensions/context-compaction.json`. Возврат: `/compaction-mode custom`. Проверка: `/compaction-mode status`. Default — `custom`.
+
+## Observability
+
+Default-конфигурация включает `pi-contextimate`, `pi-cachemire` и `pi-traceline` из `pine-of-glass@0.6.2`.
+
+`loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl` с правами `0600`. Prompt, messages, tool arguments и tool results туда не записываются. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
+
+```text
+/loop-report last
+/loop-report baseline
+```
+
+Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, single/parallel batches, validation rounds, tool-output size, cache usage и частые tool transitions.
 
 ## Проверка установленного стека
 

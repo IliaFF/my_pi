@@ -68,6 +68,10 @@ def main() -> int:
             package = raw.rsplit("@", 1)[0] if (raw.startswith("@") and raw.count("@") > 1) or (not raw.startswith("@") and "@" in raw) else raw
             if package not in package_json["dependencies"]:
                 fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
+        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass@0.6.2"), None)
+        required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**"}
+        if pine is None or set(pine.get("extensions", [])) != required_pine:
+            fail("pine-of-glass observability extension selection mismatch")
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):
@@ -110,8 +114,19 @@ def main() -> int:
                 fail(f"reverse patch check failed for {item['package']}: {reverse.stdout.strip()}")
             print(f"PASS patch {item['package']}@{item['version']}")
 
+    profiler_test = subprocess.run(
+        ["node", str(ROOT / "scripts/test-loop-profiler.mjs")],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if profiler_test.returncode:
+        fail(f"loop profiler test failed: {profiler_test.stdout.strip()}")
+    print(profiler_test.stdout.strip())
+
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS single default configuration")
+    print("PASS single default configuration and observability selection")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 

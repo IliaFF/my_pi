@@ -89,7 +89,7 @@
       "source": "extensions/loop-profiler.ts",
       "snapshot": "local-extensions/loop-profiler.ts",
       "restore": true,
-      "reason": "Opt-in provider/tool-loop profiler."
+      "reason": "Persistent bounded aggregate loop baseline and /loop-report; raw trace remains opt-in."
     },
     {
       "source": "extensions/tools.ts",

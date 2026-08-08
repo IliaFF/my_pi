@@ -17,7 +17,9 @@
     {
       "source": "npm:pine-of-glass@0.6.2",
       "extensions": [
-        "extensions/pi-traceline/**"
+        "extensions/pi-contextimate/**",
+        "extensions/pi-traceline/**",
+        "extensions/pi-cachemire/**"
       ]
     },
     "npm:pi-my-setup",
