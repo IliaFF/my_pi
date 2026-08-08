@@ -34,8 +34,8 @@ done
 for command in node npm python3 patch tar; do
   command -v "$command" >/dev/null || { echo "FAIL missing command: $command" >&2; exit 1; }
 done
-node -e 'const [M,m]=process.versions.node.split(".").map(Number); if (M<22 || (M===22 && m<19)) process.exit(1)' || {
-  echo "FAIL Node $(node --version). Required >=22.19.0" >&2; exit 1;
+node -e 'const [M]=process.versions.node.split(".").map(Number); if (M<24) process.exit(1)' || {
+  echo "FAIL Node $(node --version). Required >=24.0.0 for pi-fabric" >&2; exit 1;
 }
 python3 "$ROOT/scripts/test-release.py" "$ROOT"
 
@@ -44,8 +44,8 @@ if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/nu
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
-  echo "DRY-RUN extensions: npm ci from exact package-lock.json"
-  echo "DRY-RUN configs: one default profile + five local extensions"
+  echo "DRY-RUN extensions: npm ci from exact package-lock.json, including pi-fabric"
+  echo "DRY-RUN configs: one default profile + safe Fabric config + five local extensions"
   echo "DRY-RUN patches: 3 exact-version patches"
   exit 0
 fi
@@ -55,8 +55,9 @@ if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
 fi
 
 managed=(
-  "settings.json" "APPEND_SYSTEM.md"
+  "settings.json" "APPEND_SYSTEM.md" "fabric.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts"
+  "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/auto-ultra-compact"
   "extensions/pi-fast-resume.json" "extensions/quotas.json"
   "npm" "maintenance"
@@ -105,11 +106,14 @@ npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
 
 cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"
 cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
+cp "$ROOT/configs/fabric.json" "$AGENT_DIR/fabric.json"
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
+cp "$ROOT/configs/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.json"
 cp "$ROOT/local-extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
 cp "$ROOT/local-extensions/lean-tools.ts" "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
+rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
 cp "$ROOT/configs/pi-canary.json" "$AGENT_DIR/npm/node_modules/pi-canary/extensions/canary.json"

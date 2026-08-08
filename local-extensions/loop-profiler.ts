@@ -123,7 +123,6 @@ function readRuns(projectHash?: string): LoopRun[] {
 }
 
 function isValidationTool(toolName: string, args: unknown): boolean {
-  if (["edit_verify", "targeted_test", "finish_gate"].includes(toolName)) return true;
   if (toolName !== "bash" || !args || typeof args !== "object") return false;
   const command = (args as { command?: unknown }).command;
   return typeof command === "string" && /(?:^|[;&|\n]\s*|\b)(?:pytest|python3?\s+-m\s+pytest|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|bun\s+test|cargo\s+test|go\s+test|(?:npx\s+)?tsc\b|(?:npx\s+)?eslint\b|ruff\b|verify\.sh\b|test-release\.py\b)/i.test(command);

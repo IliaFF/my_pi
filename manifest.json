@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "piCoreVersion": "0.83.0",
-  "nodeMinimum": "22.19.0",
+  "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
       "package": "@beyona/pi-zai-usage",
@@ -92,10 +92,10 @@
       "reason": "Persistent bounded aggregate loop baseline and /loop-report; raw trace remains opt-in."
     },
     {
-      "source": "extensions/project-loop.ts",
-      "snapshot": "local-extensions/project-loop.ts",
+      "source": "fabric.json",
+      "snapshot": "configs/fabric.json",
       "restore": true,
-      "reason": "Bounded project preflight/context, profile-first compound edit-validation tools, and /fast-fix."
+      "reason": "Keep Fabric on isolated QuickJS while delegating compaction to existing Pi/custom hooks; disable unused background and multi-agent surfaces."
     },
     {
       "source": "extensions/tools.ts",

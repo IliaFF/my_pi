@@ -40,18 +40,10 @@ const CORE_TOOLS = new Set([
 	"ctx_batch_execute",
 	"ctx_execute_file",
 	"ctx_search",
-	"project_context",
-	"project_probe",
-	"edit_verify",
-	"targeted_test",
-	"finish_gate",
+	"fabric_exec",
 ]);
 
 const ROUTES: Array<{ pattern: RegExp; tools: string[] }> = [
-	{
-		pattern: /\b(fix|edit|change|implement|refactor|test|validate|debug)\b|(исправ|редакт|измен|реализ|рефактор|тест|провер|отлад)[а-яё]*/iu,
-		tools: ["edit_verify", "targeted_test", "finish_gate"],
-	},
 	{ pattern: /\bctx_index\b/iu, tools: ["ctx_index"] },
 	{ pattern: /\bctx_fetch_and_index\b/iu, tools: ["ctx_fetch_and_index"] },
 	{ pattern: /\bctx_stats\b/iu, tools: ["ctx_stats"] },
@@ -108,11 +100,7 @@ const TOOL_SEARCH_ALIASES: Record<string, string> = {
 	intercom: "другая сессия связь координация",
 	readSeek_rename: "переименовать символ идентификатор",
 	readSeek_hover: "определить символ идентификатор",
-	project_context: "контекст проекта поиск файлов bounded retrieval",
-	project_probe: "структура проекта стек git discovery probe",
-	edit_verify: "изменить файл и сразу проверить compound edit validation",
-	targeted_test: "целевой тест validation profile",
-	finish_gate: "финальная проверка готовности validation gate",
+	fabric_exec: "compound TypeScript workflow sandbox parallel dependent tools",
 };
 
 export default function toolsExtension(pi: ExtensionAPI) {

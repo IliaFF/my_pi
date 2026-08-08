@@ -5,8 +5,8 @@
 ## Зафиксированное состояние
 
 - Pi core `@earendil-works/pi-coding-agent@0.83.0`
-- Node.js `>=22.19.0` (рабочий хост: Node.js 24)
-- 14 прямых расширений с точными версиями и полный `package-lock.json`
+- Node.js `>=24.0.0` (требование `pi-fabric@0.40.3`)
+- 15 прямых расширений с точными версиями и полный `package-lock.json`
 - единая default-конфигурация с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
 - recovery-aware compaction `recovery-v2-10k`
 - summarizer всегда использует текущую выбранную модель Pi
@@ -114,33 +114,20 @@ Default-конфигурация включает `pi-contextimate`, `pi-cachemi
 
 Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, single/parallel batches, validation rounds, tool-output size, cache usage и частые tool transitions.
 
-## Быстрый project loop
+## Compound project workflow
 
-`project-loop.ts` без model call строит bounded auto-preflight перед первым request каждой задачи и вставляет его ephemeral-сообщением после последнего user prompt. Старые preflight не накапливаются в model context и не меняют стабильный system-prompt prefix.
+`pi-fabric@0.40.3` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
 
-Инструменты:
+Безопасный reproducible профиль хранится в `configs/fabric.json` и устанавливается как `~/.pi/agent/fabric.json`:
 
-- `project_context` — ranked paths/content и profile excerpts;
-- `project_probe` — stack, git state, top-level map и task hints одним вызовом;
-- `edit_verify` — exact edit одного файла плюс targeted validation;
-- `targeted_test` — один profile-first validation workflow;
-- `finish_gate` — финальные проверки до завершения;
-- `/fast-fix <задача>` — запускает low-round-trip workflow.
+- isolated QuickJS; `node-process` не используется;
+- Fabric compactor отключён через `compaction.engine: "pi"`, поэтому существующие `auto-ultra-compact` и `context-compaction.ts` сохраняют lifecycle;
+- MCP, built-in agents, mesh, memory и schema transactions выключены;
+- captured extension tools скрыты из model schemas, но их commands, handlers, UI и lazy invocation сохраняются;
+- `fabric_exec` остаётся core-active в локальном tool selector;
+- Fabric agent risk запрещён; обычные read/write/execute и существующие network extensions сохраняют текущую политику.
 
-Project profile необязателен: `<project>/.pi/project-loop.json`. Schema: `configs/project-loop.schema.json`; example: `configs/project-loop.example.json`. Profile выполняется только для trusted project. При отсутствии profile autodetect не скачивает зависимости и ограничен `git diff --check`, local syntax checks и уже установленным `node_modules/.bin/tsc`.
-
-```json
-{
-  "version": 1,
-  "context": { "files": ["README.md", "TODO.md"], "maxChars": 5000 },
-  "validation": {
-    "targeted": { "unit": { "command": "npm test", "timeoutMs": 120000 } },
-    "finish": [{ "name": "verify", "command": "./scripts/verify.sh", "timeoutMs": 180000 }]
-  }
-}
-```
-
-Все auto/tool outputs bounded; repository map и полные logs в context не выгружаются.
+Для coding tasks модель должна объединять discovery, exact edits и validation в один `fabric_exec`, когда промежуточный результат не требует отдельного model reasoning. Возвращать следует bounded итог и evidence, не полные логи.
 
 ## Проверка установленного стека
 
@@ -190,7 +177,7 @@ Update script создаёт backup npm tree, обновляет расшире�
 ## Структура
 
 - `npm/` — exact dependency set и lock
-- `configs/` — default configs без секретов
+- `configs/` — default configs без секретов, включая safe `fabric.json`
 - `local-extensions/` — compaction, tool routing и profiler
 - `patches/` — exact-version diffs
 - `scripts/maintenance.py` — snapshot, backup, patch, restore и verify

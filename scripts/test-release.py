@@ -42,6 +42,8 @@ def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
     if manifest.get("piCoreVersion") != "0.83.0":
         fail("unexpected Pi core version")
+    if manifest.get("nodeMinimum") != "24.0.0":
+        fail("pi-fabric requires Node >=24")
     package_json = json.loads((ROOT / "npm/package.json").read_text())
     package_lock = json.loads((ROOT / "npm/package-lock.json").read_text())
     root_lock = package_lock["packages"][""]
@@ -58,19 +60,38 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
-    profile_schema = json.loads((ROOT / "configs/project-loop.schema.json").read_text())
-    profile_example = json.loads((ROOT / "configs/project-loop.example.json").read_text())
-    if profile_schema.get("properties", {}).get("version", {}).get("const") != 1:
-        fail("invalid project-loop profile schema")
-    if profile_example.get("version") != 1 or not profile_example.get("validation", {}).get("finish"):
-        fail("invalid project-loop profile example")
-    project_loop_source = (ROOT / "local-extensions/project-loop.ts").read_text()
+    if package_json["dependencies"].get("pi-fabric") != "0.40.3":
+        fail("pi-fabric is not exactly pinned")
+    fabric_lock = package_lock["packages"].get("node_modules/pi-fabric", {})
+    if fabric_lock.get("version") != "0.40.3" or fabric_lock.get("integrity") != "sha512-Fx12ivpyyTpPGGTCJh2Iwc+l9D9OTw5ry/9h5RcRYch9peek5r6/lg3ZvmkR1/B//3iQZup0Ax9REpJEirEC6g==":
+        fail("unexpected pi-fabric lock identity")
+    fabric = json.loads((ROOT / "configs/fabric.json").read_text())
+    required_fabric = {
+        ("configVersion",): 3,
+        ("fullCodeMode",): True,
+        ("executor", "runtime"): "quickjs",
+        ("compaction", "engine"): "pi",
+        ("mcp", "enabled"): False,
+        ("agents", "enabled"): False,
+        ("agents", "maxDepth"): 0,
+        ("mesh", "enabled"): False,
+        ("memory", "enabled"): False,
+        ("schema", "mode"): "off",
+        ("capture", "hideFromModel"): True,
+    }
+    for keys, expected in required_fabric.items():
+        value = fabric
+        for key in keys:
+            value = value.get(key) if isinstance(value, dict) else None
+        if value != expected:
+            fail(f"unsafe Fabric config: {'.'.join(keys)} expected={expected!r} actual={value!r}")
     routing_source = (ROOT / "local-extensions/tools.ts").read_text()
-    for required in ["project_context", "project_probe", "edit_verify", "targeted_test", "finish_gate", "fast-fix"]:
-        if required not in project_loop_source or required not in routing_source and required != "fast-fix":
-            fail(f"project-loop tool missing from implementation/routing: {required}")
-    if "before_agent_start" not in project_loop_source or 'pi.on("context"' not in project_loop_source:
-        fail("project-loop ephemeral preflight hooks missing")
+    if '"fabric_exec"' not in routing_source:
+        fail("fabric_exec is not kept core-active")
+    removed_names = ["project_context", "project_probe", "edit_verify", "targeted_test", "finish_gate", "fast-fix"]
+    removed_paths = [ROOT / "local-extensions/project-loop.ts", ROOT / "configs/project-loop.schema.json", ROOT / "configs/project-loop.example.json"]
+    if any(path.exists() for path in removed_paths) or any(name in routing_source for name in removed_names):
+        fail("legacy project-loop surface still present")
 
     for settings_file in [ROOT / "configs/settings.json"]:
         settings = json.loads(settings_file.read_text())
@@ -151,7 +172,7 @@ def main() -> int:
     print(profiler_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS single default configuration, observability selection, and project-loop profile/tool wiring")
+    print("PASS single default configuration, observability selection, and safe pi-fabric wiring")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 
