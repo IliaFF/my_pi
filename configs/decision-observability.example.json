@@ -1,0 +1,12 @@
+{
+  "enabled": false,
+  "mode": "structured-markers",
+  "maxRecords": 500,
+  "retentionDays": 90,
+  "maxTextChars": 500,
+  "capturePaths": false,
+  "captureCommits": true,
+  "captureToolOutput": false,
+  "captureMessages": false,
+  "capturePrompts": false
+}

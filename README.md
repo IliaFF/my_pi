@@ -49,6 +49,7 @@
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
 | `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, deterministic validation, Pi fallback, external excerpts и `context_recall`. |
 | `loop-profiler.ts` | активен | Хранит только bounded агрегаты последних 500 runs; `/loop-report`; raw trace только при `PI_PROFILE=1`. |
+| `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
 | `tools.ts` | активен | Держит `fabric_exec` core-active, сохраняет tool selection и точное восстановление `context_recall` после compaction. |
 | `lean-tools.ts` | активен | Убирает дублирующие/noisy `ffgrep`, `readSeek_search`, `readSeek_rename`, `readSeek_hover`; `fffind`, `readSeek_grep`, `readSeek_refs`, `readSeek_def` остаются доступны. |
 
@@ -162,7 +163,28 @@ Default-конфигурация включает `pi-contextimate`, `pi-cachemi
 /loop-report baseline
 ```
 
-Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, single/parallel batches, validation rounds, tool-output size, cache usage и частые tool transitions.
+Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, single/parallel batches, validation rounds, tool-output size, cache usage и частые tool transitions. Новое поле `sessionHash` позволяет Decision Observer связать marker с этим агрегатом без хранения session id.
+
+## Decision observability
+
+`decision-observer.ts` загружается глобально, но ничего не пишет без project policy `.pi/decision-observability.json` с `enabled: true`. Начальный безопасный шаблон: `configs/decision-observability.example.json`. Policy принимает только `structured-markers`; `captureToolOutput`, `captureMessages` и `capturePrompts` принудительно остаются `false`.
+
+```text
+[DECISION] fabric-runtime: Использовать QuickJS вместо node-process.
+[VALIDATION] fabric-runtime: RPC PASS, errors=0, commit bc5d975.
+[SUPERSEDED] fabric-runtime: Использовать node-process.
+```
+
+Сохраняется только payload этих явных markers: максимум 500 записей, 90 дней и 500 символов на marker по default. Secret-like values redacted; absolute paths redacted, пока `capturePaths` не включён явно. Thinking blocks, обычные messages, prompts, tool arguments/results и raw outputs не записываются. Ledger лежит вне Git: `~/.pi/agent/observability/decisions/<project-hash>/ledger.jsonl`, directory `0700`, file `0600`. Status transition детерминирован: `proposed`, `validated`, `failed`, `superseded`, `reverted` или `unknown`; один успешный tool call сам по себе outcome не меняет.
+
+```text
+/decisions
+/decision-report last|7d|30d|open|failures|all
+/decision-show <id|key>
+/decision-report 30d --markdown
+```
+
+`/decisions` открывает split-pane terminal dashboard: arrows/PageUp/PageDown, `Enter` detail, `a/o/x` status filter, `1/7/0/*` period, `/` search, `r` refresh, `e` explicit Markdown export. RPC/headless получает bounded text report вместо TUI. Footer `D ✓/✗/?` появляется только в TUI у opted-in project. Extension не регистрирует model-facing tools, не вызывает модель, не запускает background review и не подписывается на Fabric/compaction hooks.
 
 ## Compound project workflow
 

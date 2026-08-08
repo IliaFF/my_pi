@@ -92,6 +92,12 @@
       "reason": "Persistent bounded aggregate loop baseline and /loop-report; raw trace remains opt-in."
     },
     {
+      "source": "extensions/decision-observer.ts",
+      "snapshot": "local-extensions/decision-observer.ts",
+      "restore": true,
+      "reason": "Project-opt-in bounded decision marker ledger, deterministic outcomes, reports, and terminal dashboard without model-facing tools."
+    },
+    {
       "source": "fabric.json",
       "snapshot": "configs/fabric.json",
       "restore": true,

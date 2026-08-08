@@ -17,6 +17,7 @@ type LoopRun = {
   runId: string;
   project: string;
   projectHash: string;
+  sessionHash?: string;
   provider?: string;
   model?: string;
   thinking?: string;
@@ -269,6 +270,7 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       runId: `${Date.now().toString(36)}-${process.pid}-${runSequence}`,
       project,
       projectHash: createHash("sha256").update(ctx.cwd).digest("hex").slice(0, 12),
+      sessionHash: createHash("sha256").update(String(ctx.sessionManager?.getSessionId?.() || ctx.sessionManager?.getSessionFile?.() || "ephemeral")).digest("hex").slice(0, 16),
       provider: ctx.model?.provider,
       model: ctx.model?.id,
       thinking: ctx.thinkingLevel,

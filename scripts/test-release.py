@@ -88,6 +88,14 @@ def main() -> int:
     routing_source = (ROOT / "local-extensions/tools.ts").read_text()
     if '"fabric_exec"' not in routing_source:
         fail("fabric_exec is not kept core-active")
+    decision_source = (ROOT / "local-extensions/decision-observer.ts").read_text()
+    decision_example = json.loads((ROOT / "configs/decision-observability.example.json").read_text())
+    if "registerTool" in decision_source or any(f'pi.on("{event}"' in decision_source for event in ["input", "context", "before_provider_request", "tool_execution_end", "message_update"]):
+        fail("decision observer exposes a model tool or content-bearing event hook")
+    if decision_example.get("enabled") is not False or decision_example.get("mode") != "structured-markers":
+        fail("decision observer example must remain explicit opt-in structured-marker mode")
+    if any(decision_example.get(key) is not False for key in ["captureToolOutput", "captureMessages", "capturePrompts"]):
+        fail("decision observer privacy defaults changed")
     removed_names = ["project_context", "project_probe", "edit_verify", "targeted_test", "finish_gate", "fast-fix"]
     removed_paths = [ROOT / "local-extensions/project-loop.ts", ROOT / "configs/project-loop.schema.json", ROOT / "configs/project-loop.example.json"]
     if any(path.exists() for path in removed_paths) or any(name in routing_source for name in removed_names):
@@ -121,6 +129,8 @@ def main() -> int:
         'compaction.engine: "pi"',
         "Fabric agents/RLM/councils",
         "Legacy project-loop",
+        "## Decision observability",
+        "decision-observer.ts",
     ]:
         if required not in readme:
             fail(f"README extension status documentation missing: {required}")
@@ -188,6 +198,17 @@ def main() -> int:
     if profiler_test.returncode:
         fail(f"loop profiler test failed: {profiler_test.stdout.strip()}")
     print(profiler_test.stdout.strip())
+
+    decision_test = subprocess.run(
+        ["node", str(ROOT / "scripts/test-decision-observer.mjs"), str(ROOT)],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if decision_test.returncode:
+        fail(f"decision observer test failed: {decision_test.stdout.strip()}")
+    print(decision_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
     print("PASS single default configuration, observability selection, and safe pi-fabric wiring")

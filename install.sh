@@ -45,7 +45,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, including pi-fabric"
-  echo "DRY-RUN configs: one default profile + safe Fabric config + five local extensions"
+  echo "DRY-RUN configs: one default profile + safe Fabric config + six local extensions"
   echo "DRY-RUN patches: 3 exact-version patches"
   exit 0
 fi
@@ -57,7 +57,7 @@ fi
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "fabric.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts"
-  "extensions/project-loop.ts"
+  "extensions/decision-observer.ts" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/auto-ultra-compact"
   "extensions/pi-fast-resume.json" "extensions/quotas.json"
   "npm" "maintenance"
@@ -113,6 +113,7 @@ cp "$ROOT/configs/context-compaction.json" "$AGENT_DIR/extensions/context-compac
 cp "$ROOT/local-extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
 cp "$ROOT/local-extensions/lean-tools.ts" "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
+cp "$ROOT/local-extensions/decision-observer.ts" "$AGENT_DIR/extensions/decision-observer.ts"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
