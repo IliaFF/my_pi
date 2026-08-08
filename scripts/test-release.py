@@ -107,6 +107,24 @@ def main() -> int:
         required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**"}
         if pine is None or set(pine.get("extensions", [])) != required_pine:
             fail("pine-of-glass observability extension selection mismatch")
+        active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
+        if any(source.startswith("npm:pi-canary") for source in active_sources):
+            fail("pi-canary must remain installed but disabled")
+    readme = (ROOT / "README.md").read_text()
+    for package in package_json["dependencies"]:
+        if ("`" + package + "`") not in readme:
+            fail(f"README extension inventory missing: {package}")
+    for required in [
+        "## Текущие packages и расширения",
+        "### Локальные extensions",
+        "### Что отключено и почему",
+        'compaction.engine: "pi"',
+        "Fabric agents/RLM/councils",
+        "Legacy project-loop",
+    ]:
+        if required not in readme:
+            fail(f"README extension status documentation missing: {required}")
+    print("PASS README extension inventory and disabled-component rationale")
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):

@@ -6,7 +6,7 @@
 
 - Pi core `@earendil-works/pi-coding-agent@0.83.0`
 - Node.js `>=24.0.0` (требование `pi-fabric@0.40.3`)
-- 15 прямых расширений с точными версиями и полный `package-lock.json`
+- 15 прямых npm dependencies с точными версиями: 14 settings entries и один dormant package; полный `package-lock.json`
 - единая default-конфигурация с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
 - recovery-aware compaction `recovery-v2-10k`
 - summarizer всегда использует текущую выбранную модель Pi
@@ -19,6 +19,56 @@
 - persistent агрегированный agent-loop baseline и `/loop-report`
 
 Репозиторий содержит три version-gated patch для `@beyona/pi-zai-usage@0.4.0`, `pi-canary@1.4.0` и `pi-caveman@1.0.7`.
+
+## Текущие packages и расширения
+
+`npm/package.json` фиксирует 15 прямых dependencies. Из них 14 перечислены в `configs/settings.json`; `pi-canary` установлен и patch-tested, но намеренно не загружается. Fabric в full-code mode скрывает schemas captured extension tools от parent model, но сами extensions, slash-команды, event handlers и UI продолжают работать; ленивый вызов доступен внутри `fabric_exec` через `extensions.*` или `tools.search()`.
+
+| Package | Версия | Статус | Для чего нужен |
+| --- | ---: | --- | --- |
+| `@ff-labs/pi-fff` | `0.10.1` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
+| `@monotykamary/pi-retry` | `0.6.8` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `pi-fabric` | `0.40.3` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
+| `pi-web-access` | `0.17.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
+| `@llblab/pi-telegram` | `0.23.1` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
+| `pi-caveman` | `1.0.7` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
+| `@juicesharp/rpiv-ask-user-question` | `2.2.0` | загружен, tool lazy | Structured clarification с typed options вместо угадывания существенных решений. |
+| `pi-token-speed` | `0.7.1` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
+| `pi-fast-resume` | `1.4.4` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
+| `pi-diff-review` | `0.1.26` | загружен | Локальный TUI для просмотра и review Git diff. |
+| `@beyona/pi-zai-usage` | `0.4.0` | загружен, patched | Quota/usage footer для OpenAI Codex, Z.ai и DeepSeek; patch сохраняет корректную обработку доступных quota windows. |
+| `pine-of-glass` | `0.6.2` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
+| `pi-my-setup` | `0.4.12` | установлен как package/CLI helper | Сохраняет и восстанавливает наборы Pi packages и skills; model-facing tool не регистрирует. |
+| `pi-markdown-preview` | `0.10.1` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pi-canary` | `1.4.0` | **не загружен**, pinned + patched | Hidden context-awareness canary. Отключён, чтобы не добавлять скрытый token/context check каждый turn; остаётся воспроизводимым для будущего отдельного теста. |
+
+### Локальные extensions
+
+| Файл | Статус | Назначение |
+| --- | --- | --- |
+| `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
+| `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, deterministic validation, Pi fallback, external excerpts и `context_recall`. |
+| `loop-profiler.ts` | активен | Хранит только bounded агрегаты последних 500 runs; `/loop-report`; raw trace только при `PI_PROFILE=1`. |
+| `tools.ts` | активен | Держит `fabric_exec` core-active, сохраняет tool selection и точное восстановление `context_recall` после compaction. |
+| `lean-tools.ts` | активен | Убирает дублирующие/noisy `ffgrep`, `readSeek_search`, `readSeek_rename`, `readSeek_hover`; `fffind`, `readSeek_grep`, `readSeek_refs`, `readSeek_def` остаются доступны. |
+
+`project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: их заменил общий compound runtime Fabric.
+
+### Что отключено и почему
+
+| Компонент | Текущее состояние | Причина |
+| --- | --- | --- |
+| Fabric `node-process` | выключен; executor `quickjs` | `node-process` не является security boundary; текущие workload помещаются в QuickJS 64 MiB. |
+| Fabric compactor | `compaction.engine: "pi"` | Не перехватывает `session_before_compact`; сохраняет `auto-ultra-compact`, custom summarizer, validator, recovery и `/compaction-mode`. |
+| Fabric MCP | `enabled: false`, dynamic servers запрещены | Нет обязательного MCP workflow; меньше host-privileged/network surface. Существующие extension tools остаются доступны через capture. |
+| Fabric agents/RLM/councils | `enabled: false`, `maxDepth: 0`, agent approval `deny` | Child agents добавляют model calls, стоимость и orchestration complexity; основной bottleneck сейчас — лишние rounds. |
+| Fabric mesh и actors | `enabled: false` | Не нужны mailbox, durable actors, resident host и project event log для одиночного coding workflow. |
+| Fabric memory | `enabled: false` | Пока дублирует session JSONL, recovery packet, context-store и `context_recall`; включать только отдельным bounded A/B. |
+| Fabric schema transactions | `mode: "off"` | Certification protocol полезен для специальных migrations, но создаёт лишний overhead в повседневных edits. |
+| Fabric actor UI hooks | `haltOnEscape: false`, agent preview выключен | Actors/agents отключены, поэтому их hotkey и nested-agent rows не нужны. |
+| Pi experimental tool-output pruning | выключен | Не мутирует tool history дополнительным экспериментальным pruning; bounded outputs контролируются источником и Fabric limits. |
+| `pi-canary` runtime | отсутствует в `settings.json` | Избегаем скрытой per-turn context проверки; exact package и patch сохранены для rollback/эксперимента. |
+| Legacy project-loop | удалён | Убирает auto-preflight и пять постоянных schemas; discovery/edit/test объединяются в `fabric_exec`. |
 
 ## Что намеренно исключено
 
