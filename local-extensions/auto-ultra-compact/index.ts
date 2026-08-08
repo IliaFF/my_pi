@@ -37,6 +37,10 @@ type RuntimeState = {
 	lastWindow?: number;
 	lastPercent?: number;
 	lastCompletedAt?: string;
+	lastSkippedAt?: string;
+	lastSkipReason?: string;
+	lastHistoryTokens?: number;
+	lastHistoryMessages?: number;
 };
 
 const DEFAULT_EFFECTIVE_TOKENS = 170_000;
@@ -44,6 +48,8 @@ const DEFAULT_CONTEXT_WINDOW = 200_000;
 const DEFAULT_THRESHOLD_TOKENS = 150_000;
 const DEFAULT_THRESHOLD_PERCENT = (DEFAULT_THRESHOLD_TOKENS / DEFAULT_EFFECTIVE_TOKENS) * 100;
 const DEFAULT_COOLDOWN_TURNS = 3;
+const DEFAULT_KEEP_RECENT_TOKENS = 24_000;
+const ESTIMATED_IMAGE_CHARS = 4_800;
 export const ULTRA_INSTRUCTIONS = `These rules override conflicting preservation guidance above.
 
 Hard output limit: 10,000 tokens. Prefer 2,000-6,000 tokens when sufficient for correct continuation. Density and recoverability matter more than narrative completeness.
@@ -138,6 +144,82 @@ export function recoveryFollowupMessage(event: unknown, recoveryPath?: string): 
 
 function asArray(value: unknown): unknown[] {
 	return Array.isArray(value) ? value : [];
+}
+
+function contentChars(content: unknown): number {
+	if (typeof content === "string") return content.length;
+	let chars = 0;
+	for (const block of asArray(content)) {
+		const rec = asRecord(block);
+		if (!rec) continue;
+		if ((rec.type === "text" || rec.type === "thinking") && typeof (rec.text ?? rec.thinking) === "string") {
+			chars += String(rec.text ?? rec.thinking).length;
+		} else if (rec.type === "image") {
+			chars += ESTIMATED_IMAGE_CHARS;
+		} else if (rec.type === "toolCall") {
+			chars += String(rec.name ?? "").length + JSON.stringify(rec.arguments ?? {}).length;
+		}
+	}
+	return chars;
+}
+
+export function estimateCompactionTokens(message: unknown): number {
+	const rec = asRecord(message);
+	if (!rec || typeof rec.role !== "string") return 0;
+	let chars = 0;
+	if (rec.role === "bashExecution") {
+		chars = String(rec.command ?? "").length + String(rec.output ?? "").length;
+	} else if (rec.role === "branchSummary" || rec.role === "compactionSummary") {
+		chars = String(rec.summary ?? "").length;
+	} else {
+		chars = contentChars(rec.content);
+	}
+	return Math.ceil(chars / 4);
+}
+
+function isCutPointRole(role: unknown): boolean {
+	return typeof role === "string" && role !== "toolResult";
+}
+
+function isTurnStartRole(role: unknown): boolean {
+	return role === "user" || role === "bashExecution" || role === "custom" || role === "branchSummary" || role === "compactionSummary";
+}
+
+export type Compactability = { compactable: boolean; historyTokens: number; messages: number; reason: string };
+
+/**
+ * Mirrors Pi's cut-point rule on current context messages. Provider usage also
+ * includes system prompt/tool schemas, which cannot be compacted; it must not be
+ * used alone to decide whether ctx.compact() can discard session history.
+ */
+export function analyzeCompactability(messagesInput: unknown[], keepRecentTokens: number): Compactability {
+	const messages = [...messagesInput];
+	while (asRecord(messages[0])?.role === "compactionSummary") messages.shift();
+	const historyTokens = messages.reduce((sum, message) => sum + estimateCompactionTokens(message), 0);
+	const cutPoints = messages.map((message, index) => isCutPointRole(asRecord(message)?.role) ? index : -1).filter((index) => index >= 0);
+	if (!cutPoints.length) return { compactable: false, historyTokens, messages: messages.length, reason: "session history has no cut point" };
+
+	let accumulated = 0;
+	let cutIndex = cutPoints[0];
+	for (let i = messages.length - 1; i >= 0; i--) {
+		accumulated += estimateCompactionTokens(messages[i]);
+		if (accumulated < keepRecentTokens) continue;
+		cutIndex = cutPoints.find((candidate) => candidate >= i) ?? cutPoints[0];
+		break;
+	}
+	const cutRole = asRecord(messages[cutIndex])?.role;
+	if (isTurnStartRole(cutRole)) {
+		return { compactable: cutIndex > 0, historyTokens, messages: messages.length, reason: cutIndex > 0 ? "discardable history available" : "session history fits retained suffix" };
+	}
+	let turnStart = -1;
+	for (let i = cutIndex; i >= 0; i--) {
+		if (isTurnStartRole(asRecord(messages[i])?.role)) {
+			turnStart = i;
+			break;
+		}
+	}
+	const compactable = turnStart >= 0 && cutIndex > turnStart;
+	return { compactable, historyTokens, messages: messages.length, reason: compactable ? "discardable turn prefix available" : "session history has no discardable prefix" };
 }
 
 function setOrArrayToStrings(value: unknown): string[] {
@@ -487,10 +569,17 @@ function runCompact(ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: 
 			},
 			onError: (error: Error) => {
 				runtime.compactInFlight = false;
+				runtime.followupPending = false;
 				if (/already compacted/i.test(error.message)) {
 					runtime.lastCompletedAt = new Date().toISOString();
 					runtime.lastError = undefined;
 					notify(ctx, `auto-ultra-compact skipped; Pi already compacted: ${recoveryPath}`, "info");
+					return;
+				}
+				if (/nothing to compact|session too small/i.test(error.message)) {
+					runtime.lastSkippedAt = new Date().toISOString();
+					runtime.lastSkipReason = "Pi reported no compactable session history";
+					runtime.lastError = undefined;
 					return;
 				}
 				runtime.lastError = error.message;
@@ -530,6 +619,10 @@ function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: num
 		`lastRecovery: ${runtime.lastRecoveryPath ?? "none"}`,
 		`lastProjectRecovery: ${runtime.lastProjectRecoveryPath ?? "disabled"}`,
 		`lastCompletedAt: ${runtime.lastCompletedAt ?? "none"}`,
+		`lastSkippedAt: ${runtime.lastSkippedAt ?? "none"}`,
+		`lastSkipReason: ${runtime.lastSkipReason ?? "none"}`,
+		`lastHistoryTokens: ${runtime.lastHistoryTokens ?? "unknown"}`,
+		`lastHistoryMessages: ${runtime.lastHistoryMessages ?? "unknown"}`,
 		`lastError: ${runtime.lastError ?? "none"}`,
 		`summaryEngine: current-model-custom-with-pi-built-in-fallback`,
 		`summaryModel: ${summaryModel}`,
@@ -561,6 +654,23 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		runtime.lastWindow = window;
 		runtime.lastPercent = percent;
 		if (!crossed && !sustained) return;
+
+		const keepRecentTokens = envNumber("PI_AUTO_COMPACT_KEEP_RECENT_TOKENS", DEFAULT_KEEP_RECENT_TOKENS);
+		const compactability = analyzeCompactability(ctx.sessionManager.buildSessionContext().messages, keepRecentTokens);
+		runtime.lastHistoryTokens = compactability.historyTokens;
+		runtime.lastHistoryMessages = compactability.messages;
+		if (!compactability.compactable) {
+			const firstSkip = runtime.lastSkipReason !== compactability.reason;
+			runtime.lastCompactTurn = runtime.turn;
+			runtime.lastTrigger = `${reason}-skipped`;
+			runtime.followupPending = false;
+			runtime.lastSkippedAt = new Date().toISOString();
+			runtime.lastSkipReason = compactability.reason;
+			runtime.lastError = undefined;
+			if (firstSkip) notify(ctx, `auto-ultra-compact skipped: ${compactability.reason}; session=${compactability.historyTokens} tokens, keepRecent=${keepRecentTokens}`, "info");
+			return;
+		}
+		runtime.lastSkipReason = undefined;
 
 		runtime.compactInFlight = true;
 		runtime.followupPending = true;

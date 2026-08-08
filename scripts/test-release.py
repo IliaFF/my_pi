@@ -128,6 +128,17 @@ def main() -> int:
                 fail(f"reverse patch check failed for {item['package']}: {reverse.stdout.strip()}")
             print(f"PASS patch {item['package']}@{item['version']}")
 
+    compaction_test = subprocess.run(
+        ["node", str(ROOT / "scripts/test-auto-ultra-compact.mjs"), str(ROOT)],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if compaction_test.returncode:
+        fail(f"auto-ultra-compact test failed: {compaction_test.stdout.strip()}")
+    print(compaction_test.stdout.strip())
+
     profiler_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-loop-profiler.mjs")],
         cwd=ROOT,

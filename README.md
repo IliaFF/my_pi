@@ -87,6 +87,9 @@ Default-конфигурация использует:
 - одна custom-попытка, затем немедленный Pi built-in fallback
 - external exact excerpts под `~/.pi/agent/context-store/`
 - lazy `context_recall`
+- compactability guard: высокий provider context сам по себе не запускает `ctx.compact()`, если session history не имеет discardable prefix; это предотвращает `Nothing to compact (session too small)` loop
+
+Guard использует `keepRecentTokens: 24000`; при отдельном изменении этого значения синхронизируйте `PI_AUTO_COMPACT_KEEP_RECENT_TOKENS`.
 
 После auto-compaction validated summary продолжает работу напрямую. Ручной `/compact` остаётся idle и не отправляет continuation prompt. `/clear-context` полностью очищает LLM-контекст без model call и новой сессии; прежняя история остаётся отдельной веткой текущего session-файла. Recovery packet читается только при явной потере state.
 
