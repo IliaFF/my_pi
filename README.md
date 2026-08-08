@@ -184,7 +184,7 @@ Report фильтруется по текущему project path и показы
 /decision-report 30d --markdown
 ```
 
-`/decisions` открывает split-pane terminal dashboard: arrows/PageUp/PageDown, `Enter` detail, `a/o/x` status filter, `1/7/0/*` period, `/` search, `r` refresh, `e` explicit Markdown export. RPC/headless получает bounded text report вместо TUI. Footer `D ✓/✗/?` появляется только в TUI у opted-in project. Extension не регистрирует model-facing tools, не вызывает модель, не запускает background review и не подписывается на Fabric/compaction hooks.
+`/decisions` открывает split-pane terminal dashboard в заметной theme-aware рамке: arrows/PageUp/PageDown, `Enter` detail, `a/o/x` status filter, `1/7/0/*` period, `/` search, `r` refresh, `e` explicit Markdown export. RPC/headless получает bounded text report вместо TUI. Footer `D ✓/✗/?` появляется только в TUI у opted-in project. Extension не регистрирует model-facing tools, не вызывает модель, не запускает background review и не подписывается на Fabric/compaction hooks.
 
 ## Compound project workflow
 

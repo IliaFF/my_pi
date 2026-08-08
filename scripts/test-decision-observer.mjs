@@ -217,8 +217,11 @@ export const truncateToWidth = (value, width, suffix = "…") => {
   const dashboard = new DecisionDashboard(values, [], theme, () => { renders += 1; }, () => { closed += 1; }, () => values, () => { exports += 1; return "exported"; });
   for (const width of [60, 120]) {
     const lines = dashboard.render(width);
-    assert.ok(lines.length > 4);
-    assert.ok(lines.every((line) => line.length <= width), `dashboard exceeded width ${width}`);
+    assert.ok(lines.length > 6);
+    assert.match(lines[0], /^┏━+┓$/);
+    assert.match(lines.at(-1), /^┗━+┛$/);
+    assert.ok(lines.slice(1, -1).every((line) => line.startsWith("┃") && line.endsWith("┃")), "every dashboard row must have visible sides");
+    assert.ok(lines.every((line) => line.length === width), `dashboard frame must fill width ${width}`);
   }
   dashboard.handleInput("/");
   dashboard.handleInput("runtime");
@@ -234,6 +237,8 @@ export const truncateToWidth = (value, width, suffix = "…") => {
   await tuiHarness.emit("session_start", { type: "session_start", reason: "resume" });
   assert.match(tuiHarness.statuses.at(-1).text, /^D ✓/);
   await tuiHarness.commands.get("decisions").handler("", tuiHarness.ctx);
+  assert.match(tuiHarness.dashboardLines[0], /^┏━+┓$/);
+  assert.match(tuiHarness.dashboardLines.at(-1), /^┗━+┛$/);
   assert.ok(tuiHarness.dashboardLines.some((line) => line.includes("Decision Observatory")));
 
   appendFileSync(ledgerPath, `${JSON.stringify({ ...values[0], id: "expired-test", key: "expired-test", createdAt: "2000-01-01T00:00:00.000Z", updatedAt: "2000-01-01T00:00:00.000Z" })}\n`);

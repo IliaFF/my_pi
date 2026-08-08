@@ -542,7 +542,8 @@ export class DecisionDashboard {
   }
 
   render(width: number): string[] {
-    const safeWidth = Math.max(20, width);
+    const outerWidth = Math.max(20, width);
+    const safeWidth = outerWidth - 2;
     const items = this.visible();
     this.selected = Math.min(this.selected, Math.max(0, items.length - 1));
     const current = items[this.selected];
@@ -585,7 +586,14 @@ export class DecisionDashboard {
     }
     lines.push(truncateToWidth(this.theme.fg("dim", "↑↓ select · Enter detail · a/o/x status · 1/7/0/* period · / search · r refresh · e export · Esc close"), safeWidth));
     if (this.message) lines.push(truncateToWidth(this.theme.fg("success", this.message), safeWidth));
-    return lines.map((line) => truncateToWidth(line, safeWidth, ""));
+    const top = this.theme.fg("accent", `┏${"━".repeat(safeWidth)}┓`);
+    const bottom = this.theme.fg("accent", `┗${"━".repeat(safeWidth)}┛`);
+    const side = this.theme.fg("accent", "┃");
+    return [
+      top,
+      ...lines.map((line) => `${side}${padAnsi(line, safeWidth)}${side}`),
+      bottom,
+    ];
   }
 
   invalidate(): void {}
