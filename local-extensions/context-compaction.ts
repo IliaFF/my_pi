@@ -6,7 +6,7 @@ import { uuidv7, type Usage } from "@earendil-works/pi-ai";
 import { complete } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { extractRecoveryState, SUMMARY_CONTRACT_ID, ULTRA_INSTRUCTIONS } from "./auto-ultra-compact/index.ts";
+import { authoritativeRecoveryEntries, projectAuthoritativeState, SUMMARY_CONTRACT_ID, ULTRA_INSTRUCTIONS } from "./auto-ultra-compact/index.ts";
 
 type RecordValue = Record<string, unknown>;
 type ArchiveCandidate = { id: string; title: string; tags: string[]; sourceEntryIds: string[]; reason: string };
@@ -166,12 +166,8 @@ export function validateSummary(summary: string, preparation: RecordValue, entri
 	const doneCount = (summary.match(/^- \[x\]/gm) ?? []).length;
 	if (doneCount > 10) errors.push(`Done has ${doneCount} items; maximum is 10`);
 	if (summary.length > 40_000) errors.push(`summary is too large: ${summary.length} chars`);
-	const event = { preparation };
-	const state = extractRecoveryState(event);
-	const required = [state.currentGoal, ...state.constraints, ...state.decisions, ...state.blockers, ...state.validationResults.slice(0, 4), ...state.nextSteps.slice(0, 3)]
-		.filter((value) => value && !value.startsWith("Captured automatically"));
-	for (const value of required) {
-		if (!normalized.includes(normalize(value))) errors.push(`missing authoritative state: ${value}`);
+	for (const entry of authoritativeRecoveryEntries({ preparation })) {
+		if (!normalized.includes(normalize(entry.value))) errors.push(`missing authoritative state: ${entry.value}`);
 	}
 	for (const marker of ["RESOLVED", "SUPERSEDED", "REVOKED", "COMPLETED"]) {
 		for (const value of markerValues(entries, marker)) {
@@ -303,6 +299,7 @@ export async function summarizeOnce(
 	const response = await call(prompt);
 	if (response.stopReason === "error") return undefined;
 	const parsed = parseResponse(responseText(response));
+	parsed.summary = projectAuthoritativeState(parsed.summary, { preparation });
 	const validation = validateSummary(parsed.summary, preparation, entries);
 	return { parsed, usage: response.usage, validation };
 }

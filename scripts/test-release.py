@@ -40,7 +40,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "0.83.0":
+    if manifest.get("piCoreVersion") != "0.84.1":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("pi-fabric requires Node >=24")
@@ -111,7 +111,7 @@ def main() -> int:
             package = raw.rsplit("@", 1)[0] if (raw.startswith("@") and raw.count("@") > 1) or (not raw.startswith("@") and "@" in raw) else raw
             if package not in package_json["dependencies"]:
                 fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
-        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass@0.6.2"), None)
+        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass@0.10.1"), None)
         required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**"}
         if pine is None or set(pine.get("extensions", [])) != required_pine:
             fail("pine-of-glass observability extension selection mismatch")

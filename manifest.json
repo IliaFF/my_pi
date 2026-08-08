@@ -1,25 +1,13 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "0.83.0",
+  "piCoreVersion": "0.84.1",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
-      "package": "@beyona/pi-zai-usage",
-      "version": "0.4.0",
-      "settingsSpec": "npm:@beyona/pi-zai-usage@0.4.0",
-      "patch": "patches/beyona-pi-zai-usage+0.4.0.patch",
-      "files": [
-        "dist/codex-api.js",
-        "dist/index.js",
-        "dist/codex-api.d.ts"
-      ],
-      "reason": "Preserve current Codex quota handling and custom usage footer output."
-    },
-    {
       "package": "pi-canary",
-      "version": "1.4.0",
+      "version": "1.5.0",
       "pinRequired": false,
-      "patch": "patches/pi-canary+1.4.0.patch",
+      "patch": "patches/pi-canary+1.5.0.patch",
       "files": [
         "extensions/canary.ts"
       ],
@@ -27,9 +15,9 @@
     },
     {
       "package": "pi-caveman",
-      "version": "1.0.7",
-      "settingsSpec": "npm:pi-caveman@1.0.7",
-      "patch": "patches/pi-caveman+1.0.7.patch",
+      "version": "1.0.8",
+      "settingsSpec": "npm:pi-caveman@1.0.8",
+      "patch": "patches/pi-caveman+1.0.8.patch",
       "files": [
         "extensions/caveman.ts"
       ],

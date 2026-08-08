@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_VERSION="0.83.0"
+PI_VERSION="0.84.1"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -46,7 +46,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, including pi-fabric"
   echo "DRY-RUN configs: one default profile + safe Fabric config + six local extensions"
-  echo "DRY-RUN patches: 3 exact-version patches"
+  echo "DRY-RUN patches: 2 exact-version patches"
   exit 0
 fi
 if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then

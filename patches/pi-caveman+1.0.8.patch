@@ -1,6 +1,6 @@
 --- a/extensions/caveman.ts
 +++ b/extensions/caveman.ts
-@@ -208,16 +208,36 @@
+@@ -236,16 +236,36 @@
  
  	function syncStatus(ctx: Pick<ExtensionContext, "ui">) {
  		stopAnimation();
@@ -40,7 +40,7 @@
  		};
  
  		if (!isActive) {
-@@ -229,7 +249,6 @@
+@@ -257,7 +277,6 @@
  			setFrame(anim.frames[frameIndex % anim.frames.length]!);
  			frameIndex++;
  		};

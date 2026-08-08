@@ -4,13 +4,13 @@
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@0.83.0`
+- Pi core `@earendil-works/pi-coding-agent@0.84.1`
 - Node.js `>=24.0.0` (требование `pi-fabric@0.40.3`)
 - 15 прямых npm dependencies с точными версиями: 14 settings entries и один dormant package; полный `package-lock.json`
 - единая default-конфигурация с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
-- recovery-aware compaction `recovery-v2-10k`
+- recovery-aware compaction `recovery-v3-projected-10k`
 - summarizer всегда использует текущую выбранную модель Pi
-- deterministic validation и немедленный Pi built-in fallback после первой неудачной попытки
+- deterministic authoritative-state projection, строгая validation и немедленный Pi built-in fallback после первой неудачной попытки
 - checksum-verified external excerpts и lazy `context_recall`
 - bounded recovery packet как emergency fallback, а не обязательный повтор summary
 - precise tool restoration: compacted history восстанавливает только `context_recall` по `ctxref://`
@@ -18,7 +18,7 @@
 - Cachemire для cache/turn cost diagnostics
 - persistent агрегированный agent-loop baseline, outer/nested Fabric telemetry и `/loop-report batching`
 
-Репозиторий содержит три version-gated patch для `@beyona/pi-zai-usage@0.4.0`, `pi-canary@1.4.0` и `pi-caveman@1.0.7`.
+Репозиторий содержит два version-gated patch для `pi-canary@1.5.0` и `pi-caveman@1.0.8`. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
 
 ## Текущие packages и расширения
 
@@ -26,28 +26,28 @@
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
-| `@ff-labs/pi-fff` | `0.10.1` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.6.8` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `@ff-labs/pi-fff` | `0.10.3` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
+| `@monotykamary/pi-retry` | `0.6.9` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `pi-fabric` | `0.40.3` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
-| `pi-web-access` | `0.17.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
-| `@llblab/pi-telegram` | `0.23.1` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
-| `pi-caveman` | `1.0.7` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
-| `@juicesharp/rpiv-ask-user-question` | `2.2.0` | загружен, tool lazy | Structured clarification с typed options вместо угадывания существенных решений. |
+| `pi-web-access` | `0.19.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
+| `@llblab/pi-telegram` | `0.27.2` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
+| `pi-caveman` | `1.0.8` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
+| `@juicesharp/rpiv-ask-user-question` | `2.4.0` | загружен, tool lazy | Structured clarification с typed options вместо угадывания существенных решений. |
 | `pi-token-speed` | `0.7.1` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
-| `pi-fast-resume` | `1.4.4` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
+| `pi-fast-resume` | `1.4.6` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `pi-diff-review` | `0.1.26` | загружен | Локальный TUI для просмотра и review Git diff. |
-| `@beyona/pi-zai-usage` | `0.4.0` | загружен, patched | Quota/usage footer для OpenAI Codex, Z.ai и DeepSeek; patch сохраняет корректную обработку доступных quota windows. |
-| `pine-of-glass` | `0.6.2` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
+| `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
+| `pine-of-glass` | `0.10.1` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
 | `pi-my-setup` | `0.4.12` | установлен как package/CLI helper | Сохраняет и восстанавливает наборы Pi packages и skills; model-facing tool не регистрирует. |
-| `pi-markdown-preview` | `0.10.1` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
-| `pi-canary` | `1.4.0` | **не загружен**, pinned + patched | Hidden context-awareness canary. Отключён, чтобы не добавлять скрытый token/context check каждый turn; остаётся воспроизводимым для будущего отдельного теста. |
+| `pi-markdown-preview` | `0.11.3` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pi-canary` | `1.5.0` | **не загружен**, pinned + patched | Hidden context-awareness canary. Отключён, чтобы не добавлять скрытый token/context check каждый turn; остаётся воспроизводимым для будущего отдельного теста. |
 
 ### Локальные extensions
 
 | Файл | Статус | Назначение |
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
-| `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, deterministic validation, Pi fallback, external excerpts и `context_recall`. |
+| `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, deterministic projection marker-state, строгая validation, Pi fallback, external excerpts и `context_recall`. |
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; различает outer Fabric/direct calls и nested operations; `/loop-report batching`; raw trace только при `PI_PROFILE=1`. |
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
 | `tools.ts` | активен | Держит `fabric_exec` core-active, сохраняет tool selection и точное восстановление `context_recall` после compaction. |
@@ -102,7 +102,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --install-core
 ```
 
-Если Pi `0.83.0` уже доступен через `PATH`:
+Если Pi `0.84.1` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -134,7 +134,7 @@ Default-конфигурация использует:
 - `keepRecentTokens: 24000`
 - hard summary output cap 10k
 - custom compaction на текущей выбранной модели Pi
-- deterministic validator
+- deterministic projector добавляет active marker-state кодом до строгого validator
 - одна custom-попытка, затем немедленный Pi built-in fallback
 - external exact excerpts под `~/.pi/agent/context-store/`
 - lazy `context_recall`
@@ -238,7 +238,7 @@ timeout 20 pi --mode rpc --no-session </dev/null
 
 Update script создаёт backup npm tree, обновляет расширения, возвращает managed configs, повторно применяет совместимые patch и проверяет результат. Неизвестная версия patch-пакета вызывает отказ и rollback.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `0.83.0`; обновление core нужно сначала проверить и зафиксировать здесь.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `0.84.1`; обновление core нужно сначала проверить и зафиксировать здесь.
 
 ## Откат
 

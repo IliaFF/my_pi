@@ -74,7 +74,7 @@ Use the required structured checkpoint format, with these rules:
 - Omit raw logs, repeated explanations, stale exploration, abandoned branches, conversational filler, and details recoverable from cited files or artifact pointers.
 - Never claim unfinished or unvalidated work is complete.`;
 
-export const SUMMARY_CONTRACT_ID = "recovery-v2-10k";
+export const SUMMARY_CONTRACT_ID = "recovery-v3-projected-10k";
 const FALLBACK_RESTORE_MESSAGE =
 	"Продолжай после автосжатия. Сначала восстановись по recovery packet, затем продолжай с текущего next step. Не перечитывай raw logs/large dirs без необходимости.";
 const VALIDATED_RESTORE_MESSAGE =
@@ -443,6 +443,51 @@ export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): R
 		validationResults: uniqueLimit(validationResults.reverse(), 12),
 		recentUserMessages: uniqueLimit(recentUserMessages.reverse(), 3),
 	};
+}
+
+type AuthoritativeRecoveryMarker = "GOAL" | "CONSTRAINT" | "DECISION" | "BLOCKER" | "VALIDATION" | "NEXT";
+type AuthoritativeRecoveryEntry = { marker: AuthoritativeRecoveryMarker; value: string };
+
+const AUTHORITATIVE_STATE_START = "<!-- authoritative-state:start -->";
+const AUTHORITATIVE_STATE_END = "<!-- authoritative-state:end -->";
+
+function oneLine(value: string): string {
+	return value.replace(/\s+/g, " ").trim();
+}
+
+export function authoritativeRecoveryEntries(event?: unknown): AuthoritativeRecoveryEntry[] {
+	const state = extractRecoveryState(event);
+	const entries: AuthoritativeRecoveryEntry[] = [];
+	const add = (marker: AuthoritativeRecoveryMarker, values: string[]) => {
+		for (const raw of values) {
+			const value = oneLine(raw);
+			if (!value || value.startsWith("Captured automatically")) continue;
+			entries.push({ marker, value });
+		}
+	};
+	add("GOAL", [state.currentGoal]);
+	add("CONSTRAINT", state.constraints);
+	add("DECISION", state.decisions);
+	add("BLOCKER", state.blockers);
+	add("VALIDATION", state.validationResults.slice(0, 4));
+	add("NEXT", state.nextSteps.slice(0, 3));
+	return entries.filter((entry, index, all) => all.findIndex((candidate) => candidate.marker === entry.marker && markerIdentity(candidate.value) === markerIdentity(entry.value)) === index);
+}
+
+/** Add canonical active recovery markers after model generation, before strict validation. */
+export function projectAuthoritativeState(summary: string, event?: unknown): string {
+	const base = summary
+		.replace(/\n?<!-- authoritative-state:start -->[\s\S]*?<!-- authoritative-state:end -->\n?/gi, "\n")
+		.trim();
+	const entries = authoritativeRecoveryEntries(event);
+	if (!entries.length) return base;
+	const block = [
+		AUTHORITATIVE_STATE_START,
+		"### Authoritative State",
+		...entries.map((entry) => `[${entry.marker}] ${entry.value}`),
+		AUTHORITATIVE_STATE_END,
+	].join("\n");
+	return `${base}\n\n${block}`;
 }
 
 function recoveryBody(ctx: ExtensionContext, reason: string, usagePercent: number, tokens: number, window: number, event?: unknown): string {
