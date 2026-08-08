@@ -92,6 +92,12 @@
       "reason": "Persistent bounded aggregate loop baseline and /loop-report; raw trace remains opt-in."
     },
     {
+      "source": "extensions/project-loop.ts",
+      "snapshot": "local-extensions/project-loop.ts",
+      "restore": true,
+      "reason": "Bounded project preflight/context, profile-first compound edit-validation tools, and /fast-fix."
+    },
+    {
       "source": "extensions/tools.ts",
       "snapshot": "local-extensions/tools.ts",
       "restore": true,

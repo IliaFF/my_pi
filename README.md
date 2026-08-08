@@ -111,6 +111,34 @@ Default-конфигурация включает `pi-contextimate`, `pi-cachemi
 
 Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, single/parallel batches, validation rounds, tool-output size, cache usage и частые tool transitions.
 
+## Быстрый project loop
+
+`project-loop.ts` без model call строит bounded auto-preflight перед первым request каждой задачи и вставляет его ephemeral-сообщением после последнего user prompt. Старые preflight не накапливаются в model context и не меняют стабильный system-prompt prefix.
+
+Инструменты:
+
+- `project_context` — ranked paths/content и profile excerpts;
+- `project_probe` — stack, git state, top-level map и task hints одним вызовом;
+- `edit_verify` — exact edit одного файла плюс targeted validation;
+- `targeted_test` — один profile-first validation workflow;
+- `finish_gate` — финальные проверки до завершения;
+- `/fast-fix <задача>` — запускает low-round-trip workflow.
+
+Project profile необязателен: `<project>/.pi/project-loop.json`. Schema: `configs/project-loop.schema.json`; example: `configs/project-loop.example.json`. Profile выполняется только для trusted project. При отсутствии profile autodetect не скачивает зависимости и ограничен `git diff --check`, local syntax checks и уже установленным `node_modules/.bin/tsc`.
+
+```json
+{
+  "version": 1,
+  "context": { "files": ["README.md", "TODO.md"], "maxChars": 5000 },
+  "validation": {
+    "targeted": { "unit": { "command": "npm test", "timeoutMs": 120000 } },
+    "finish": [{ "name": "verify", "command": "./scripts/verify.sh", "timeoutMs": 180000 }]
+  }
+}
+```
+
+Все auto/tool outputs bounded; repository map и полные logs в context не выгружаются.
+
 ## Проверка установленного стека
 
 ```bash

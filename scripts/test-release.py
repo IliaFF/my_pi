@@ -58,6 +58,20 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
+    profile_schema = json.loads((ROOT / "configs/project-loop.schema.json").read_text())
+    profile_example = json.loads((ROOT / "configs/project-loop.example.json").read_text())
+    if profile_schema.get("properties", {}).get("version", {}).get("const") != 1:
+        fail("invalid project-loop profile schema")
+    if profile_example.get("version") != 1 or not profile_example.get("validation", {}).get("finish"):
+        fail("invalid project-loop profile example")
+    project_loop_source = (ROOT / "local-extensions/project-loop.ts").read_text()
+    routing_source = (ROOT / "local-extensions/tools.ts").read_text()
+    for required in ["project_context", "project_probe", "edit_verify", "targeted_test", "finish_gate", "fast-fix"]:
+        if required not in project_loop_source or required not in routing_source and required != "fast-fix":
+            fail(f"project-loop tool missing from implementation/routing: {required}")
+    if "before_agent_start" not in project_loop_source or 'pi.on("context"' not in project_loop_source:
+        fail("project-loop ephemeral preflight hooks missing")
+
     for settings_file in [ROOT / "configs/settings.json"]:
         settings = json.loads(settings_file.read_text())
         for spec in settings.get("packages", []):
@@ -126,7 +140,7 @@ def main() -> int:
     print(profiler_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS single default configuration and observability selection")
+    print("PASS single default configuration, observability selection, and project-loop profile/tool wiring")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 
