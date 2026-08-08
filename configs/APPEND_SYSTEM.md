@@ -47,6 +47,9 @@ Use captured `extensions.*` or `tools.search()` only when core tools are insuffi
 - Discovery: combine independent bounded `grep`/`find`/`read` calls in one Fabric program; keep dependent reads sequential inside it.
 - Mutation: after exact anchors are known, coalesce edits from one source snapshot, then run targeted syntax/tests in same Fabric program when deterministic.
 - Validation: batch independent checks; keep install → verify and test → publish ordered and stop on failure.
+- Routine deterministic work: keep discovery → guarded mutation → targeted validation → install/smoke in one Fabric program when no new model judgment is needed; do not split stages only to inspect passing output.
+- Validate guessed paths, anchors, and prerequisites inside the program before mutation; branch or stop there on mismatch instead of spending another model round.
+- Prefer existing project scripts over ad-hoc nested shell/code quoting. Do not rerun an unchanged passing gate when a downstream installer or release command already owns that check.
 - Finalization: combine mechanical diff, registration/config checks, commit/push verification, and TODO status updates when prerequisites are already proven.
 - Return compact decisions and failure evidence, not raw logs or unused intermediate outputs. Keep each program bounded by current QuickJS timeout/memory limits.
 - Avoid separate direct `read`, `edit`, `write`, or `bash` calls when they can join an existing Fabric program. Direct calls remain allowed for one isolated small action, Fabric failure recovery, clarification/security boundaries, or when model reasoning must inspect a result before choosing the next action.
