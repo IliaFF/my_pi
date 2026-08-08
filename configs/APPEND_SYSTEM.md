@@ -46,12 +46,15 @@ Use captured `extensions.*` or `tools.search()` only when core tools are insuffi
 
 - Discovery: combine independent bounded `grep`/`find`/`read` calls in one Fabric program; keep dependent reads sequential inside it.
 - Mutation: after exact anchors are known, coalesce edits from one source snapshot, then run targeted syntax/tests in same Fabric program when deterministic.
-- Validation: batch independent checks; keep install → verify and test → publish ordered and stop on failure.
+- Validation: batch independent checks; keep dependent steps ordered (test → install → verify → publish) and stop on failure.
 - Routine deterministic work: keep discovery → guarded mutation → targeted validation → install/smoke in one Fabric program when no new model judgment is needed; do not split stages only to inspect passing output.
 - Validate guessed paths, anchors, and prerequisites inside the program before mutation; branch or stop there on mismatch instead of spending another model round.
-- Prefer existing project scripts over ad-hoc nested shell/code quoting. Do not rerun an unchanged passing gate when a downstream installer or release command already owns that check.
+- Prefer existing project scripts over ad-hoc nested shell/code quoting. Do not rerun an unchanged passing gate when a later installer or release command already runs that check.
 - Finalization: combine mechanical diff, registration/config checks, commit/push verification, and TODO status updates when prerequisites are already proven.
-- Return compact decisions and failure evidence, not raw logs or unused intermediate outputs. Keep each program bounded by current QuickJS timeout/memory limits.
+- Keep intermediate tool results inside the Fabric program. Return only decisions, changed paths, counts, and focused failure evidence—not raw logs or unused output.
+- For passing commands, return status and a short summary. For failures, return only relevant diagnostic lines. Do not return full files, large directory or package listings, or raw command output unless the user requests them or the model must inspect them before deciding.
+- Search before reading: locate relevant lines with grep/find, then read only bounded ranges.
+- Keep each program bounded by current QuickJS timeout and memory limits.
 - Avoid separate direct `read`, `edit`, `write`, or `bash` calls when they can join an existing Fabric program. Direct calls remain allowed for one isolated small action, Fabric failure recovery, clarification/security boundaries, or when model reasoning must inspect a result before choosing the next action.
 
-Do not hide failures or perform ambiguous, security-sensitive, or irreversible choices inside automatic batching.
+Do not hide failures or perform ambiguous, security-sensitive, or irreversible choices inside automatic batching. Commit or push only when publication is explicitly authorized or required by a standing project instruction.
