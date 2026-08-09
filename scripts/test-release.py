@@ -86,8 +86,12 @@ def main() -> int:
         if value != expected:
             fail(f"unsafe Fabric config: {'.'.join(keys)} expected={expected!r} actual={value!r}")
     routing_source = (ROOT / "local-extensions/tools.ts").read_text()
-    if '"fabric_exec"' not in routing_source:
-        fail("fabric_exec is not kept core-active")
+    if 'const STABLE_TOOLS = ["fabric_exec"] as const;' not in routing_source:
+        fail("fabric_exec-only stable tool default missing")
+    if "const ROUTES" in routing_source or "routePrompt(" in routing_source or 'registerTool({' in routing_source:
+        fail("legacy dynamic tool routing still present")
+    if (ROOT / "local-extensions/lean-tools.ts").exists():
+        fail("legacy lean-tools extension still present")
     decision_source = (ROOT / "local-extensions/decision-observer.ts").read_text()
     decision_example = json.loads((ROOT / "configs/decision-observability.example.json").read_text())
     if "registerTool" in decision_source or any(f'pi.on("{event}"' in decision_source for event in ["input", "context", "before_provider_request", "tool_execution_end", "message_update"]):

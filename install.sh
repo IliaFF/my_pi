@@ -111,7 +111,7 @@ cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.jso
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
 cp "$ROOT/configs/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.json"
 cp "$ROOT/local-extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
-cp "$ROOT/local-extensions/lean-tools.ts" "$AGENT_DIR/extensions/lean-tools.ts"
+rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
 cp "$ROOT/local-extensions/decision-observer.ts" "$AGENT_DIR/extensions/decision-observer.ts"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"

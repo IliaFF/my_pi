@@ -74,7 +74,7 @@ Use the required structured checkpoint format, with these rules:
 - Omit raw logs, repeated explanations, stale exploration, abandoned branches, conversational filler, and details recoverable from cited files or artifact pointers.
 - Never claim unfinished or unvalidated work is complete.`;
 
-export const SUMMARY_CONTRACT_ID = "recovery-v3-projected-10k";
+export const SUMMARY_CONTRACT_ID = "recovery-v4-chronological-10k";
 const FALLBACK_RESTORE_MESSAGE =
 	"Продолжай после автосжатия. Сначала восстановись по recovery packet, затем продолжай с текущего next step. Не перечитывай raw logs/large dirs без необходимости.";
 const VALIDATED_RESTORE_MESSAGE =
@@ -331,16 +331,65 @@ type RecoveryMarker = "GOAL" | "DECISION" | "SUPERSEDED" | "CONSTRAINT" | "REVOK
 
 const RECOVERY_MARKER_RE = /^\s*(?:[-*]\s*)?\[(GOAL|DECISION|SUPERSEDED|CONSTRAINT|REVOKED|BLOCKER|RESOLVED|NEXT|COMPLETED|VALIDATION)\]\s*:?\s*(.+?)\s*$/i;
 
-function markedRecoveryState(text: string): Record<RecoveryMarker, string[]> {
-	const out: Record<RecoveryMarker, string[]> = { GOAL: [], DECISION: [], SUPERSEDED: [], CONSTRAINT: [], REVOKED: [], BLOCKER: [], RESOLVED: [], NEXT: [], COMPLETED: [], VALIDATION: [] };
+type RecoveryMarkerEvent = { marker: RecoveryMarker; value: string };
+
+type ReducedMarkedRecoveryState = {
+	goals: string[];
+	decisions: string[];
+	constraints: string[];
+	blockers: string[];
+	nextSteps: string[];
+	validations: string[];
+};
+
+function markedRecoveryEvents(text: string): RecoveryMarkerEvent[] {
+	const events: RecoveryMarkerEvent[] = [];
 	for (const line of text.split(/\n+/)) {
 		const match = line.match(RECOVERY_MARKER_RE);
 		if (!match) continue;
-		const marker = match[1].toUpperCase() as RecoveryMarker;
 		const value = truncate(match[2], 700);
-		if (value) out[marker].push(value);
+		if (value) events.push({ marker: match[1].toUpperCase() as RecoveryMarker, value });
 	}
-	return out;
+	return events;
+}
+
+function reduceMarkedRecoveryState(events: RecoveryMarkerEvent[]): ReducedMarkedRecoveryState {
+	const goals: string[] = [];
+	const validations: string[] = [];
+	const active = {
+		DECISION: new Map<string, string>(),
+		CONSTRAINT: new Map<string, string>(),
+		BLOCKER: new Map<string, string>(),
+		NEXT: new Map<string, string>(),
+	};
+	const reopen = (kind: keyof typeof active, value: string) => {
+		const key = markerIdentity(value);
+		active[kind].delete(key);
+		active[kind].set(key, value);
+	};
+	const close = (kind: keyof typeof active, value: string) => active[kind].delete(markerIdentity(value));
+	for (const event of events) {
+		switch (event.marker) {
+			case "GOAL": goals.push(event.value); break;
+			case "DECISION": reopen("DECISION", event.value); break;
+			case "SUPERSEDED": close("DECISION", event.value); break;
+			case "CONSTRAINT": reopen("CONSTRAINT", event.value); break;
+			case "REVOKED": close("CONSTRAINT", event.value); break;
+			case "BLOCKER": reopen("BLOCKER", event.value); break;
+			case "RESOLVED": close("BLOCKER", event.value); break;
+			case "NEXT": reopen("NEXT", event.value); break;
+			case "COMPLETED": close("NEXT", event.value); break;
+			case "VALIDATION": validations.push(event.value); break;
+		}
+	}
+	return {
+		goals,
+		decisions: [...active.DECISION.values()],
+		constraints: [...active.CONSTRAINT.values()],
+		blockers: [...active.BLOCKER.values()],
+		nextSteps: [...active.NEXT.values()],
+		validations,
+	};
 }
 
 function markerIdentity(value: string): string {
@@ -371,22 +420,15 @@ export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): R
 	const validationResults: string[] = [];
 	const recentUserMessages: string[] = [];
 	const texts: string[] = [];
-	const markedGoals: string[] = [];
-	const markedDecisions: string[] = [];
-	const markedSuperseded: string[] = [];
-	const markedConstraints: string[] = [];
-	const markedRevoked: string[] = [];
-	const markedBlockers: string[] = [];
-	const markedResolved: string[] = [];
-	const markedNextSteps: string[] = [];
-	const markedCompleted: string[] = [];
-	const markedValidation: string[] = [];
-	const branchEntries = asArray(ev.branchEntries).length ? asArray(ev.branchEntries) : sessionBranchEntries(ctx);
-	const allMessages = [
+	const preparationMessages = [
 		...asArray(prep.messagesToSummarize),
 		...asArray(prep.turnPrefixMessages),
-		...branchEntries.map(entryMessage).filter(Boolean),
 	] as UnknownRecord[];
+	const branchEntries = asArray(ev.branchEntries).length ? asArray(ev.branchEntries) : sessionBranchEntries(ctx);
+	const branchMessages = branchEntries.map(entryMessage).filter(Boolean) as UnknownRecord[];
+	const allMessages = [...preparationMessages, ...branchMessages];
+	const markerMessages = preparationMessages.length ? preparationMessages : branchMessages;
+	const markerEvents: RecoveryMarkerEvent[] = [];
 
 	for (const message of allMessages) {
 		collectToolDataFromMessage(message, readFiles, modifiedFiles, commands);
@@ -394,45 +436,29 @@ export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): R
 		if (!text) continue;
 		texts.push(text);
 		if (message.role === "user") recentUserMessages.push(truncate(text, 700));
-		if (message.role === "assistant") {
-			const marked = markedRecoveryState(text);
-			markedGoals.push(...marked.GOAL);
-			markedDecisions.push(...marked.DECISION);
-			markedSuperseded.push(...marked.SUPERSEDED);
-			markedConstraints.push(...marked.CONSTRAINT);
-			markedRevoked.push(...marked.REVOKED);
-			markedBlockers.push(...marked.BLOCKER);
-			markedResolved.push(...marked.RESOLVED);
-			markedNextSteps.push(...marked.NEXT);
-			markedCompleted.push(...marked.COMPLETED);
-			markedValidation.push(...marked.VALIDATION);
-		}
+	}
+	for (const message of markerMessages) {
+		if (message.role !== "assistant") continue;
+		markerEvents.push(...markedRecoveryEvents(textFromContent(message.content)));
 	}
 
 	const combined = texts.join("\n");
-	const hasMarkedState = markedGoals.length + markedDecisions.length + markedSuperseded.length + markedConstraints.length + markedRevoked.length + markedBlockers.length + markedResolved.length + markedNextSteps.length + markedCompleted.length + markedValidation.length > 0;
-	const supersededDecisions = new Set(markedSuperseded.map(markerIdentity));
-	const revokedConstraints = new Set(markedRevoked.map(markerIdentity));
-	const resolvedBlockers = new Set(markedResolved.map(markerIdentity));
-	const completedSteps = new Set(markedCompleted.map(markerIdentity));
-	const activeMarkedDecisions = markedDecisions.filter((item) => !supersededDecisions.has(markerIdentity(item)));
-	const activeMarkedConstraints = markedConstraints.filter((item) => !revokedConstraints.has(markerIdentity(item)));
-	const activeMarkedBlockers = markedBlockers.filter((item) => !resolvedBlockers.has(markerIdentity(item)));
-	const activeMarkedNextSteps = markedNextSteps.filter((item) => !completedSteps.has(markerIdentity(item)));
+	const hasMarkedState = markerEvents.length > 0;
+	const marked = reduceMarkedRecoveryState(markerEvents);
 	decisions.push(...(hasMarkedState
-		? activeMarkedDecisions
+		? marked.decisions
 		: lineMatches(combined, /\b(decision|decided|choose|chosen|accept|selected|use|must|should)\b|решил|решили|выбор|будем|нужно|надо|обязательно/i)));
-	constraints.push(...activeMarkedConstraints);
+	constraints.push(...marked.constraints);
 	blockers.push(...(hasMarkedState
-		? activeMarkedBlockers
+		? marked.blockers
 		: lineMatches(combined, /error|failed|exception|cannot|enoent|syntaxerror|typeerror|blocked|blocker|risk|ошиб|падает|не работает|блок|риск/i)));
 	nextSteps.push(...(hasMarkedState
-		? activeMarkedNextSteps
+		? marked.nextSteps
 		: lineMatches(combined, /next|todo|plan|fix|implement|continue|следующ|дальше|потом|исправ|сделать|реализ/i)));
-	validationResults.push(...markedValidation);
+	validationResults.push(...marked.validations);
 
 	return {
-		currentGoal: markedGoals.length ? markedGoals[markedGoals.length - 1] : recentUserMessages.length ? recentUserMessages[recentUserMessages.length - 1] : "Captured automatically before compaction. If goal missing, infer from compact summary and latest user request.",
+		currentGoal: marked.goals.length ? marked.goals[marked.goals.length - 1] : recentUserMessages.length ? recentUserMessages[recentUserMessages.length - 1] : "Captured automatically before compaction. If goal missing, infer from compact summary and latest user request.",
 		readFiles: uniqueLimit(readFiles.sort(), 8),
 		modifiedFiles: uniqueLimit(modifiedFiles.sort(), 15),
 		commands: uniqueLimit(commands.reverse(), 5),
@@ -478,6 +504,9 @@ export function authoritativeRecoveryEntries(event?: unknown): AuthoritativeReco
 export function projectAuthoritativeState(summary: string, event?: unknown): string {
 	const base = summary
 		.replace(/\n?<!-- authoritative-state:start -->[\s\S]*?<!-- authoritative-state:end -->\n?/gi, "\n")
+		.split("\n")
+		.filter((line) => !RECOVERY_MARKER_RE.test(line))
+		.join("\n")
 		.trim();
 	const entries = authoritativeRecoveryEntries(event);
 	if (!entries.length) return base;
@@ -488,6 +517,29 @@ export function projectAuthoritativeState(summary: string, event?: unknown): str
 		AUTHORITATIVE_STATE_END,
 	].join("\n");
 	return `${base}\n\n${block}`;
+}
+
+function sameAuthoritativeEntries(actual: RecoveryMarkerEvent[], expected: AuthoritativeRecoveryEntry[]): boolean {
+	return actual.length === expected.length && actual.every((entry, index) => {
+		const wanted = expected[index];
+		return entry.marker === wanted.marker && markerIdentity(entry.value) === markerIdentity(wanted.value);
+	});
+}
+
+/** Validate exact canonical marker ledger, while allowing closed work to remain ordinary Done prose. */
+export function validateProjectedAuthoritativeState(summary: string, event?: unknown): string[] {
+	const expected = authoritativeRecoveryEntries(event);
+	const starts = summary.split(AUTHORITATIVE_STATE_START).length - 1;
+	const ends = summary.split(AUTHORITATIVE_STATE_END).length - 1;
+	const allMarkers = markedRecoveryEvents(summary);
+	if (!expected.length) return starts || ends || allMarkers.length ? ["unexpected authoritative state block"] : [];
+	const block = summary.match(/<!-- authoritative-state:start -->\s*\n### Authoritative State\s*\n([\s\S]*?)\n<!-- authoritative-state:end -->/i);
+	const errors: string[] = [];
+	if (starts !== 1 || ends !== 1 || !block) errors.push("authoritative state block must appear exactly once");
+	const blockMarkers = block ? markedRecoveryEvents(block[1]) : [];
+	if (!sameAuthoritativeEntries(blockMarkers, expected)) errors.push("canonical authoritative state does not match chronological ledger");
+	if (allMarkers.length !== blockMarkers.length || !sameAuthoritativeEntries(allMarkers, expected)) errors.push("recovery marker found outside canonical authoritative state block");
+	return errors;
 }
 
 function recoveryBody(ctx: ExtensionContext, reason: string, usagePercent: number, tokens: number, window: number, event?: unknown): string {

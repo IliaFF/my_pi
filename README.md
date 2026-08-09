@@ -7,8 +7,8 @@
 - Pi core `@earendil-works/pi-coding-agent@0.84.1`
 - Node.js `>=24.0.0` (требование `pi-fabric@0.40.3`)
 - 15 прямых npm dependencies с точными версиями: 14 settings entries и один dormant package; полный `package-lock.json`
-- единая default-конфигурация с нативными file tools, `fffind`, lazy web/Telegram и structured clarification
-- recovery-aware compaction `recovery-v3-projected-10k`
+- единая default-конфигурация с одним стабильным model-facing tool `fabric_exec`; остальные tools захвачены Fabric
+- recovery-aware compaction `recovery-v4-chronological-10k`
 - summarizer всегда использует текущую выбранную модель Pi
 - deterministic authoritative-state projection, строгая validation и немедленный Pi built-in fallback после первой неудачной попытки
 - checksum-verified external excerpts и lazy `context_recall`
@@ -47,11 +47,10 @@
 | Файл | Статус | Назначение |
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
-| `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, deterministic projection marker-state, строгая validation, Pi fallback, external excerpts и `context_recall`. |
+| `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, chronological marker reducer с reopen semantics, deterministic projection canonical marker-state, строгая validation, Pi fallback, external excerpts и `context_recall`. |
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; различает outer Fabric/direct calls и nested operations; `/loop-report batching`; raw trace только при `PI_PROFILE=1`. |
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
-| `tools.ts` | активен | Держит `fabric_exec` core-active, сохраняет tool selection и точное восстановление `context_recall` после compaction. |
-| `lean-tools.ts` | активен | Убирает дублирующие/noisy `ffgrep`, `readSeek_search`, `readSeek_rename`, `readSeek_hover`; `fffind`, `readSeek_grep`, `readSeek_refs`, `readSeek_def` остаются доступны. |
+| `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection и добавляет только `context_recall` после compaction с `ctxref://`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: их заменил общий compound runtime Fabric.
 
@@ -70,6 +69,7 @@
 | Pi experimental tool-output pruning | выключен | Не мутирует tool history дополнительным экспериментальным pruning; bounded outputs контролируются источником и Fabric limits. |
 | `pi-canary` runtime | отсутствует в `settings.json` | Избегаем скрытой per-turn context проверки; exact package и patch сохранены для rollback/эксперимента. |
 | Legacy project-loop | удалён | Убирает auto-preflight и пять постоянных schemas; discovery/edit/test объединяются в `fabric_exec`. |
+| Legacy keyword tool router и `lean-tools.ts` | удалены | Они вызывали `setActiveTools()` на turn boundaries; web `promptSnippet` пересобирал system prompt и ломал prefix cache. |
 
 ## Что намеренно исключено
 
@@ -154,7 +154,7 @@ Guard использует `keepRecentTokens: 24000`; при отдельном 
 
 ## Observability
 
-Default-конфигурация включает `pi-contextimate`, `pi-cachemire` и `pi-traceline` из `pine-of-glass@0.6.2`.
+Default-конфигурация включает `pi-contextimate`, `pi-cachemire` и `pi-traceline` из `pine-of-glass@0.10.1`.
 
 `loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl` с правами `0600`. Prompt, messages, tool arguments и tool results туда не записываются. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
 
@@ -199,7 +199,7 @@ Report фильтруется по текущему project path и показы
 - Fabric compactor отключён через `compaction.engine: "pi"`, поэтому существующие `auto-ultra-compact` и `context-compaction.ts` сохраняют lifecycle;
 - MCP, built-in agents, mesh, memory и schema transactions выключены;
 - captured extension tools скрыты из model schemas, но их commands, handlers, UI и lazy invocation сохраняются;
-- `fabric_exec` остаётся core-active в локальном tool selector;
+- `fabric_exec` остаётся единственным model-facing tool по default; keyword routing удалён для стабильного prefix cache;
 - Fabric agent risk запрещён; обычные read/write/execute и существующие network extensions сохраняют текущую политику.
 
 Для coding tasks модель должна объединять discovery, exact edits и validation в один `fabric_exec`, когда промежуточный результат не требует отдельного model reasoning. Возвращать следует bounded итог и evidence, не полные логи.

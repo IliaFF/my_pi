@@ -68,12 +68,6 @@
       "reason": "Single-attempt current-model summarizer, validation, immediate fallback, external excerpt store, and context_recall."
     },
     {
-      "source": "extensions/lean-tools.ts",
-      "snapshot": "local-extensions/lean-tools.ts",
-      "restore": true,
-      "reason": "Keep noisy replacement tools disabled by default."
-    },
-    {
       "source": "extensions/loop-profiler.ts",
       "snapshot": "local-extensions/loop-profiler.ts",
       "restore": true,
@@ -95,7 +89,7 @@
       "source": "extensions/tools.ts",
       "snapshot": "local-extensions/tools.ts",
       "restore": true,
-      "reason": "Lean core tools, prompt routing, and precise post-compaction context_recall restoration."
+      "reason": "Stable fabric_exec-only default, explicit manual selection, and precise post-compaction context_recall restoration without keyword routing."
     },
     {
       "source": "npm/node_modules/pi-canary/extensions/canary.json",

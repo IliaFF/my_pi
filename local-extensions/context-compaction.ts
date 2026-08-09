@@ -6,7 +6,7 @@ import { uuidv7, type Usage } from "@earendil-works/pi-ai";
 import { complete } from "@earendil-works/pi-ai/compat";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { authoritativeRecoveryEntries, projectAuthoritativeState, SUMMARY_CONTRACT_ID, ULTRA_INSTRUCTIONS } from "./auto-ultra-compact/index.ts";
+import { projectAuthoritativeState, SUMMARY_CONTRACT_ID, ULTRA_INSTRUCTIONS, validateProjectedAuthoritativeState } from "./auto-ultra-compact/index.ts";
 
 type RecordValue = Record<string, unknown>;
 type ArchiveCandidate = { id: string; title: string; tags: string[]; sourceEntryIds: string[]; reason: string };
@@ -143,37 +143,17 @@ export function parseResponse(text: string): ParsedResponse {
 	return { summary, candidates };
 }
 
-function normalize(value: string): string {
-	return value.toLowerCase().replace(/[`*_\[\]]/g, "").replace(/\s+/g, " ").trim();
-}
-
-function markerValues(entries: RecordValue[], marker: string): string[] {
-	const pattern = new RegExp(`^\\s*(?:[-*]\\s*)?\\[${marker}\\]\\s*:?\\s*(.+?)\\s*$`, "gim");
-	const values: string[] = [];
-	for (const entry of entries) {
-		const text = entryText(entry);
-		for (const match of text.matchAll(pattern)) values.push(match[1].trim());
-	}
-	return values;
-}
 
 export function validateSummary(summary: string, preparation: RecordValue, entries: RecordValue[]): string[] {
 	const errors: string[] = [];
-	const normalized = normalize(summary);
+
 	for (const heading of ["## Goal", "## Constraints & Preferences", "## Progress", "### Done", "### In Progress", "### Blocked", "## Key Decisions", "## Next Steps", "## Critical Context"]) {
 		if (!summary.includes(heading)) errors.push(`missing heading: ${heading}`);
 	}
 	const doneCount = (summary.match(/^- \[x\]/gm) ?? []).length;
 	if (doneCount > 10) errors.push(`Done has ${doneCount} items; maximum is 10`);
 	if (summary.length > 40_000) errors.push(`summary is too large: ${summary.length} chars`);
-	for (const entry of authoritativeRecoveryEntries({ preparation })) {
-		if (!normalized.includes(normalize(entry.value))) errors.push(`missing authoritative state: ${entry.value}`);
-	}
-	for (const marker of ["RESOLVED", "SUPERSEDED", "REVOKED", "COMPLETED"]) {
-		for (const value of markerValues(entries, marker)) {
-			if (normalized.includes(normalize(value))) errors.push(`closed state carried forward (${marker}): ${value}`);
-		}
-	}
+	errors.push(...validateProjectedAuthoritativeState(summary, { preparation, branchEntries: entries }));
 	return [...new Set(errors)];
 }
 
@@ -299,7 +279,7 @@ export async function summarizeOnce(
 	const response = await call(prompt);
 	if (response.stopReason === "error") return undefined;
 	const parsed = parseResponse(responseText(response));
-	parsed.summary = projectAuthoritativeState(parsed.summary, { preparation });
+	parsed.summary = projectAuthoritativeState(parsed.summary, { preparation, branchEntries: entries });
 	const validation = validateSummary(parsed.summary, preparation, entries);
 	return { parsed, usage: response.usage, validation };
 }
