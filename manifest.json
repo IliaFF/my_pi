@@ -80,6 +80,12 @@
       "reason": "Project-opt-in bounded decision marker ledger, deterministic outcomes, reports, and terminal dashboard without model-facing tools."
     },
     {
+      "source": "extensions/reader-pane.ts",
+      "snapshot": "local-extensions/reader-pane.ts",
+      "restore": true,
+      "reason": "Safe opt-in Windows Terminal reader with bounded tool images and wide-table card layout."
+    },
+    {
       "source": "fabric.json",
       "snapshot": "configs/fabric.json",
       "restore": true,

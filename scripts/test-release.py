@@ -100,6 +100,11 @@ def main() -> int:
         fail("decision observer example must remain explicit opt-in structured-marker mode")
     if any(decision_example.get(key) is not False for key in ["captureToolOutput", "captureMessages", "capturePrompts"]):
         fail("decision observer privacy defaults changed")
+    reader_source = (ROOT / "local-extensions/reader-pane.ts").read_text()
+    for required in ["export function adaptWideTables", "adaptWideTables(text, WIDTH)", 'registerCommand("reader-pane-on"', 'registerCommand("reader-pane-off"']:
+        if required not in reader_source:
+            fail(f"reader pane wiring missing: {required}")
+
     removed_names = ["project_context", "project_probe", "edit_verify", "targeted_test", "finish_gate", "fast-fix"]
     removed_paths = [ROOT / "local-extensions/project-loop.ts", ROOT / "configs/project-loop.schema.json", ROOT / "configs/project-loop.example.json"]
     if any(path.exists() for path in removed_paths) or any(name in routing_source for name in removed_names):
@@ -213,6 +218,17 @@ def main() -> int:
     if decision_test.returncode:
         fail(f"decision observer test failed: {decision_test.stdout.strip()}")
     print(decision_test.stdout.strip())
+
+    reader_test = subprocess.run(
+        ["node", str(ROOT / "scripts/test-reader-pane.mjs")],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if reader_test.returncode:
+        fail(f"reader pane test failed: {reader_test.stdout.strip()}")
+    print(reader_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
     print("PASS single default configuration, observability selection, and safe pi-fabric wiring")

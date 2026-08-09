@@ -50,6 +50,7 @@
 | `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, chronological marker reducer с reopen semantics, deterministic projection canonical marker-state, строгая validation, Pi fallback, external excerpts и `context_recall`. |
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; различает outer Fabric/direct calls и nested operations; `/loop-report batching`; raw trace только при `PI_PROFILE=1`. |
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
+| `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
 | `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection и добавляет только `context_recall` после compaction с `ctxref://`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: их заменил общий compound runtime Fabric.
@@ -167,6 +168,18 @@ Default-конфигурация включает `pi-contextimate`, `pi-cachemi
 Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, validation rounds, tool-output size и cache usage. `last` отдельно считает outer `fabric_exec`, direct model-facing calls и nested operations, их durations/errors и operations per Fabric program; legacy records остаются читаемыми. `batching` ведёт before/after pilot: последние 10 legacy и первые 10 policy-labelled non-synthetic runs (`contextChars >= 1000`), показывая progress и помечая сравнение как нерандомизированное. Новое поле `sessionHash` позволяет Decision Observer связать marker с агрегатом без хранения session id.
 
 `configs/APPEND_SYSTEM.md` задаёт soft policy: связанные discovery/edit/test/finalization operations группируются в bounded `fabric_exec`, один model round соответствует новому семантическому решению. Direct tools не блокируются: они остаются fallback для isolated action, Fabric failure, clarification/security boundary или результата, который модель должна осмыслить до следующего шага.
+
+## Reader pane
+
+Опциональная команда `/reader-pane-on` открывает безопасную правую панель Windows Terminal из Pi, запущенного внутри WSL. Панель автоматически показывает последний завершённый Markdown-ответ через `mdcat` с темой Catppuccin. Широкие таблицы преобразуются только в preview-копии в вертикальные карточки без обрезания ячеек; исходная история Pi, узкие таблицы и таблицы внутри fenced code blocks не меняются.
+
+Панель не исполняет текст ответа, удаляет terminal control bytes, блокирует внешние Markdown-изображения и принимает только bounded PNG/JPEG/WebP из фактических `toolResult` image-блоков. Требуются Windows Terminal и `mdcat.exe` в `%USERPROFILE%\\scoop\\shims`. Управление:
+
+```text
+/reader-pane-on
+/reader-pane-status
+/reader-pane-off
+```
 
 ## Decision observability
 
