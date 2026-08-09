@@ -121,6 +121,8 @@ assert.equal((compactionSource.match(/const response = await call\(prompt\);/g) 
 async function createContinuationHarness(home) {
   const handlers = new Map();
   const sent = [];
+  let compactOptions;
+  let compactionLocked = false;
   const api = {
     on(name, handler) {
       const list = handlers.get(name) ?? [];
@@ -129,24 +131,38 @@ async function createContinuationHarness(home) {
     },
     registerCommand() {},
     registerTool() {},
-    sendUserMessage(message, options) { sent.push({ message, options }); },
+    sendUserMessage(message, options) {
+      if (compactionLocked) throw new Error("Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.");
+      sent.push({ message, options });
+    },
   };
   autoUltraCompact(api);
+  const compactableMessages = [
+    { role: "user", content: text(4000) },
+    { role: "assistant", content: text(4000) },
+    { role: "user", content: text(100_000) },
+  ];
   const ctx = {
     cwd: home,
     hasUI: false,
     model: { contextWindow: 200_000, provider: "test", id: "model" },
     getContextUsage: () => ({ tokens: 150_000 }),
+    compact(options) { compactOptions = options; compactionLocked = true; },
     sessionManager: {
       getBranch: () => [],
-      buildSessionContext: () => ({ messages: [] }),
+      buildSessionContext: () => ({ messages: compactableMessages }),
     },
     ui: { notify() {} },
   };
-  const emit = async (name, event) => {
+  const emit = async (name, event = {}) => {
     for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
   };
-  return { emit, sent };
+  const completeCompaction = () => {
+    assert.ok(compactOptions, "extension threshold must call ctx.compact");
+    compactionLocked = false;
+    compactOptions.onComplete?.({});
+  };
+  return { emit, sent, completeCompaction };
 }
 
 const oldHome = process.env.HOME;
@@ -155,15 +171,23 @@ process.env.HOME = testHome;
 try {
   const automatic = await createContinuationHarness(testHome);
   const preparation = { tokensBefore: 150_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
-  await automatic.emit("session_before_compact", { reason: "threshold", preparation, branchEntries: [] });
-  await automatic.emit("session_compact", { compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
-  assert.equal(automatic.sent.length, 1, "automatic compaction must enqueue exactly one continuation");
+  await automatic.emit("turn_end");
+  await automatic.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
+  await automatic.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  assert.equal(automatic.sent.length, 0, "extension continuation must wait until Pi unlocks manual compaction");
+  automatic.completeCompaction();
+  assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
   assert.match(automatic.sent[0].message, /^Продолжай после автосжатия по validated compact summary/);
 
+  const builtin = await createContinuationHarness(testHome);
+  await builtin.emit("session_before_compact", { reason: "threshold", preparation, branchEntries: [] });
+  await builtin.emit("session_compact", { reason: "threshold", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  assert.equal(builtin.sent.length, 1, "built-in threshold compaction must still enqueue continuation during its lifecycle");
+
   const manual = await createContinuationHarness(testHome);
   await manual.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
-  await manual.emit("session_compact", { compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  await manual.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
   assert.equal(manual.sent.length, 0, "manual /compact must remain idle");
 } finally {
   if (oldHome === undefined) delete process.env.HOME;

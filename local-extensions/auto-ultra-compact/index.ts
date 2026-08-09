@@ -41,6 +41,7 @@ type RuntimeState = {
 	lastSkipReason?: string;
 	lastHistoryTokens?: number;
 	lastHistoryMessages?: number;
+	continuationMessage?: string;
 };
 
 const DEFAULT_EFFECTIVE_TOKENS = 170_000;
@@ -646,11 +647,12 @@ function writeRecoveryFiles(ctx: ExtensionContext, state: RuntimeState, reason: 
 	return globalPath;
 }
 
-function runCompact(ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: string): void {
+function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: string): void {
 	const compactFn = (ctx as unknown as { compact?: (options: CompactOptions) => void }).compact;
 	if (typeof compactFn !== "function") {
 		runtime.compactInFlight = false;
 		runtime.followupPending = false;
+		runtime.continuationMessage = undefined;
 		runtime.lastError = "ctx.compact unavailable";
 		notify(ctx, "auto-ultra-compact: ctx.compact unavailable", "warning");
 		return;
@@ -659,14 +661,21 @@ function runCompact(ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: 
 		compactFn({
 			customInstructions: ULTRA_INSTRUCTIONS,
 			onComplete: () => {
+				const continuationMessage = runtime.continuationMessage;
+				runtime.continuationMessage = undefined;
 				runtime.compactInFlight = false;
 				runtime.lastCompletedAt = new Date().toISOString();
 				runtime.lastError = undefined;
 				notify(ctx, `auto-ultra-compact complete; recovery: ${recoveryPath}`, "info");
+				// `session_compact` fires while Pi's manual-compaction controller is
+				// still active. Sending there is rejected. `onComplete` runs after
+				// controller cleanup, so extension-triggered continuation is safe here.
+				if (continuationMessage) pi.sendUserMessage(continuationMessage, { deliverAs: "followUp" });
 			},
 			onError: (error: Error) => {
 				runtime.compactInFlight = false;
 				runtime.followupPending = false;
+				runtime.continuationMessage = undefined;
 				if (/already compacted/i.test(error.message)) {
 					runtime.lastCompletedAt = new Date().toISOString();
 					runtime.lastError = undefined;
@@ -686,6 +695,7 @@ function runCompact(ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: 
 	} catch (error) {
 		runtime.compactInFlight = false;
 		runtime.followupPending = false;
+		runtime.continuationMessage = undefined;
 		runtime.lastError = error instanceof Error ? error.message : String(error);
 		notify(ctx, `auto-ultra-compact threw: ${runtime.lastError}`, "error");
 	}
@@ -784,7 +794,7 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 			return;
 		}
 		notify(ctx, `auto-ultra-compact threshold ${percent.toFixed(1)}% >= ${threshold}%; recovery: ${recoveryPath}`, "info");
-		runCompact(ctx, runtime, recoveryPath);
+		runCompact(pi, ctx, runtime, recoveryPath);
 	}
 
 	pi.on("turn_end", (_event, ctx) => {
@@ -818,6 +828,7 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 			runtime.compactInFlight = true;
 			runtime.lastCompactTurn = runtime.turn;
 			runtime.followupPending = shouldFollowUp;
+			runtime.continuationMessage = undefined;
 			writeRecoveryFiles(ctx, runtime, trigger, percent, tokens, window, event);
 		} catch (error) {
 			runtime.lastError = `recovery write failed: ${error instanceof Error ? error.message : String(error)}`;
@@ -832,11 +843,14 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		runtime.lastCompletedAt = new Date().toISOString();
 		if (!followup || !shouldFollowUp) return;
 		const message = recoveryFollowupMessage(event, runtime.lastRecoveryPath);
-		// Never silently drop recovery replay. In ordinary sessions, Pi can still
-		// report pending messages immediately after compaction (queued user input,
-		// retry/replay bookkeeping, extension prompts). Skipping here leaves the
-		// agent idle after auto-compaction. `followUp` preserves any existing queue
-		// ordering and resumes work once current/pending turn drains.
+		if (event.reason === "manual") {
+			// ctx.compact() uses manual lifecycle. Pi rejects prompts until its
+			// compaction controller is cleared after this event.
+			runtime.continuationMessage = message;
+			return;
+		}
+		// Built-in threshold/overflow compaction consumes queued messages after
+		// session_compact, so enqueue immediately for that lifecycle.
 		pi.sendUserMessage(message, { deliverAs: "followUp" });
 	});
 
