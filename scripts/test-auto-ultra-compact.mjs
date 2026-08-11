@@ -11,7 +11,7 @@ const source = resolve(root, "local-extensions/auto-ultra-compact/index.ts");
 const autoModule = await import(pathToFileURL(source).href);
 const { default: autoUltraCompact, SUMMARY_CONTRACT_ID, analyzeCompactability, authoritativeRecoveryEntries, estimateCompactionTokens, projectAuthoritativeState, validateProjectedAuthoritativeState } = autoModule;
 const text = (length) => [{ type: "text", text: "x".repeat(length) }];
-const analyze = (messages) => analyzeCompactability(messages, 24_000);
+const analyze = (messages) => analyzeCompactability(messages, 12_000);
 
 assert.equal(estimateCompactionTokens({ role: "user", content: text(4001) }), 1001);
 assert.equal(analyze([
@@ -123,6 +123,8 @@ async function createContinuationHarness(home) {
   const sent = [];
   let compactOptions;
   let compactionLocked = false;
+  let contextTokens = 150_000;
+  let compactCalls = 0;
   const api = {
     on(name, handler) {
       const list = handlers.get(name) ?? [];
@@ -146,8 +148,8 @@ async function createContinuationHarness(home) {
     cwd: home,
     hasUI: false,
     model: { contextWindow: 200_000, provider: "test", id: "model" },
-    getContextUsage: () => ({ tokens: 150_000 }),
-    compact(options) { compactOptions = options; compactionLocked = true; },
+    getContextUsage: () => ({ tokens: contextTokens }),
+    compact(options) { compactOptions = options; compactCalls++; compactionLocked = true; },
     sessionManager: {
       getBranch: () => [],
       buildSessionContext: () => ({ messages: compactableMessages }),
@@ -162,7 +164,7 @@ async function createContinuationHarness(home) {
     compactionLocked = false;
     compactOptions.onComplete?.({});
   };
-  return { emit, sent, completeCompaction };
+  return { emit, sent, completeCompaction, compactCalls: () => compactCalls, setContextTokens: (tokens) => { contextTokens = tokens; } };
 }
 
 const oldHome = process.env.HOME;
@@ -179,6 +181,21 @@ try {
   assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
   assert.match(automatic.sent[0].message, /^Продолжай после автосжатия по validated compact summary/);
+  automatic.setContextTokens(155_000);
+  await automatic.emit("turn_end");
+  assert.equal(automatic.compactCalls(), 2, "ineffective compaction must bypass cooldown and compact again after first real post-compaction usage");
+
+  const reduced = await createContinuationHarness(testHome);
+  await reduced.emit("turn_end");
+  await reduced.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
+  await reduced.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  reduced.completeCompaction();
+  reduced.setContextTokens(60_000);
+  await reduced.emit("turn_end");
+  assert.equal(reduced.compactCalls(), 1, "effective compaction must consume post-check without another compaction");
+
+  const managedSettings = JSON.parse(readFileSync(resolve(root, "configs/settings.json"), "utf8"));
+  assert.equal(managedSettings.compaction.keepRecentTokens, 12_000, "managed Pi compaction must retain only 12k estimated tokens");
 
   const builtin = await createContinuationHarness(testHome);
   await builtin.emit("session_before_compact", { reason: "threshold", preparation, branchEntries: [] });
@@ -195,4 +212,4 @@ try {
   rmSync(testHome, { recursive: true, force: true });
 }
 
-console.log("PASS auto-ultra-compact compactability, authoritative-state projector, and automatic continuation lifecycle");
+console.log("PASS auto-ultra-compact 12k retention, post-compaction verification, compactability, authoritative-state projector, and continuation lifecycle");

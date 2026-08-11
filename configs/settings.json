@@ -41,7 +41,7 @@
   "compaction": {
     "enabled": true,
     "reserveTokens": 12500,
-    "keepRecentTokens": 24000
+    "keepRecentTokens": 12000
   },
   "thresholds": {
     "checkpoint": 98,

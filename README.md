@@ -132,7 +132,7 @@ PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 Default-конфигурация использует:
 
 - `reserveTokens: 12500`
-- `keepRecentTokens: 24000`
+- `keepRecentTokens: 12000`
 - hard summary output cap 10k
 - custom compaction на текущей выбранной модели Pi
 - deterministic projector добавляет active marker-state кодом до строгого validator
@@ -141,7 +141,7 @@ Default-конфигурация использует:
 - lazy `context_recall`
 - compactability guard: высокий provider context сам по себе не запускает `ctx.compact()`, если session history не имеет discardable prefix; это предотвращает `Nothing to compact (session too small)` loop
 
-Guard использует `keepRecentTokens: 24000`; при отдельном изменении этого значения синхронизируйте `PI_AUTO_COMPACT_KEEP_RECENT_TOKENS`.
+Guard использует `keepRecentTokens: 12000`; при отдельном изменении этого значения синхронизируйте `PI_AUTO_COMPACT_KEEP_RECENT_TOKENS`. После первого завершённого post-compaction turn watchdog сверяет реальный provider usage: если prompt всё ещё выше порога и есть discardable prefix, повторное сжатие запускается сразу, без трёхходового cooldown.
 
 После auto-compaction validated summary продолжает работу напрямую. Ручной `/compact` остаётся idle и не отправляет continuation prompt. `/clear-context` полностью очищает LLM-контекст без model call и новой сессии; прежняя история остаётся отдельной веткой текущего session-файла. Recovery packet читается только при явной потере state.
 

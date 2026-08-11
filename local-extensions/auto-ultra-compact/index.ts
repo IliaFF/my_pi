@@ -42,6 +42,7 @@ type RuntimeState = {
 	lastHistoryTokens?: number;
 	lastHistoryMessages?: number;
 	continuationMessage?: string;
+	postCompactCheckPending: boolean;
 };
 
 const DEFAULT_EFFECTIVE_TOKENS = 170_000;
@@ -49,7 +50,7 @@ const DEFAULT_CONTEXT_WINDOW = 200_000;
 const DEFAULT_THRESHOLD_TOKENS = 150_000;
 const DEFAULT_THRESHOLD_PERCENT = (DEFAULT_THRESHOLD_TOKENS / DEFAULT_EFFECTIVE_TOKENS) * 100;
 const DEFAULT_COOLDOWN_TURNS = 3;
-const DEFAULT_KEEP_RECENT_TOKENS = 24_000;
+const DEFAULT_KEEP_RECENT_TOKENS = 12_000;
 const ESTIMATED_IMAGE_CHARS = 4_800;
 export const ULTRA_INSTRUCTIONS = `These rules override conflicting preservation guidance above.
 
@@ -666,6 +667,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 				runtime.compactInFlight = false;
 				runtime.lastCompletedAt = new Date().toISOString();
 				runtime.lastError = undefined;
+				runtime.postCompactCheckPending = true;
 				notify(ctx, `auto-ultra-compact complete; recovery: ${recoveryPath}`, "info");
 				// `session_compact` fires while Pi's manual-compaction controller is
 				// still active. Sending there is rejected. `onComplete` runs after
@@ -719,6 +721,7 @@ function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: num
 		`compactInFlight: ${runtime.compactInFlight}`,
 		`followupEnabled: ${followup}`,
 		`followupPending: ${runtime.followupPending}`,
+		`postCompactCheckPending: ${runtime.postCompactCheckPending}`,
 		`lastTrigger: ${runtime.lastTrigger ?? "none"}`,
 		`lastTokens: ${runtime.lastTokens ?? "unknown"}`,
 		`lastWindow: ${runtime.lastWindow ?? "unknown"}`,
@@ -743,11 +746,12 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 	const threshold = envNumber("PI_AUTO_COMPACT_PERCENT", DEFAULT_THRESHOLD_PERCENT);
 	const followup = envBool("PI_AUTO_COMPACT_FOLLOWUP", true);
 	const cooldownTurns = envNumber("PI_AUTO_COMPACT_COOLDOWN_TURNS", DEFAULT_COOLDOWN_TURNS);
-	const runtime: RuntimeState = { compactInFlight: false, followupPending: false, lastCompactTurn: -Infinity, turn: 0 };
+	const runtime: RuntimeState = { compactInFlight: false, followupPending: false, postCompactCheckPending: false, lastCompactTurn: -Infinity, turn: 0 };
 
 	function maybeCompact(ctx: ExtensionContext, reason: string): void {
 		if (runtime.compactInFlight) return;
-		if (runtime.turn - runtime.lastCompactTurn < cooldownTurns) return;
+		const postCompactCheck = runtime.postCompactCheckPending;
+		if (!postCompactCheck && runtime.turn - runtime.lastCompactTurn < cooldownTurns) return;
 		const usage = ctx.getContextUsage?.();
 		const tokens = usage?.tokens ?? null;
 		if (typeof tokens !== "number" || !Number.isFinite(tokens)) return;
@@ -756,11 +760,13 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		const overThreshold = percent >= threshold;
 		const crossed = runtime.previousPercent === undefined ? overThreshold : runtime.previousPercent < threshold && overThreshold;
 		const sustained = overThreshold && runtime.turn - runtime.lastCompactTurn >= cooldownTurns;
+		const ineffectiveCompaction = postCompactCheck && overThreshold;
+		runtime.postCompactCheckPending = false;
 		runtime.previousPercent = percent;
 		runtime.lastTokens = tokens;
 		runtime.lastWindow = window;
 		runtime.lastPercent = percent;
-		if (!crossed && !sustained) return;
+		if (!crossed && !sustained && !ineffectiveCompaction) return;
 
 		const keepRecentTokens = envNumber("PI_AUTO_COMPACT_KEEP_RECENT_TOKENS", DEFAULT_KEEP_RECENT_TOKENS);
 		const compactability = analyzeCompactability(ctx.sessionManager.buildSessionContext().messages, keepRecentTokens);
@@ -800,7 +806,7 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 	pi.on("turn_end", (_event, ctx) => {
 		runtime.turn++;
 		try {
-			maybeCompact(ctx, "threshold");
+			maybeCompact(ctx, runtime.postCompactCheckPending ? "post-compact" : "threshold");
 		} catch (error) {
 			runtime.compactInFlight = false;
 			runtime.followupPending = false;
@@ -812,10 +818,10 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 	pi.on("session_before_compact", async (event, ctx) => {
 		try {
 			const prep = asRecord(asRecord(event)?.preparation);
-			const extensionTriggered = runtime.compactInFlight && runtime.lastTrigger === "threshold";
+			const extensionTriggered = runtime.compactInFlight && (runtime.lastTrigger === "threshold" || runtime.lastTrigger === "post-compact");
 			const compactionReason = event.reason;
 			const shouldFollowUp = shouldSendContinuation(compactionReason, extensionTriggered);
-			const trigger = extensionTriggered ? "threshold" : compactionReason;
+			const trigger = extensionTriggered ? runtime.lastTrigger! : compactionReason;
 			const usage = ctx.getContextUsage?.();
 			const tokensFromPrep = typeof prep?.tokensBefore === "number" ? prep.tokensBefore : undefined;
 			const tokens = usage?.tokens ?? tokensFromPrep ?? 0;
@@ -841,6 +847,8 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		runtime.followupPending = false;
 		runtime.compactInFlight = false;
 		runtime.lastCompletedAt = new Date().toISOString();
+		const automatic = event.reason !== "manual" || runtime.lastTrigger === "threshold" || runtime.lastTrigger === "post-compact";
+		if (automatic) runtime.postCompactCheckPending = true;
 		if (!followup || !shouldFollowUp) return;
 		const message = recoveryFollowupMessage(event, runtime.lastRecoveryPath);
 		if (event.reason === "manual") {
