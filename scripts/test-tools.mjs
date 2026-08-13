@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url";
 
 const root = process.argv[2] ?? new URL("..", import.meta.url).pathname;
 const source = await readFile(join(root, "local-extensions/tools.ts"), "utf8");
+const fabric = JSON.parse(await readFile(join(root, "configs/fabric.json"), "utf8"));
+assert.ok(fabric.capture.keepVisible.includes("context_recall"), "Fabric must not hide context_recall after compaction");
 const dir = await mkdtemp(join(tmpdir(), "pi-tools-test-"));
 const modulePath = join(dir, "tools.ts");
 await writeFile(modulePath, source.replace(/^import .*;\n/gm, ""));
@@ -24,7 +26,7 @@ try {
   toolsExtension(pi);
   await handlers.get("session_compact")({}, { sessionManager: { getBranch: () => [{ type: "compaction", summary: "Use ctxref://session/item" }] } });
   assert.deepEqual(active, ["fabric_exec", "ask_user_question", "context_recall"]);
-  console.log("PASS compaction preserves reconciled tools and adds context_recall");
+  console.log("PASS compaction preserves reconciled tools and Fabric keeps context_recall visible");
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

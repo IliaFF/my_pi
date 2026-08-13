@@ -20,7 +20,8 @@
     "enabled": true,
     "hideFromModel": true,
     "keepVisible": [
-      "fabric_exec"
+      "fabric_exec",
+      "context_recall"
     ],
     "defaultRisk": "execute",
     "risks": {

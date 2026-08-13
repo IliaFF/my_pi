@@ -79,6 +79,7 @@ def main() -> int:
         ("memory", "enabled"): False,
         ("schema", "mode"): "off",
         ("capture", "hideFromModel"): True,
+        ("capture", "keepVisible"): ["fabric_exec", "context_recall"],
     }
     for keys, expected in required_fabric.items():
         value = fabric
