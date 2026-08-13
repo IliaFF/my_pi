@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import re
@@ -60,10 +61,10 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
-    if package_json["dependencies"].get("pi-fabric") != "0.40.3":
+    if package_json["dependencies"].get("pi-fabric") != "0.50.1":
         fail("pi-fabric is not exactly pinned")
     fabric_lock = package_lock["packages"].get("node_modules/pi-fabric", {})
-    if fabric_lock.get("version") != "0.40.3" or fabric_lock.get("integrity") != "sha512-Fx12ivpyyTpPGGTCJh2Iwc+l9D9OTw5ry/9h5RcRYch9peek5r6/lg3ZvmkR1/B//3iQZup0Ax9REpJEirEC6g==":
+    if fabric_lock.get("version") != "0.50.1" or fabric_lock.get("integrity") != "sha512-gtalm4NzSrBI0fvywrUznjzx4RmPRQxYcIJm4R2SFa5yHQFXS7qRkkEqIVUW6XvRxx1yQfEHy63BA0mCGJValA==":
         fail("unexpected pi-fabric lock identity")
     fabric = json.loads((ROOT / "configs/fabric.json").read_text())
     required_fabric = {
@@ -90,8 +91,22 @@ def main() -> int:
         fail("fabric_exec-only stable tool default missing")
     if "const ROUTES" in routing_source or "routePrompt(" in routing_source or 'registerTool({' in routing_source:
         fail("legacy dynamic tool routing still present")
+    if 'pi.on("before_agent_start"' in routing_source or 'pi.on("agent_start"' in routing_source:
+        fail("tools extension must not reset active tools between turns")
     if (ROOT / "local-extensions/lean-tools.ts").exists():
         fail("legacy lean-tools extension still present")
+    todo_source = (ROOT / "local-extensions/todo-queue/index.ts").read_text()
+    for required in ['registerCommand("queue"', 'name: "task_queue"', 'pi.on("agent_settled"']:
+        if required not in todo_source:
+            fail(f"todo-queue wiring missing: {required}")
+    terminal = json.loads((ROOT / "windows-terminal/settings.json").read_text())
+    background = terminal.get("profiles", {}).get("defaults", {}).get("backgroundImage", "")
+    if not background.startswith("%USERPROFILE%") or "C:\\Users\\" in background:
+        fail("Windows Terminal background path is not portable")
+    image = ROOT / "windows-terminal/catppuccin-mocha-blur.jpg"
+    if not image.is_file() or hashlib.sha256(image.read_bytes()).hexdigest() != "f2cefea8de06d1abdabb29248e2405aed0708b87d4504d33bec9f12edfcc4098":
+        fail("Windows Terminal background asset mismatch")
+
     decision_source = (ROOT / "local-extensions/decision-observer.ts").read_text()
     decision_example = json.loads((ROOT / "configs/decision-observability.example.json").read_text())
     if "registerTool" in decision_source or any(f'pi.on("{event}"' in decision_source for event in ["input", "context", "before_provider_request", "tool_execution_end", "message_update"]):
@@ -208,6 +223,17 @@ def main() -> int:
         fail(f"loop profiler test failed: {profiler_test.stdout.strip()}")
     print(profiler_test.stdout.strip())
 
+    fabric_output_test = subprocess.run(
+        ["node", str(ROOT / "local-extensions/fabric-output/core.test.mjs")],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if fabric_output_test.returncode != 0:
+        fail(f"fabric-output test failed: {fabric_output_test.stdout.strip()}")
+    print(fabric_output_test.stdout.strip())
+
     decision_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-decision-observer.mjs"), str(ROOT)],
         cwd=ROOT,
@@ -218,6 +244,14 @@ def main() -> int:
     if decision_test.returncode:
         fail(f"decision observer test failed: {decision_test.stdout.strip()}")
     print(decision_test.stdout.strip())
+
+    todo_test = subprocess.run(
+        ["node", "--test", str(ROOT / "scripts/test-todo-queue.mjs")],
+        cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    if todo_test.returncode:
+        fail(f"todo-queue test failed: {todo_test.stdout.strip()}")
+    print(todo_test.stdout.strip())
 
     reader_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-reader-pane.mjs")],

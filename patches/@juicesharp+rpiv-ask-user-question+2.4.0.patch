@@ -1,0 +1,9 @@
+--- a/reconcile.ts
++++ b/reconcile.ts
+@@ -43,5 +43,6 @@
+  * before each turn's tool-list snapshot is read. Safe to call once at load.
+  */
+ export function registerAskUserQuestionReconciler(pi: ExtensionAPI): void {
++	pi.on("session_start", (_event, ctx) => reconcileAskUserQuestionTool(pi, ctx));
+ 	pi.on("before_agent_start", (_event, ctx) => reconcileAskUserQuestionTool(pi, ctx));
+ }

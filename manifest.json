@@ -22,6 +22,16 @@
         "extensions/caveman.ts"
       ],
       "reason": "Retain current concise-response prompt and UI integration fixes."
+    },
+    {
+      "package": "@juicesharp/rpiv-ask-user-question",
+      "version": "2.4.0",
+      "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.4.0.patch",
+      "files": [
+        "reconcile.ts"
+      ],
+      "reason": "Reconcile UI availability at session_start so first-turn system instructions match later turns and preserve prefix cache."
     }
   ],
   "managedConfigs": [
@@ -102,6 +112,72 @@
       "snapshot": "configs/pi-canary.json",
       "restore": true,
       "reason": "Preserve dormant Canary configuration if package is enabled later."
+    },
+    {
+      "source": "extensions/fabric-output.json",
+      "snapshot": "configs/fabric-output.json",
+      "restore": true,
+      "reason": "Enable global semantic reduction while retaining native artifact pointers."
+    },
+    {
+      "source": "extensions/fabric-output/index.ts",
+      "snapshot": "local-extensions/fabric-output/index.ts",
+      "restore": true,
+      "reason": "Global native-artifact semantic output reducer and its validation/license files."
+    },
+    {
+      "source": "extensions/fabric-output/core.mjs",
+      "snapshot": "local-extensions/fabric-output/core.mjs",
+      "restore": true,
+      "reason": "Global native-artifact semantic output reducer and its validation/license files."
+    },
+    {
+      "source": "extensions/fabric-output/reducers.mjs",
+      "snapshot": "local-extensions/fabric-output/reducers.mjs",
+      "restore": true,
+      "reason": "Global native-artifact semantic output reducer and its validation/license files."
+    },
+    {
+      "source": "extensions/fabric-output/core.test.mjs",
+      "snapshot": "local-extensions/fabric-output/core.test.mjs",
+      "restore": true,
+      "reason": "Global native-artifact semantic output reducer and its validation/license files."
+    },
+    {
+      "source": "extensions/fabric-output/LICENSE.RTK",
+      "snapshot": "local-extensions/fabric-output/LICENSE.RTK",
+      "restore": true,
+      "reason": "Global native-artifact semantic output reducer and its validation/license files."
+    },
+    {
+      "source": "extensions/fabric-output/README.md",
+      "snapshot": "local-extensions/fabric-output/README.md",
+      "restore": true,
+      "reason": "Global native-artifact semantic output reducer and its validation/license files."
+    },
+    {
+      "source": "extensions/todo-queue/README.md",
+      "snapshot": "local-extensions/todo-queue/README.md",
+      "restore": true,
+      "reason": "Document the global TODO.md-backed queue."
+    },
+    {
+      "source": "extensions/todo-queue/index.ts",
+      "snapshot": "local-extensions/todo-queue/index.ts",
+      "restore": true,
+      "reason": "Install the global TODO.md-backed queue extension."
+    },
+    {
+      "source": "extensions/todo-queue/core.ts",
+      "snapshot": "local-extensions/todo-queue/core.ts",
+      "restore": true,
+      "reason": "Preserve deterministic queue mutations."
+    },
+    {
+      "source": "extensions/todo-queue/store.ts",
+      "snapshot": "local-extensions/todo-queue/store.ts",
+      "restore": true,
+      "reason": "Preserve locked atomic TODO.md writes."
     }
   ]
 }

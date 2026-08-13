@@ -106,7 +106,76 @@ try {
   if (!legacyReport.includes("legacy record")) throw new Error("legacy report compatibility missing");
   if (!formatLoopReport([], "batching").includes("post-policy 0/10")) throw new Error("empty batching pilot progress missing");
   if (!formatLoopReport([run], "last").includes("durations outer") || !formatLoopReport([run], "last").includes("errors outer 0, nested 1")) throw new Error("boundary duration/error report missing");
-  console.log("PASS loop profiler privacy, retention, outer/nested telemetry, policy cohort, and reports");
+
+  await emit("before_agent_start", {
+    type: "before_agent_start",
+    prompt: "efficiency-probe",
+    systemPrompt: "system-efficiency-probe",
+    systemPromptOptions: { selectedTools: ["fabric_exec"], contextFiles: [], skills: [] },
+  });
+  await emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: Date.now() });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "fabric-efficient", toolName: "fabric_exec", args: {} });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-grep", toolName: "grep", args: { pattern: "needle" } });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "nested-grep", toolName: "grep", result: { content: [] }, isError: false });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-large-read", toolName: "read", args: { path: "bounded" } });
+  await emit("tool_execution_end", {
+    type: "tool_execution_end",
+    toolCallId: "nested-large-read",
+    toolName: "read",
+    result: { content: [{ type: "text", text: `[Native fabric full output: /tmp/bounded]\n${"x".repeat(33_000)}` }] },
+    isError: false,
+  });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-contained", toolName: "bash", args: { command: "test -e missing" } });
+  await emit("tool_execution_end", {
+    type: "tool_execution_end",
+    toolCallId: "nested-contained",
+    toolName: "bash",
+    result: { content: [{ type: "text", text: `ENOENT ${secret}` }] },
+    isError: true,
+  });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "fabric-efficient", toolName: "fabric_exec", result: { content: [] }, isError: false });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "efficient-edit", toolName: "edit", args: {} });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "efficient-edit", toolName: "edit", result: { content: [] }, isError: false });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "validation-1", toolName: "bash", args: { command: "npm test" } });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "validation-1", toolName: "bash", result: { content: [] }, isError: false });
+  await emit("turn_end", { type: "turn_end", turnIndex: 0, message: {}, toolResults: [{}] });
+  await emit("turn_start", { type: "turn_start", turnIndex: 1, timestamp: Date.now() });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "validation-2", toolName: "bash", args: { cmd: "npm test" } });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "validation-2", toolName: "bash", result: { content: [] }, isError: false });
+  await emit("turn_end", { type: "turn_end", turnIndex: 1, message: {}, toolResults: [{}] });
+  await emit("turn_start", { type: "turn_start", turnIndex: 2, timestamp: Date.now() });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "fabric-propagated", toolName: "fabric_exec", args: {} });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-timeout", toolName: "bash", args: { command: "slow-command" } });
+  await emit("tool_execution_end", {
+    type: "tool_execution_end",
+    toolCallId: "nested-timeout",
+    toolName: "bash",
+    result: { content: [{ type: "text", text: `timed out ${secret}` }] },
+    isError: true,
+  });
+  await emit("tool_execution_end", {
+    type: "tool_execution_end",
+    toolCallId: "fabric-propagated",
+    toolName: "fabric_exec",
+    result: { content: [{ type: "text", text: `wrapper timeout ${secret}` }] },
+    isError: true,
+  });
+  await emit("turn_end", { type: "turn_end", turnIndex: 2, message: {}, toolResults: [{}] });
+  await emit("agent_settled", { type: "agent_settled" });
+
+  const efficiencyPersisted = readFileSync(runsPath, "utf8");
+  if (efficiencyPersisted.includes(secret)) throw new Error("sensitive error content persisted");
+  const efficiency = JSON.parse(efficiencyPersisted.trim().split("\n").at(-1));
+  if (efficiency.inspectTurns !== 1 || efficiency.mutationBeforeInspect !== 0) throw new Error("inspect telemetry mismatch");
+  if (efficiency.mutationTurns !== 1 || efficiency.mutationValidationTurns !== 1 || efficiency.mutationWithoutValidationTurns !== 0) throw new Error("mutation/validation telemetry mismatch");
+  if (efficiency.largeToolResults !== 1 || efficiency.externalizedToolResults !== 1 || efficiency.largeInlineToolResults !== 0) throw new Error("compact evidence telemetry mismatch");
+  if (efficiency.containedNestedFailures !== 1 || efficiency.propagatedFabricFailures !== 1) throw new Error("contained/propagated telemetry mismatch");
+  if (efficiency.validationReruns !== 1 || efficiency.unchangedValidationReruns !== 1) throw new Error("validation rerun telemetry mismatch");
+  if (efficiency.rootToolErrors !== 2 || efficiency.wrapperToolErrors !== 1 || efficiency.errorCategories.path_missing !== 1 || efficiency.errorCategories.timeout !== 1) throw new Error("root error telemetry mismatch");
+  const efficiencyReport = formatLoopReport([efficiency], "last");
+  if (!efficiencyReport.includes("mutation+validation 1/1") || !efficiencyReport.includes("failures root 2, wrappers 1, contained 1")) throw new Error("efficiency report missing");
+
+  console.log("PASS loop profiler privacy, retention, efficiency telemetry, root error dedup, policy cohort, and reports");
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

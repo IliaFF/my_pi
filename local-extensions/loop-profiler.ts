@@ -55,6 +55,21 @@ type LoopRun = {
   nestedTools?: Counter;
   providerResponseMs: number;
   validationRounds: number;
+  inspectTurns?: number;
+  mutationBeforeInspect?: number;
+  mutationTurns?: number;
+  mutationValidationTurns?: number;
+  mutationWithoutValidationTurns?: number;
+  largeToolResults?: number;
+  externalizedToolResults?: number;
+  largeInlineToolResults?: number;
+  containedNestedFailures?: number;
+  propagatedFabricFailures?: number;
+  validationReruns?: number;
+  unchangedValidationReruns?: number;
+  rootToolErrors?: number;
+  wrapperToolErrors?: number;
+  errorCategories?: Counter;
   payloadBytes: number;
   inputTokens: number;
   outputTokens: number;
@@ -66,7 +81,12 @@ type LoopRun = {
 };
 
 type ToolBoundary = "fabric" | "nested" | "direct";
-type ToolExecution = { startedNs: bigint; boundary: ToolBoundary };
+type ToolExecution = {
+  startedNs: bigint;
+  boundary: ToolBoundary;
+  validationHash?: string;
+  mutation: boolean;
+};
 
 type MutableRun = LoopRun & {
   startedNs: bigint;
@@ -77,6 +97,12 @@ type MutableRun = LoopRun & {
   previousTool?: string;
   requestStartedNs?: bigint;
   turnHasValidation: boolean;
+  turnHasSearch: boolean;
+  turnHasRead: boolean;
+  turnHasMutation: boolean;
+  mutationGeneration: number;
+  validationGenerations: Map<string, number>;
+  pendingFabricNestedErrors: number;
 };
 
 function enabled(value: string | undefined, defaultValue: boolean): boolean {
@@ -145,8 +171,43 @@ function readRuns(projectHash?: string): LoopRun[] {
 
 function isValidationTool(toolName: string, args: unknown): boolean {
   if (toolName !== "bash" || !args || typeof args !== "object") return false;
-  const command = (args as { command?: unknown }).command;
+  const record = args as { command?: unknown; cmd?: unknown };
+  const command = record.command ?? record.cmd;
   return typeof command === "string" && /(?:^|[;&|\n]\s*|\b)(?:pytest|python3?\s+-m\s+pytest|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|bun\s+test|cargo\s+test|go\s+test|(?:npx\s+)?tsc\b|(?:npx\s+)?eslint\b|ruff\b|verify\.sh\b|test-release\.py\b)/i.test(command);
+}
+
+function isMutationTool(toolName: string): boolean {
+  return toolName === "edit" || toolName === "write";
+}
+
+function validationHash(toolName: string, args: unknown): string | undefined {
+  if (!isValidationTool(toolName, args)) return undefined;
+  const record = args as { command?: string; cmd?: string };
+  const command = record.command ?? record.cmd ?? "";
+  return createHash("sha256").update(command.replace(/\s+/g, " ").trim()).digest("hex").slice(0, 16);
+}
+
+function contentText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!Array.isArray(value)) return "";
+  return value.map((item) => item && typeof item === "object" && typeof (item as { text?: unknown }).text === "string" ? (item as { text: string }).text : "").join("\n");
+}
+
+function classifyError(value: unknown): string {
+  const text = contentText(value).slice(0, 4_096);
+  if (/Type errors; code was not executed/i.test(text)) return "guest_typecheck";
+  if (/No overload matches|invalid arguments?|validation failed/i.test(text)) return "invalid_arguments";
+  if (/anchor.*not found|old text.*not found/i.test(text)) return "anchor_missing";
+  if (/command not found|is not recognized/i.test(text)) return "command_missing";
+  if (/ENOENT|No such file|not found/i.test(text)) return "path_missing";
+  if (/syntax error|unexpected token/i.test(text)) return "shell_syntax";
+  if (/timed out|timeout/i.test(text)) return "timeout";
+  if (/EACCES|permission denied/i.test(text)) return "permission";
+  if (/tests? failed|AssertionError|\bFAIL\b/i.test(text)) return "test_failure";
+  if (/ECONNRESET|ENETUNREACH|fetch failed/i.test(text)) return "network";
+  if (/\b429\b|rate.?limit|overloaded/i.test(text)) return "provider";
+  if (/cancelled|aborted|terminated/i.test(text)) return "cancelled";
+  return "unknown";
 }
 
 function percentile(values: number[], fraction: number): number {
@@ -221,6 +282,8 @@ export function formatLoopReport(runs: LoopRun[], mode: "last" | "baseline" | "b
       batching,
       `outer ${run.outerToolCalls ?? 0} · batches single ${run.outerSingleToolBatches ?? 0}, parallel ${run.outerParallelToolBatches ?? 0}`,
       `durations outer ${formatDuration(run.outerToolDurationMs)}, nested ${formatDuration(run.nestedToolDurationMs)} · errors outer ${run.outerToolErrors ?? 0}, nested ${run.nestedToolErrors ?? 0}`,
+      `efficiency inspect ${run.inspectTurns ?? 0} · mutation+validation ${run.mutationValidationTurns ?? 0}/${run.mutationTurns ?? 0} · unchanged validation reruns ${run.unchangedValidationReruns ?? 0}`,
+      `evidence externalized ${run.externalizedToolResults ?? 0}/${run.largeToolResults ?? 0} · failures root ${run.rootToolErrors ?? run.toolErrors}, wrappers ${run.wrapperToolErrors ?? 0}, contained ${run.containedNestedFailures ?? 0} · categories ${topCounter(run.errorCategories ?? {})}`,
       `context ${run.contextMessages} msg/${run.contextChars} ch · tool output ${run.toolOutputChars} ch · payload ${run.payloadBytes} B`,
       `tokens in ${run.inputTokens} + cache ${run.cacheReadTokens} (${(cacheShare(run) * 100).toFixed(1)}%) · out ${run.outputTokens}`,
       `outer tools ${topCounter(run.outerTools ?? {})} · nested ${topCounter(run.nestedTools ?? {})}`,
@@ -285,6 +348,12 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       previousTool: _previousTool,
       requestStartedNs: _requestStartedNs,
       turnHasValidation: _turnHasValidation,
+      turnHasSearch: _turnHasSearch,
+      turnHasRead: _turnHasRead,
+      turnHasMutation: _turnHasMutation,
+      mutationGeneration: _mutationGeneration,
+      validationGenerations: _validationGenerations,
+      pendingFabricNestedErrors: _pendingFabricNestedErrors,
       ...run
     } = current;
     run.durationMs = round(elapsedMs(startedNs));
@@ -369,6 +438,21 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       nestedTools: {},
       providerResponseMs: 0,
       validationRounds: 0,
+      inspectTurns: 0,
+      mutationBeforeInspect: 0,
+      mutationTurns: 0,
+      mutationValidationTurns: 0,
+      mutationWithoutValidationTurns: 0,
+      largeToolResults: 0,
+      externalizedToolResults: 0,
+      largeInlineToolResults: 0,
+      containedNestedFailures: 0,
+      propagatedFabricFailures: 0,
+      validationReruns: 0,
+      unchangedValidationReruns: 0,
+      rootToolErrors: 0,
+      wrapperToolErrors: 0,
+      errorCategories: {},
       payloadBytes: 0,
       inputTokens: 0,
       outputTokens: 0,
@@ -383,6 +467,12 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       turnTools: [],
       outerTurnTools: [],
       turnHasValidation: false,
+      turnHasSearch: false,
+      turnHasRead: false,
+      turnHasMutation: false,
+      mutationGeneration: 0,
+      validationGenerations: new Map(),
+      pendingFabricNestedErrors: 0,
     };
     rawMark("before_agent_start", {
       prompt_chars: event.prompt.length,
@@ -401,6 +491,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       current.turnTools = [];
       current.outerTurnTools = [];
       current.turnHasValidation = false;
+      current.turnHasSearch = false;
+      current.turnHasRead = false;
+      current.turnHasMutation = false;
     }
     rawMark("turn_start");
   });
@@ -457,9 +550,11 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     if (current) {
       const nested = event.toolName !== "fabric_exec" && current.activeFabricCalls.size > 0;
       boundary = nested ? "nested" : event.toolName === "fabric_exec" ? "fabric" : "direct";
+      const hash = validationHash(event.toolName, event.args);
+      const mutation = isMutationTool(event.toolName);
       current.toolCalls += 1;
       current.turnTools.push(event.toolName);
-      current.toolStartedNs.set(event.toolCallId, { startedNs: process.hrtime.bigint(), boundary });
+      current.toolStartedNs.set(event.toolCallId, { startedNs: process.hrtime.bigint(), boundary, validationHash: hash, mutation });
       increment(current.tools, event.toolName);
       if (current.previousTool) increment(current.transitions, `${current.previousTool}->${event.toolName}`);
       current.previousTool = event.toolName;
@@ -475,7 +570,13 @@ export default function loopProfiler(pi: ExtensionAPI): void {
           current.activeFabricCalls.add(event.toolCallId);
         } else current.directToolCalls = (current.directToolCalls ?? 0) + 1;
       }
-      if (isValidationTool(event.toolName, event.args)) current.turnHasValidation = true;
+      if (hash) current.turnHasValidation = true;
+      if (event.toolName === "grep" || event.toolName === "find") current.turnHasSearch = true;
+      if (event.toolName === "read") current.turnHasRead = true;
+      if (mutation) {
+        if (!current.turnHasSearch || !current.turnHasRead) current.mutationBeforeInspect = (current.mutationBeforeInspect ?? 0) + 1;
+        current.turnHasMutation = true;
+      }
     }
     rawMark("tool_start", { id: event.toolCallId, tool: event.toolName, boundary });
   });
@@ -483,7 +584,15 @@ export default function loopProfiler(pi: ExtensionAPI): void {
   pi.on("tool_execution_end", (event) => {
     let boundary: ToolBoundary | undefined;
     if (current) {
-      current.toolOutputChars += contentChars(event.result?.content);
+      const text = contentText(event.result?.content);
+      const outputChars = text.length;
+      current.toolOutputChars += outputChars;
+      if (outputChars >= 32_768) {
+        current.largeToolResults = (current.largeToolResults ?? 0) + 1;
+        const externalized = text.includes("[Native fabric full output") || text.includes("Full output:");
+        if (externalized) current.externalizedToolResults = (current.externalizedToolResults ?? 0) + 1;
+        else current.largeInlineToolResults = (current.largeInlineToolResults ?? 0) + 1;
+      }
       if (event.isError) current.toolErrors += 1;
       const execution = current.toolStartedNs.get(event.toolCallId);
       boundary = execution?.boundary;
@@ -492,14 +601,44 @@ export default function loopProfiler(pi: ExtensionAPI): void {
         current.toolDurationMs += duration;
         if (execution.boundary === "nested") {
           current.nestedToolDurationMs = (current.nestedToolDurationMs ?? 0) + duration;
-          if (event.isError) current.nestedToolErrors = (current.nestedToolErrors ?? 0) + 1;
+          if (event.isError) {
+            current.nestedToolErrors = (current.nestedToolErrors ?? 0) + 1;
+            current.pendingFabricNestedErrors += 1;
+            current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
+            increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
+          }
         } else {
           current.outerToolDurationMs = (current.outerToolDurationMs ?? 0) + duration;
           if (event.isError) current.outerToolErrors = (current.outerToolErrors ?? 0) + 1;
+          if (execution.boundary === "direct" && event.isError) {
+            current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
+            increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
+          }
         }
-        if (execution.boundary === "fabric") current.activeFabricCalls.delete(event.toolCallId);
+        if (execution.mutation && !event.isError) current.mutationGeneration += 1;
+        if (execution.validationHash) {
+          const previous = current.validationGenerations.get(execution.validationHash);
+          if (previous !== undefined) {
+            current.validationReruns = (current.validationReruns ?? 0) + 1;
+            if (previous === current.mutationGeneration) current.unchangedValidationReruns = (current.unchangedValidationReruns ?? 0) + 1;
+          }
+          current.validationGenerations.set(execution.validationHash, current.mutationGeneration);
+        }
+        if (execution.boundary === "fabric") {
+          current.activeFabricCalls.delete(event.toolCallId);
+          if (event.isError && current.pendingFabricNestedErrors > 0) {
+            current.wrapperToolErrors = (current.wrapperToolErrors ?? 0) + 1;
+            current.propagatedFabricFailures = (current.propagatedFabricFailures ?? 0) + current.pendingFabricNestedErrors;
+          } else if (event.isError) {
+            current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
+            increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
+          } else {
+            current.containedNestedFailures = (current.containedNestedFailures ?? 0) + current.pendingFabricNestedErrors;
+          }
+          if (current.activeFabricCalls.size === 0) current.pendingFabricNestedErrors = 0;
+        }
+        current.toolStartedNs.delete(event.toolCallId);
       }
-      current.toolStartedNs.delete(event.toolCallId);
     }
     rawMark("tool_end", { id: event.toolCallId, tool: event.toolName, boundary, error: event.isError });
   });
@@ -531,6 +670,12 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       if (outerCount === 1) current.outerSingleToolBatches = (current.outerSingleToolBatches ?? 0) + 1;
       if (outerCount > 1) current.outerParallelToolBatches = (current.outerParallelToolBatches ?? 0) + 1;
       if (current.turnHasValidation) current.validationRounds += 1;
+      if (current.turnHasSearch && current.turnHasRead) current.inspectTurns = (current.inspectTurns ?? 0) + 1;
+      if (current.turnHasMutation) {
+        current.mutationTurns = (current.mutationTurns ?? 0) + 1;
+        if (current.turnHasValidation) current.mutationValidationTurns = (current.mutationValidationTurns ?? 0) + 1;
+        else current.mutationWithoutValidationTurns = (current.mutationWithoutValidationTurns ?? 0) + 1;
+      }
     }
     rawMark("turn_end", { tools: event.toolResults.length });
   });

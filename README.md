@@ -5,8 +5,8 @@
 ## Зафиксированное состояние
 
 - Pi core `@earendil-works/pi-coding-agent@0.84.1`
-- Node.js `>=24.0.0` (требование `pi-fabric@0.40.3`)
-- 15 прямых npm dependencies с точными версиями: 14 settings entries и один dormant package; полный `package-lock.json`
+- Node.js `>=24.0.0` (требование `pi-fabric@0.50.1`)
+- 16 прямых npm dependencies с точными версиями: 15 settings entries и один dormant package; полный `package-lock.json`
 - единая default-конфигурация с одним стабильным model-facing tool `fabric_exec`; остальные tools захвачены Fabric
 - recovery-aware compaction `recovery-v4-chronological-10k`
 - summarizer всегда использует текущую выбранную модель Pi
@@ -18,21 +18,22 @@
 - Cachemire для cache/turn cost diagnostics
 - persistent агрегированный agent-loop baseline, outer/nested Fabric telemetry и `/loop-report batching`
 
-Репозиторий содержит два version-gated patch для `pi-canary@1.5.0` и `pi-caveman@1.0.8`. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
+Репозиторий содержит три version-gated patch для `pi-canary@1.5.0`, `pi-caveman@1.0.8` и `@juicesharp/rpiv-ask-user-question@2.4.0`. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 15 прямых dependencies. Из них 14 перечислены в `configs/settings.json`; `pi-canary` установлен и patch-tested, но намеренно не загружается. Fabric в full-code mode скрывает schemas captured extension tools от parent model, но сами extensions, slash-команды, event handlers и UI продолжают работать; ленивый вызов доступен внутри `fabric_exec` через `extensions.*` или `tools.search()`.
+`npm/package.json` фиксирует 16 прямых dependencies. Из них 15 перечислены в `configs/settings.json`; `pi-canary` установлен и patch-tested, но намеренно не загружается. Fabric в full-code mode скрывает schemas captured extension tools от parent model, но сами extensions, slash-команды, event handlers и UI продолжают работать; ленивый вызов доступен внутри `fabric_exec` через `extensions.*` или `tools.search()`.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.10.3` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
 | `@monotykamary/pi-retry` | `0.6.9` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
-| `pi-fabric` | `0.40.3` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
+| `pi-fabric` | `0.50.1` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
 | `pi-web-access` | `0.19.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
 | `@llblab/pi-telegram` | `0.27.2` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
 | `pi-caveman` | `1.0.8` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
-| `@juicesharp/rpiv-ask-user-question` | `2.4.0` | загружен, tool lazy | Structured clarification с typed options вместо угадывания существенных решений. |
+| `@juicesharp/rpiv-ask-user-question` | `2.4.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
+| `@tunnckocore/pi-gpt-fast-mode` | `0.4.0` | загружен, default off | `/fast` добавляет `service_tier: "priority"` только поддерживаемым GPT-5.4/5.5/5.6; через ChatGPT subscription ускоряет ответы ценой повышенного расхода credits. |
 | `pi-token-speed` | `0.7.1` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-fast-resume` | `1.4.6` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `pi-diff-review` | `0.1.26` | загружен | Локальный TUI для просмотра и review Git diff. |
@@ -48,9 +49,11 @@
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
 | `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, chronological marker reducer с reopen semantics, deterministic projection canonical marker-state, строгая validation, Pi fallback, external excerpts и `context_recall`. |
+| `fabric-output/index.ts` | активен глобально | Сокращает большие native Fabric/Bash artifacts, сохраняя exact path для lazy `pi.read`/`pi.grep`. |
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; различает outer Fabric/direct calls и nested operations; `/loop-report batching`; raw trace только при `PI_PROFILE=1`. |
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
 | `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
+| `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
 | `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection и добавляет только `context_recall` после compaction с `ctxref://`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: их заменил общий compound runtime Fabric.
@@ -169,6 +172,10 @@ Report фильтруется по текущему project path и показы
 
 `configs/APPEND_SYSTEM.md` задаёт soft policy: связанные discovery/edit/test/finalization operations группируются в bounded `fabric_exec`, один model round соответствует новому семантическому решению. Direct tools не блокируются: они остаются fallback для isolated action, Fabric failure, clarification/security boundary или результата, который модель должна осмыслить до следующего шага.
 
+## Windows Terminal visual
+
+Переносимый visual snapshot лежит в `windows-terminal/`: sanitized `settings.json`, Catppuccin Mocha background и короткая инструкция. Username, absolute host paths и machine-specific profiles исключены. Требуется JetBrainsMono Nerd Font; подробности — `windows-terminal/README.md`.
+
 ## Reader pane
 
 Опциональная команда `/reader-pane-on` открывает безопасную правую панель Windows Terminal из Pi, запущенного внутри WSL. Панель автоматически показывает последний завершённый Markdown-ответ через `mdcat` с темой Catppuccin. Широкие таблицы преобразуются только в preview-копии в вертикальные карточки без обрезания ячеек; исходная история Pi, узкие таблицы и таблицы внутри fenced code blocks не меняются.
@@ -204,7 +211,7 @@ Report фильтруется по текущему project path и показы
 
 ## Compound project workflow
 
-`pi-fabric@0.40.3` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
+`pi-fabric@0.50.1` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
 
 Безопасный reproducible профиль хранится в `configs/fabric.json` и устанавливается как `~/.pi/agent/fabric.json`:
 

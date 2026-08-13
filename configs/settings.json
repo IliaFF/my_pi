@@ -6,11 +6,12 @@
   "packages": [
     "npm:@ff-labs/pi-fff",
     "npm:@monotykamary/pi-retry",
-    "npm:pi-fabric@0.40.3",
+    "npm:pi-fabric@0.50.1",
     "npm:pi-web-access",
     "npm:@llblab/pi-telegram@0.27.2",
     "npm:pi-caveman@1.0.8",
     "npm:@juicesharp/rpiv-ask-user-question",
+    "npm:@tunnckocore/pi-gpt-fast-mode@0.4.0",
     "npm:pi-token-speed",
     "npm:pi-fast-resume",
     "npm:pi-diff-review@0.1.26",

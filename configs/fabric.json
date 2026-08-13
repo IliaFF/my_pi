@@ -37,13 +37,17 @@
       "get_search_content": "network",
       "telegram_attach": "network",
       "telegram_message": "network"
+    },
+    "advisory": {
+      "mode": "disabled"
     }
   },
   "mcp": {
     "enabled": false,
     "disableOAuth": true,
     "allowDynamicServers": false,
-    "callTimeoutMs": 120000
+    "callTimeoutMs": 120000,
+    "advisory": false
   },
   "agents": {
     "enabled": false,
@@ -72,5 +76,13 @@
   },
   "schema": {
     "mode": "off"
+  },
+  "prewalk": {
+    "mode": "in-place",
+    "model": "openai-codex/gpt-5.6-luna",
+    "thinking": "low",
+    "alwaysRearm": false,
+    "compactOnReturn": false,
+    "detectShellWrites": true
   }
 }

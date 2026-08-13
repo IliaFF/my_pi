@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "thresholdBytes": 32768,
+  "maxReturnedChars": 24576
+}

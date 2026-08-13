@@ -71,20 +71,6 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		refreshAutomaticSelection();
 	}
 
-	pi.on("before_agent_start", () => {
-		if (manualSelection) {
-			allTools = pi.getAllTools();
-			const available = availableNames();
-			enabledTools = new Set([...savedToolNames].filter((name) => available.has(name)));
-			applyTools();
-		} else {
-			refreshAutomaticSelection();
-		}
-	});
-
-	pi.on("agent_start", () => {
-		if (!manualSelection) refreshAutomaticSelection();
-	});
 
 	pi.registerCommand("tools", {
 		description: "Enable/disable model-facing tools explicitly",

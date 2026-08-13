@@ -45,8 +45,8 @@ if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, including pi-fabric"
-  echo "DRY-RUN configs: one default profile + safe Fabric config + six local extensions"
-  echo "DRY-RUN patches: 2 exact-version patches"
+  echo "DRY-RUN configs: one default profile + safe Fabric config + eight local extensions"
+  echo "DRY-RUN patches: 3 exact-version patches"
   exit 0
 fi
 if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
@@ -57,7 +57,7 @@ fi
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "fabric.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts"
-  "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/project-loop.ts"
+  "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/auto-ultra-compact"
   "extensions/pi-fast-resume.json" "extensions/quotas.json"
   "npm" "maintenance"
@@ -99,7 +99,7 @@ rollback_install() {
 }
 trap rollback_install ERR
 
-mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/maintenance"
+mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/maintenance"
 cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
 cp "$ROOT/npm/package-lock.json" "$AGENT_DIR/npm/package-lock.json"
 npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
@@ -115,6 +115,7 @@ rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
 cp "$ROOT/local-extensions/decision-observer.ts" "$AGENT_DIR/extensions/decision-observer.ts"
 cp "$ROOT/local-extensions/reader-pane.ts" "$AGENT_DIR/extensions/reader-pane.ts"
+cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
