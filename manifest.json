@@ -105,7 +105,7 @@
       "source": "extensions/tools.ts",
       "snapshot": "local-extensions/tools.ts",
       "restore": true,
-      "reason": "Stable fabric_exec-only default, explicit manual selection, and precise post-compaction context_recall restoration without keyword routing."
+      "reason": "Stable fabric_exec-only default, explicit manual selection, and post-compaction preservation of reconciled tools plus precise context_recall restoration."
     },
     {
       "source": "npm/node_modules/pi-canary/extensions/canary.json",

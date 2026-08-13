@@ -5,7 +5,7 @@
 ## Зафиксированное состояние
 
 - Pi core `@earendil-works/pi-coding-agent@0.84.1`
-- Node.js `>=24.0.0` (требование `pi-fabric@0.50.1`)
+- Node.js `>=24.0.0` (требование `pi-fabric@0.50.2`)
 - 16 прямых npm dependencies с точными версиями: 15 settings entries и один dormant package; полный `package-lock.json`
 - единая default-конфигурация с одним стабильным model-facing tool `fabric_exec`; остальные tools захвачены Fabric
 - recovery-aware compaction `recovery-v4-chronological-10k`
@@ -13,7 +13,7 @@
 - deterministic authoritative-state projection, строгая validation и немедленный Pi built-in fallback после первой неудачной попытки
 - checksum-verified external excerpts и lazy `context_recall`
 - bounded recovery packet как emergency fallback, а не обязательный повтор summary
-- precise tool restoration: compacted history восстанавливает только `context_recall` по `ctxref://`
+- precise tool restoration: compaction сохраняет уже reconciled tools и добавляет только `context_recall` по `ctxref://`
 - Contextimate для оценки статического context footprint
 - Cachemire для cache/turn cost diagnostics
 - persistent агрегированный agent-loop baseline, outer/nested Fabric telemetry и `/loop-report batching`
@@ -27,9 +27,9 @@
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.10.3` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.6.9` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
-| `pi-fabric` | `0.50.1` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
-| `pi-web-access` | `0.19.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
+| `@monotykamary/pi-retry` | `0.6.10` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `pi-fabric` | `0.50.2` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
+| `pi-web-access` | `0.22.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
 | `@llblab/pi-telegram` | `0.27.2` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
 | `pi-caveman` | `1.0.8` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
 | `@juicesharp/rpiv-ask-user-question` | `2.4.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
@@ -40,7 +40,7 @@
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
 | `pine-of-glass` | `0.10.1` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
 | `pi-my-setup` | `0.4.12` | установлен как package/CLI helper | Сохраняет и восстанавливает наборы Pi packages и skills; model-facing tool не регистрирует. |
-| `pi-markdown-preview` | `0.11.3` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pi-markdown-preview` | `0.14.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-canary` | `1.5.0` | **не загружен**, pinned + patched | Hidden context-awareness canary. Отключён, чтобы не добавлять скрытый token/context check каждый turn; остаётся воспроизводимым для будущего отдельного теста. |
 
 ### Локальные extensions
@@ -54,7 +54,7 @@
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
 | `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
-| `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection и добавляет только `context_recall` после compaction с `ctxref://`. |
+| `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection; после compaction не удаляет reconciled tools и добавляет `context_recall` только при `ctxref://`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: их заменил общий compound runtime Fabric.
 
@@ -211,7 +211,7 @@ Report фильтруется по текущему project path и показы
 
 ## Compound project workflow
 
-`pi-fabric@0.50.1` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
+`pi-fabric@0.50.2` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
 
 Безопасный reproducible профиль хранится в `configs/fabric.json` и устанавливается как `~/.pi/agent/fabric.json`:
 

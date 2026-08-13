@@ -34,14 +34,14 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		return new Set(allTools.map((tool) => tool.name));
 	}
 
-	function refreshAutomaticSelection() {
+	function refreshAutomaticSelection(activeTools: string[] = []) {
 		allTools = pi.getAllTools();
 		const available = availableNames();
-		enabledTools = new Set([...STABLE_TOOLS, ...compactedTools].filter((name) => available.has(name)));
+		enabledTools = new Set([...activeTools, ...STABLE_TOOLS, ...compactedTools].filter((name) => available.has(name)));
 		applyTools();
 	}
 
-	function restoreFromBranch(ctx: ExtensionContext) {
+	function restoreFromBranch(ctx: ExtensionContext, activeTools: string[] = []) {
 		allTools = pi.getAllTools();
 		const branchEntries = ctx.sessionManager.getBranch();
 		let savedTools: string[] | undefined;
@@ -68,7 +68,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 			.map((entry) => entry.summary)
 			.join("\n");
 		compactedTools = new Set(toolsFromCompactedContext(compactedContext));
-		refreshAutomaticSelection();
+		refreshAutomaticSelection(activeTools);
 	}
 
 
@@ -118,5 +118,5 @@ export default function toolsExtension(pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => restoreFromBranch(ctx));
 	pi.on("session_tree", async (_event, ctx) => restoreFromBranch(ctx));
-	pi.on("session_compact", async (_event, ctx) => restoreFromBranch(ctx));
+	pi.on("session_compact", async (_event, ctx) => restoreFromBranch(ctx, pi.getActiveTools()));
 }

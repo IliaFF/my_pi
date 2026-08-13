@@ -61,10 +61,10 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
-    if package_json["dependencies"].get("pi-fabric") != "0.50.1":
+    if package_json["dependencies"].get("pi-fabric") != "0.50.2":
         fail("pi-fabric is not exactly pinned")
     fabric_lock = package_lock["packages"].get("node_modules/pi-fabric", {})
-    if fabric_lock.get("version") != "0.50.1" or fabric_lock.get("integrity") != "sha512-gtalm4NzSrBI0fvywrUznjzx4RmPRQxYcIJm4R2SFa5yHQFXS7qRkkEqIVUW6XvRxx1yQfEHy63BA0mCGJValA==":
+    if fabric_lock.get("version") != "0.50.2" or fabric_lock.get("integrity") != "sha512-FNPq+6wSML3Nks2N65mDpaRTkc2UT6YahaC/Mhk1wSEcpxpWagIXIihyzhX8gYegnCqWMJmHqBmLxVaxxUZjuQ==":
         fail("unexpected pi-fabric lock identity")
     fabric = json.loads((ROOT / "configs/fabric.json").read_text())
     required_fabric = {
@@ -252,6 +252,14 @@ def main() -> int:
     if todo_test.returncode:
         fail(f"todo-queue test failed: {todo_test.stdout.strip()}")
     print(todo_test.stdout.strip())
+
+    tools_test = subprocess.run(
+        ["node", str(ROOT / "scripts/test-tools.mjs"), str(ROOT)],
+        cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    if tools_test.returncode:
+        fail(f"tools test failed: {tools_test.stdout.strip()}")
+    print(tools_test.stdout.strip())
 
     reader_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-reader-pane.mjs")],

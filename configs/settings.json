@@ -6,7 +6,7 @@
   "packages": [
     "npm:@ff-labs/pi-fff",
     "npm:@monotykamary/pi-retry",
-    "npm:pi-fabric@0.50.1",
+    "npm:pi-fabric@0.50.2",
     "npm:pi-web-access",
     "npm:@llblab/pi-telegram@0.27.2",
     "npm:pi-caveman@1.0.8",
