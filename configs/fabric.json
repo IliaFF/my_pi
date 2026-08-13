@@ -21,6 +21,7 @@
     "hideFromModel": true,
     "keepVisible": [
       "fabric_exec",
+      "ask_user_question",
       "context_recall"
     ],
     "defaultRisk": "execute",

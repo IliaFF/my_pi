@@ -7,7 +7,7 @@ import { pathToFileURL } from "node:url";
 const root = process.argv[2] ?? new URL("..", import.meta.url).pathname;
 const source = await readFile(join(root, "local-extensions/tools.ts"), "utf8");
 const fabric = JSON.parse(await readFile(join(root, "configs/fabric.json"), "utf8"));
-assert.ok(fabric.capture.keepVisible.includes("context_recall"), "Fabric must not hide context_recall after compaction");
+assert.deepEqual(fabric.capture.keepVisible, ["fabric_exec", "ask_user_question", "context_recall"], "Fabric must keep every intended model-facing tool visible");
 const dir = await mkdtemp(join(tmpdir(), "pi-tools-test-"));
 const modulePath = join(dir, "tools.ts");
 await writeFile(modulePath, source.replace(/^import .*;\n/gm, ""));

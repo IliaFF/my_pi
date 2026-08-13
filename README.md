@@ -54,7 +54,7 @@
 | `decision-observer.ts` | активен, project opt-in | Сохраняет только explicit `[DECISION]`/`[VALIDATION]`/`[SUPERSEDED]` markers; `/decisions`, bounded reports и quiet footer без model-facing tools. |
 | `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
-| `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection; после compaction не удаляет reconciled tools и добавляет `context_recall` только при `ctxref://`; Fabric `keepVisible` не даёт ownership reassertion снова скрыть его. |
+| `tools.ts` | активен | Держит стабильный `fabric_exec`, не меняет tools по словам prompt, сохраняет явный `/tools` selection; после compaction не удаляет reconciled tools и добавляет `context_recall` только при `ctxref://`; Fabric `keepVisible` сохраняет весь intended model-facing набор: `fabric_exec`, `ask_user_question`, `context_recall`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: их заменил общий compound runtime Fabric.
 
