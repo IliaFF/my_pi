@@ -41,7 +41,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "0.84.1":
+    if manifest.get("piCoreVersion") != "0.84.2":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("pi-fabric requires Node >=24")
@@ -61,10 +61,10 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
-    if package_json["dependencies"].get("pi-fabric") != "0.50.2":
+    if package_json["dependencies"].get("pi-fabric") != "0.52.0":
         fail("pi-fabric is not exactly pinned")
     fabric_lock = package_lock["packages"].get("node_modules/pi-fabric", {})
-    if fabric_lock.get("version") != "0.50.2" or fabric_lock.get("integrity") != "sha512-FNPq+6wSML3Nks2N65mDpaRTkc2UT6YahaC/Mhk1wSEcpxpWagIXIihyzhX8gYegnCqWMJmHqBmLxVaxxUZjuQ==":
+    if fabric_lock.get("version") != "0.52.0" or fabric_lock.get("integrity") != "sha512-Y9EvOkwE7FM7W2b8YjQKrc01NyqOzpahPMiKhWfEUa9dA3lvwN7Kxdogj6ffElzOOoZQ7hc5G0oUig5AWWdGew==":
         fail("unexpected pi-fabric lock identity")
     fabric = json.loads((ROOT / "configs/fabric.json").read_text())
     required_fabric = {
@@ -160,6 +160,27 @@ def main() -> int:
         if required not in readme:
             fail(f"README extension status documentation missing: {required}")
     print("PASS README extension inventory and disabled-component rationale")
+
+    install_source = (ROOT / "install.sh").read_text()
+    uninstall_source = (ROOT / "uninstall.sh").read_text()
+    for required in [
+        'cp "$ROOT/configs/fabric-output.json" "$AGENT_DIR/extensions/fabric-output.json"',
+        'cp -a "$ROOT/local-extensions/fabric-output/." "$AGENT_DIR/extensions/fabric-output/"',
+    ]:
+        if required not in install_source:
+            fail(f"installer fabric-output wiring missing: {required}")
+    managed_match = re.search(r"managed=\((.*?)\n\)", install_source, re.DOTALL)
+    rollback_paths = {
+        "extensions/context-compaction.json",
+        "extensions/fabric-output.json",
+        "extensions/fabric-output",
+    }
+    if managed_match is None or any(f'"{path}"' not in managed_match.group(1) for path in rollback_paths):
+        fail("installer rollback set omits managed extension config")
+    if any(f'"{path}"' not in uninstall_source for path in rollback_paths):
+        fail("uninstaller rollback allowance omits managed extension config")
+    print("PASS installer and rollback include fabric-output and managed JSON configs")
+
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):

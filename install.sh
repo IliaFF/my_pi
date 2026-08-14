@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_VERSION="0.84.1"
+PI_VERSION="0.84.2"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -58,8 +58,8 @@ managed=(
   "settings.json" "APPEND_SYSTEM.md" "fabric.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
-  "extensions/context-compaction.ts" "extensions/auto-ultra-compact"
-  "extensions/pi-fast-resume.json" "extensions/quotas.json"
+  "extensions/context-compaction.ts" "extensions/auto-ultra-compact" "extensions/fabric-output"
+  "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/fabric-output.json"
   "npm" "maintenance"
 )
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -99,7 +99,7 @@ rollback_install() {
 }
 trap rollback_install ERR
 
-mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/maintenance"
+mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/maintenance"
 cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
 cp "$ROOT/npm/package-lock.json" "$AGENT_DIR/npm/package-lock.json"
 npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
@@ -119,6 +119,8 @@ cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$A
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
+cp "$ROOT/configs/fabric-output.json" "$AGENT_DIR/extensions/fabric-output.json"
+cp -a "$ROOT/local-extensions/fabric-output/." "$AGENT_DIR/extensions/fabric-output/"
 cp "$ROOT/configs/pi-canary.json" "$AGENT_DIR/npm/node_modules/pi-canary/extensions/canary.json"
 
 rm -rf "$AGENT_DIR/maintenance"

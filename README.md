@@ -4,8 +4,8 @@
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@0.84.1`
-- Node.js `>=24.0.0` (требование `pi-fabric@0.50.2`)
+- Pi core `@earendil-works/pi-coding-agent@0.84.2`
+- Node.js `>=24.0.0` (требование `pi-fabric@0.52.0`)
 - 16 прямых npm dependencies с точными версиями: 15 settings entries и один dormant package; полный `package-lock.json`
 - единая default-конфигурация с одним стабильным model-facing tool `fabric_exec`; остальные tools захвачены Fabric
 - recovery-aware compaction `recovery-v4-chronological-10k`
@@ -18,7 +18,7 @@
 - Cachemire для cache/turn cost diagnostics
 - persistent агрегированный agent-loop baseline, outer/nested Fabric telemetry и `/loop-report batching`
 
-Репозиторий содержит три version-gated patch для `pi-canary@1.5.0`, `pi-caveman@1.0.8` и `@juicesharp/rpiv-ask-user-question@2.4.0`. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
+Репозиторий содержит три version-gated patch для `pi-canary@1.5.0`, `pi-caveman@1.0.8` и `@juicesharp/rpiv-ask-user-question@2.5.2`. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
 
 ## Текущие packages и расширения
 
@@ -27,12 +27,12 @@
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.10.3` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.6.10` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
-| `pi-fabric` | `0.50.2` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
+| `@monotykamary/pi-retry` | `0.7.0` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `pi-fabric` | `0.52.0` | загружен, основной executor | Один `fabric_exec` вместо множества schemas; type-checked compound execution через изолированный QuickJS и host bridge. |
 | `pi-web-access` | `0.22.0` | загружен, tools lazy | Web search, URL/GitHub/PDF/YouTube retrieval. Network tools захвачены Fabric и не висят отдельными schemas. |
-| `@llblab/pi-telegram` | `0.27.2` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
+| `@llblab/pi-telegram` | `0.28.0` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
 | `pi-caveman` | `1.0.8` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
-| `@juicesharp/rpiv-ask-user-question` | `2.4.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
+| `@juicesharp/rpiv-ask-user-question` | `2.5.2` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `@tunnckocore/pi-gpt-fast-mode` | `0.4.0` | загружен, default off | `/fast` добавляет `service_tier: "priority"` только поддерживаемым GPT-5.4/5.5/5.6; через ChatGPT subscription ускоряет ответы ценой повышенного расхода credits. |
 | `pi-token-speed` | `0.7.1` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-fast-resume` | `1.4.6` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
@@ -106,7 +106,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --install-core
 ```
 
-Если Pi `0.84.1` уже доступен через `PATH`:
+Если Pi `0.84.2` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -211,7 +211,7 @@ Report фильтруется по текущему project path и показы
 
 ## Compound project workflow
 
-`pi-fabric@0.50.2` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
+`pi-fabric@0.52.0` заменяет прежний `project-loop.ts` и его пять model-facing schemas одним `fabric_exec`. В default full-code mode нативные file/shell tools и extension tools доступны внутри type-checked TypeScript через `pi.*` и `extensions.*`; независимые и зависимые операции выполняются без промежуточного model round-trip.
 
 Безопасный reproducible профиль хранится в `configs/fabric.json` и устанавливается как `~/.pi/agent/fabric.json`:
 
@@ -258,7 +258,7 @@ timeout 20 pi --mode rpc --no-session </dev/null
 
 Update script создаёт backup npm tree, обновляет расширения, возвращает managed configs, повторно применяет совместимые patch и проверяет результат. Неизвестная версия patch-пакета вызывает отказ и rollback.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `0.84.1`; обновление core нужно сначала проверить и зафиксировать здесь.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `0.84.2`; обновление core нужно сначала проверить и зафиксировать здесь.
 
 ## Откат
 

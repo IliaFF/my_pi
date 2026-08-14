@@ -37,8 +37,8 @@ if Path(s.get("agentDir", "")).resolve() != Path(sys.argv[2]).resolve():
     raise SystemExit("FAIL backup belongs to another agent directory")
 allowed = {
  "settings.json", "APPEND_SYSTEM.md", "fabric.json", "extensions/tools.ts", "extensions/lean-tools.ts",
- "extensions/loop-profiler.ts", "extensions/decision-observer.ts", "extensions/reader-pane.ts", "extensions/todo-queue", "extensions/project-loop.ts", "extensions/context-compaction.ts", "extensions/auto-ultra-compact",
- "extensions/pi-fast-resume.json", "extensions/quotas.json", "npm", "maintenance",
+ "extensions/loop-profiler.ts", "extensions/decision-observer.ts", "extensions/reader-pane.ts", "extensions/todo-queue", "extensions/project-loop.ts", "extensions/context-compaction.ts", "extensions/auto-ultra-compact", "extensions/fabric-output",
+ "extensions/pi-fast-resume.json", "extensions/quotas.json", "extensions/context-compaction.json", "extensions/fabric-output.json", "npm", "maintenance",
 }
 if set(s.get("agentManaged", [])) != allowed:
     raise SystemExit("FAIL backup contains unexpected managed paths")

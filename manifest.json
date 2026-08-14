@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "0.84.1",
+  "piCoreVersion": "0.84.2",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -25,9 +25,9 @@
     },
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.4.0",
+      "version": "2.5.2",
       "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question",
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.4.0.patch",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.5.2.patch",
       "files": [
         "reconcile.ts"
       ],
