@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "preset": "balanced",
+  "retention_days": 7,
+  "max_mb": 250,
+  "purge_on_shutdown": false,
+  "capture_max_bytes": 24576,
+  "capture_max_lines": 300,
+  "mcp_max_bytes": 51200,
+  "mcp_max_lines": 2000
+}

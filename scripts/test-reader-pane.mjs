@@ -6,7 +6,14 @@ import {
   collectSafeImages,
   sanitizeMarkdown,
   selectLatestAssistantText,
+  selectReaderBackend,
 } from "../local-extensions/reader-pane.ts";
+
+test("reader backend supports WSL and native tmux", () => {
+  assert.equal(selectReaderBackend({ WSL_DISTRO_NAME: "Ubuntu", TMUX: "socket", TMUX_PANE: "%1" }), "wsl-windows-terminal");
+  assert.equal(selectReaderBackend({ TMUX: "socket", TMUX_PANE: "%1" }), "tmux");
+  assert.equal(selectReaderBackend({ TMUX: "socket" }), undefined);
+});
 
 test("wide table becomes readable cards", () => {
   const input = [

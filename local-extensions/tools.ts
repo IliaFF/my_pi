@@ -3,10 +3,12 @@ import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import { Container, type SettingItem, SettingsList } from "@earendil-works/pi-tui";
 
 interface ToolsState {
+	version?: 2;
 	enabledTools: string[];
 }
 
-const STABLE_TOOLS = ["fabric_exec"] as const;
+const CONTEXT_TOOLS = ["context_search", "context_get", "context_export", "context_list", "context_stats", "context_purge"] as const;
+const STABLE_TOOLS = ["read", "grep", "find", "edit", "write", "bash", ...CONTEXT_TOOLS] as const;
 
 export function toolsFromCompactedContext(text: string): string[] {
 	return /ctxref:\/\//iu.test(text) ? ["context_recall"] : [];
@@ -20,7 +22,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	let compactedTools = new Set<string>();
 
 	function persistState() {
-		pi.appendEntry<ToolsState>("tools-config", { enabledTools: [...enabledTools] });
+		pi.appendEntry<ToolsState>("tools-config", { version: 2, enabledTools: [...enabledTools] });
 	}
 
 	function applyTools() {
@@ -37,7 +39,7 @@ export default function toolsExtension(pi: ExtensionAPI) {
 	function refreshAutomaticSelection(activeTools: string[] = []) {
 		allTools = pi.getAllTools();
 		const available = availableNames();
-		enabledTools = new Set([...activeTools, ...STABLE_TOOLS, ...compactedTools].filter((name) => available.has(name)));
+		enabledTools = new Set([...STABLE_TOOLS, ...activeTools, ...compactedTools].filter((name) => available.has(name)));
 		applyTools();
 	}
 
@@ -45,18 +47,23 @@ export default function toolsExtension(pi: ExtensionAPI) {
 		allTools = pi.getAllTools();
 		const branchEntries = ctx.sessionManager.getBranch();
 		let savedTools: string[] | undefined;
+		let savedVersion: number | undefined;
 		for (const entry of branchEntries) {
 			if (entry.type === "custom" && entry.customType === "tools-config") {
 				const data = entry.data as ToolsState | undefined;
-				if (Array.isArray(data?.enabledTools)) savedTools = data.enabledTools;
+				if (Array.isArray(data?.enabledTools)) {
+					savedTools = data.enabledTools;
+					savedVersion = data.version;
+				}
 			}
 		}
 
 		if (savedTools) {
 			manualSelection = true;
-			savedToolNames = new Set(savedTools);
+			const migratedTools = savedVersion === 2 ? savedTools : [...savedTools, ...CONTEXT_TOOLS];
+			savedToolNames = new Set(migratedTools);
 			const available = availableNames();
-			enabledTools = new Set(savedTools.filter((name) => available.has(name)));
+			enabledTools = new Set(migratedTools.filter((name) => available.has(name)));
 			applyTools();
 			return;
 		}

@@ -9,173 +9,84 @@ process.env.PI_CODING_AGENT_DIR = root;
 process.env.PI_PROFILE = "0";
 const runsPath = join(root, "observability", "loop-runs.jsonl");
 mkdirSync(join(root, "observability"), { recursive: true });
-const old = Array.from({ length: 500 }, (_, index) => JSON.stringify({ version: 1, projectHash: "old", runId: `old-${index}` }));
-writeFileSync(runsPath, `${old.join("\n")}\n`);
+writeFileSync(runsPath, `${Array.from({ length: 500 }, (_, i) => JSON.stringify({ version: 1, projectHash: "old", runId: `old-${i}` })).join("\n")}\n`);
 
 try {
   const moduleUrl = pathToFileURL(join(process.cwd(), "local-extensions", "loop-profiler.ts")).href;
   const { default: loopProfiler, formatLoopReport } = await import(`${moduleUrl}?test=${Date.now()}`);
-  const handlers = new Map();
-  const commands = new Map();
-  const notifications = [];
+  const handlers = new Map(), commands = new Map(), notifications = [];
   const pi = {
-    on(name, handler) {
-      const list = handlers.get(name) ?? [];
-      list.push(handler);
-      handlers.set(name, list);
-    },
+    on(name, handler) { const list = handlers.get(name) ?? []; list.push(handler); handlers.set(name, list); },
     registerCommand(name, options) { commands.set(name, options); },
   };
   loopProfiler(pi);
   const ctx = {
-    cwd: "/workspace/private-project",
-    mode: "rpc",
-    model: { provider: "test-provider", id: "test-model" },
-    thinkingLevel: "medium",
+    cwd: "/workspace/private-project", mode: "rpc", model: { provider: "test-provider", id: "test-model" }, thinkingLevel: "medium",
+    sessionManager: { getSessionId: () => "private-session-id" },
     ui: { notify(message, type) { notifications.push({ message, type }); } },
   };
-  const emit = async (name, event) => {
-    for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
-  };
-  const secret = "SECRET_PROMPT_AND_TOOL_PAYLOAD";
+  const emit = async (name, event) => { for (const handler of handlers.get(name) ?? []) await handler(event, ctx); };
+  const secret = "SECRET_PROMPT_ARGUMENT_AND_OUTPUT";
+  const preview = `[context-sidecar] Large bash output indexed locally\n\nSource: src-test\nSize: 48.8 KiB, 400 lines, 13 chunks\n\nNext actions:\n- Search concise snippets first: context_search\n\nPreview:\nHEAD\nTAIL`;
+
   await emit("before_agent_start", {
-    type: "before_agent_start",
-    prompt: secret,
-    systemPrompt: `system-${secret}`,
-    systemPromptOptions: { selectedTools: ["bash"], contextFiles: [], skills: [] },
+    type: "before_agent_start", prompt: secret, systemPrompt: `system-${secret}`,
+    systemPromptOptions: { selectedTools: ["read", "grep", "find", "edit", "write", "bash"], contextFiles: [], skills: [] },
   });
   await emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: Date.now() });
   await emit("context", { type: "context", messages: [{ role: "user", content: `${secret}${"x".repeat(1_000)}` }] });
   await emit("before_provider_request", { type: "before_provider_request", payload: { input: secret } });
   await emit("after_provider_response", { type: "after_provider_response", status: 200, headers: {} });
-  await emit("message_update", {
-    type: "message_update",
-    message: { role: "assistant" },
-    assistantMessageEvent: { type: "text_delta", delta: "x" },
-  });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "fabric-1", toolName: "fabric_exec", args: {} });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-read", toolName: "read", args: { path: "private" } });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "nested-read", toolName: "read", result: { content: [] }, isError: false });
-  await emit("tool_execution_start", {
-    type: "tool_execution_start",
-    toolCallId: "nested-bash",
-    toolName: "bash",
-    args: { command: `pytest -q # ${secret}` },
-  });
+  await emit("message_update", { type: "message_update", message: { role: "assistant" }, assistantMessageEvent: { type: "text_delta", delta: "x" } });
+
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "grep-1", toolName: "grep", args: { pattern: secret } });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "grep-1", toolName: "grep", result: { content: [{ type: "text", text: "10 matches" }] }, isError: false });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "bash-1", toolName: "bash", args: { command: `npm test # ${secret}` } });
   await emit("tool_execution_end", {
-    type: "tool_execution_end",
-    toolCallId: "nested-bash",
-    toolName: "bash",
-    result: { content: [{ type: "text", text: secret }] },
-    isError: true,
+    type: "tool_execution_end", toolCallId: "bash-1", toolName: "bash", isError: false,
+    result: { content: [{ type: "text", text: preview }], details: {} },
   });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "fabric-1", toolName: "fabric_exec", result: { content: [] }, isError: false });
-  await emit("turn_end", { type: "turn_end", turnIndex: 0, message: {}, toolResults: [{}] });
+  await emit("turn_end", { type: "turn_end", turnIndex: 0, message: {}, toolResults: [{}, {}] });
+
   await emit("turn_start", { type: "turn_start", turnIndex: 1, timestamp: Date.now() });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "direct-edit", toolName: "edit", args: {} });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "direct-edit", toolName: "edit", result: { content: [] }, isError: false });
-  await emit("message_end", {
-    type: "message_end",
-    message: { role: "assistant", content: [], usage: { input: 10, output: 2, cacheRead: 90, cacheWrite: 0 } },
-  });
+  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "edit-1", toolName: "edit", args: { path: secret } });
+  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "edit-1", toolName: "edit", result: { content: [{ type: "text", text: "permission denied" }, { type: "image", data: secret }] }, isError: true });
+  await emit("message_end", { type: "message_end", message: { role: "assistant", content: [], usage: { input: 10, output: 2, cacheRead: 90, cacheWrite: 0 } } });
   await emit("turn_end", { type: "turn_end", turnIndex: 1, message: {}, toolResults: [{}] });
   await emit("agent_settled", { type: "agent_settled" });
 
   const persisted = readFileSync(runsPath, "utf8");
-  if (persisted.includes(secret)) throw new Error("sensitive content persisted");
+  if (persisted.includes(secret)) throw new Error("sensitive prompt, arguments, details, path, or output persisted");
   const lines = persisted.trim().split("\n");
   if (lines.length !== 500) throw new Error(`retention mismatch: ${lines.length}`);
   const run = JSON.parse(lines.at(-1));
-  if (run.modelCalls !== 1 || run.toolCalls !== 4 || run.singleToolBatches !== 1 || run.parallelToolBatches !== 1) throw new Error("legacy round counters mismatch");
-  if (run.fabricPrograms !== 1 || run.nestedOperations !== 2 || run.directToolCalls !== 1 || run.outerToolCalls !== 2) throw new Error("outer/nested counters mismatch");
-  if (run.outerSingleToolBatches !== 2 || run.outerParallelToolBatches !== 0) throw new Error("outer batch counters mismatch");
-  if (run.toolErrors !== 1 || run.nestedToolErrors !== 1 || run.outerToolErrors !== 0) throw new Error("boundary error counters mismatch");
-  if (run.validationRounds !== 1 || run.toolOutputChars !== secret.length) throw new Error("validation/output counters mismatch");
-  if (run.outerTools.fabric_exec !== 1 || run.outerTools.edit !== 1 || run.nestedTools.read !== 1 || run.nestedTools.bash !== 1) throw new Error("boundary tool maps mismatch");
-  if (!run.runId || !run.projectHash || run.providerStatuses["200"] !== 1 || run.batchingPolicy !== "fabric-batching-v1") throw new Error("correlation/provider/policy fields missing");
+  if (run.version !== 4 || run.batchingPolicy !== "searchable-context-v4") throw new Error("v4 policy identity missing");
+  if (run.modelCalls !== 1 || run.toolCalls !== 3 || run.directToolCalls !== 3) throw new Error("direct boundary counters mismatch");
+  for (const key of ["fabricPrograms", "nestedOperations", "fabricContextOutputChars", "nestedToolOutputChars", "fabricProgramNestedHistogram"]) {
+    if (key in run) throw new Error(`v4 record persists legacy field: ${key}`);
+  }
+  if (run.singleToolBatches !== 1 || run.parallelToolBatches !== 1 || run.outerParallelToolBatches !== 1) throw new Error("batch counters mismatch");
+  const contextChars = "10 matches".length + preview.length + "permission denied".length;
+  if (run.modelContextToolOutputChars !== contextChars || run.directContextOutputChars !== contextChars || run.modelContextToolOutputImages !== 1) throw new Error("direct context output counters mismatch");
+  if (run.contextIndexedToolResults !== 1) throw new Error("indexed receipt counter mismatch");
+  if (run.largeToolResults !== 0 || run.externalizedToolResults !== 0 || run.contextExternalizedToolResults !== 0) throw new Error("legacy externalization counters changed");
+  if (run.toolErrors !== 1 || run.outerToolErrors !== 1 || run.rootToolErrors !== 1 || run.errorCategories.permission !== 1) throw new Error("direct error telemetry mismatch");
+  if (!run.runId || !run.projectHash || !run.sessionHash || run.providerStatuses["200"] !== 1) throw new Error("privacy-safe correlation fields missing");
 
+  const report = formatLoopReport([run], "last");
+  if (!report.includes("searchable-context-v4") || !report.includes("indexed receipts 1") || !report.includes("Searchable context policy")) throw new Error("v4 report missing");
+  const pilot = formatLoopReport([run], "batching");
+  if (!pilot.includes("Searchable context pilot") || !pilot.includes("post-policy 1/10") || !pilot.includes("indexed receipts 1")) throw new Error("v4 pilot report missing");
   await commands.get("loop-report").handler("last", ctx);
-  if (!notifications.at(-1)?.message.includes("Loop last") || !notifications.at(-1)?.message.includes("fabric 1") || !notifications.at(-1)?.message.includes("direct 1")) {
-    throw new Error("loop report missing batching metrics");
-  }
-  await commands.get("loop-report").handler("batching", ctx);
-  if (!notifications.at(-1)?.message.includes("Batching pilot") || !notifications.at(-1)?.message.includes("post-policy 1/10")) {
-    throw new Error("batching pilot report missing progress");
-  }
-  const legacyReport = formatLoopReport([{ ...run, batchingPolicy: undefined }], "last");
-  if (!legacyReport.includes("legacy record")) throw new Error("legacy report compatibility missing");
-  if (!formatLoopReport([], "batching").includes("post-policy 0/10")) throw new Error("empty batching pilot progress missing");
-  if (!formatLoopReport([run], "last").includes("durations outer") || !formatLoopReport([run], "last").includes("errors outer 0, nested 1")) throw new Error("boundary duration/error report missing");
+  if (!notifications.at(-1)?.message.includes("Loop last")) throw new Error("loop-report command missing");
 
-  await emit("before_agent_start", {
-    type: "before_agent_start",
-    prompt: "efficiency-probe",
-    systemPrompt: "system-efficiency-probe",
-    systemPromptOptions: { selectedTools: ["fabric_exec"], contextFiles: [], skills: [] },
-  });
-  await emit("turn_start", { type: "turn_start", turnIndex: 0, timestamp: Date.now() });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "fabric-efficient", toolName: "fabric_exec", args: {} });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-grep", toolName: "grep", args: { pattern: "needle" } });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "nested-grep", toolName: "grep", result: { content: [] }, isError: false });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-large-read", toolName: "read", args: { path: "bounded" } });
-  await emit("tool_execution_end", {
-    type: "tool_execution_end",
-    toolCallId: "nested-large-read",
-    toolName: "read",
-    result: { content: [{ type: "text", text: `[Native fabric full output: /tmp/bounded]\n${"x".repeat(33_000)}` }] },
-    isError: false,
-  });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-contained", toolName: "bash", args: { command: "test -e missing" } });
-  await emit("tool_execution_end", {
-    type: "tool_execution_end",
-    toolCallId: "nested-contained",
-    toolName: "bash",
-    result: { content: [{ type: "text", text: `ENOENT ${secret}` }] },
-    isError: true,
-  });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "fabric-efficient", toolName: "fabric_exec", result: { content: [] }, isError: false });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "efficient-edit", toolName: "edit", args: {} });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "efficient-edit", toolName: "edit", result: { content: [] }, isError: false });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "validation-1", toolName: "bash", args: { command: "npm test" } });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "validation-1", toolName: "bash", result: { content: [] }, isError: false });
-  await emit("turn_end", { type: "turn_end", turnIndex: 0, message: {}, toolResults: [{}] });
-  await emit("turn_start", { type: "turn_start", turnIndex: 1, timestamp: Date.now() });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "validation-2", toolName: "bash", args: { cmd: "npm test" } });
-  await emit("tool_execution_end", { type: "tool_execution_end", toolCallId: "validation-2", toolName: "bash", result: { content: [] }, isError: false });
-  await emit("turn_end", { type: "turn_end", turnIndex: 1, message: {}, toolResults: [{}] });
-  await emit("turn_start", { type: "turn_start", turnIndex: 2, timestamp: Date.now() });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "fabric-propagated", toolName: "fabric_exec", args: {} });
-  await emit("tool_execution_start", { type: "tool_execution_start", toolCallId: "nested-timeout", toolName: "bash", args: { command: "slow-command" } });
-  await emit("tool_execution_end", {
-    type: "tool_execution_end",
-    toolCallId: "nested-timeout",
-    toolName: "bash",
-    result: { content: [{ type: "text", text: `timed out ${secret}` }] },
-    isError: true,
-  });
-  await emit("tool_execution_end", {
-    type: "tool_execution_end",
-    toolCallId: "fabric-propagated",
-    toolName: "fabric_exec",
-    result: { content: [{ type: "text", text: `wrapper timeout ${secret}` }] },
-    isError: true,
-  });
-  await emit("turn_end", { type: "turn_end", turnIndex: 2, message: {}, toolResults: [{}] });
-  await emit("agent_settled", { type: "agent_settled" });
+  const v2 = { ...run, version: 2, batchingPolicy: "direct-default-fabric-selective-v2", fabricPrograms: 1, nestedOperations: 2, fabricContextOutputChars: 20, nestedToolOutputChars: 100, fabricProgramNestedHistogram: { "2-4": 1 }, fabricProgramsZeroNested: 0, fabricProgramsSingleNested: 0, fabricProgramsMultiNested: 1, fabricProgramsFivePlusNested: 0, fabricProgramMaxNested: 2 };
+  const v2Report = formatLoopReport([v2], "last");
+  if (!v2Report.includes("legacy batching") || !v2Report.includes("Fabric projection") || !v2Report.includes("Fabric program sizes")) throw new Error("v2 Fabric record compatibility missing");
+  const v1 = { ...v2, version: 1, batchingPolicy: undefined };
+  for (const key of ["modelContextToolOutputChars", "fabricContextOutputChars", "directContextOutputChars", "nestedToolOutputChars", "modelContextToolOutputImages", "nestedToolOutputImages", "contextOutputByTool", "nestedOutputByTool", "fabricProgramNestedHistogram"]) delete v1[key];
+  const v1Report = formatLoopReport([v1], "last");
+  if (!v1Report.includes("legacy record") || !v1Report.includes("legacy mixed") || !v1Report.includes("program sizes unavailable")) throw new Error("v1 record compatibility missing");
 
-  const efficiencyPersisted = readFileSync(runsPath, "utf8");
-  if (efficiencyPersisted.includes(secret)) throw new Error("sensitive error content persisted");
-  const efficiency = JSON.parse(efficiencyPersisted.trim().split("\n").at(-1));
-  if (efficiency.inspectTurns !== 1 || efficiency.mutationBeforeInspect !== 0) throw new Error("inspect telemetry mismatch");
-  if (efficiency.mutationTurns !== 1 || efficiency.mutationValidationTurns !== 1 || efficiency.mutationWithoutValidationTurns !== 0) throw new Error("mutation/validation telemetry mismatch");
-  if (efficiency.largeToolResults !== 1 || efficiency.externalizedToolResults !== 1 || efficiency.largeInlineToolResults !== 0) throw new Error("compact evidence telemetry mismatch");
-  if (efficiency.containedNestedFailures !== 1 || efficiency.propagatedFabricFailures !== 1) throw new Error("contained/propagated telemetry mismatch");
-  if (efficiency.validationReruns !== 1 || efficiency.unchangedValidationReruns !== 1) throw new Error("validation rerun telemetry mismatch");
-  if (efficiency.rootToolErrors !== 2 || efficiency.wrapperToolErrors !== 1 || efficiency.errorCategories.path_missing !== 1 || efficiency.errorCategories.timeout !== 1) throw new Error("root error telemetry mismatch");
-  const efficiencyReport = formatLoopReport([efficiency], "last");
-  if (!efficiencyReport.includes("mutation+validation 1/1") || !efficiencyReport.includes("failures root 2, wrappers 1, contained 1")) throw new Error("efficiency report missing");
-
-  console.log("PASS loop profiler privacy, retention, efficiency telemetry, root error dedup, policy cohort, and reports");
-} finally {
-  rmSync(root, { recursive: true, force: true });
-}
+  console.log("PASS loop profiler v4 privacy, retention, direct output split, indexed-receipt metrics, reports, and v1/v2/v3 readability");
+} finally { rmSync(root, { recursive: true, force: true }); }

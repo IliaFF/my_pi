@@ -81,7 +81,7 @@
       "source": "extensions/loop-profiler.ts",
       "snapshot": "local-extensions/loop-profiler.ts",
       "restore": true,
-      "reason": "Persistent bounded loop baseline with outer/nested Fabric batching pilot and /loop-report; raw trace remains opt-in."
+      "reason": "Persistent bounded direct-tool loop baseline with externalized-output metrics and /loop-report; raw trace remains opt-in."
     },
     {
       "source": "extensions/decision-observer.ts",
@@ -96,64 +96,16 @@
       "reason": "Safe opt-in Windows Terminal reader with bounded tool images and wide-table card layout."
     },
     {
-      "source": "fabric.json",
-      "snapshot": "configs/fabric.json",
-      "restore": true,
-      "reason": "Keep Fabric on isolated QuickJS while delegating compaction to existing Pi/custom hooks; disable unused background and multi-agent surfaces."
-    },
-    {
       "source": "extensions/tools.ts",
       "snapshot": "local-extensions/tools.ts",
       "restore": true,
-      "reason": "Stable fabric_exec-only default, explicit manual selection, and post-compaction preservation of reconciled tools plus precise context_recall restoration."
+      "reason": "Stable direct-tool default, explicit manual selection, and post-compaction context_recall restoration."
     },
     {
       "source": "npm/node_modules/pi-canary/extensions/canary.json",
       "snapshot": "configs/pi-canary.json",
       "restore": true,
       "reason": "Preserve dormant Canary configuration if package is enabled later."
-    },
-    {
-      "source": "extensions/fabric-output.json",
-      "snapshot": "configs/fabric-output.json",
-      "restore": true,
-      "reason": "Enable global semantic reduction while retaining native artifact pointers."
-    },
-    {
-      "source": "extensions/fabric-output/index.ts",
-      "snapshot": "local-extensions/fabric-output/index.ts",
-      "restore": true,
-      "reason": "Global native-artifact semantic output reducer and its validation/license files."
-    },
-    {
-      "source": "extensions/fabric-output/core.mjs",
-      "snapshot": "local-extensions/fabric-output/core.mjs",
-      "restore": true,
-      "reason": "Global native-artifact semantic output reducer and its validation/license files."
-    },
-    {
-      "source": "extensions/fabric-output/reducers.mjs",
-      "snapshot": "local-extensions/fabric-output/reducers.mjs",
-      "restore": true,
-      "reason": "Global native-artifact semantic output reducer and its validation/license files."
-    },
-    {
-      "source": "extensions/fabric-output/core.test.mjs",
-      "snapshot": "local-extensions/fabric-output/core.test.mjs",
-      "restore": true,
-      "reason": "Global native-artifact semantic output reducer and its validation/license files."
-    },
-    {
-      "source": "extensions/fabric-output/LICENSE.RTK",
-      "snapshot": "local-extensions/fabric-output/LICENSE.RTK",
-      "restore": true,
-      "reason": "Global native-artifact semantic output reducer and its validation/license files."
-    },
-    {
-      "source": "extensions/fabric-output/README.md",
-      "snapshot": "local-extensions/fabric-output/README.md",
-      "restore": true,
-      "reason": "Global native-artifact semantic output reducer and its validation/license files."
     },
     {
       "source": "extensions/todo-queue/README.md",

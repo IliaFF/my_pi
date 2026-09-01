@@ -21,17 +21,28 @@ type SafeImage = {
   hash: string;
 };
 
+type ReaderBackend = "wsl-windows-terminal" | "tmux";
+
 type RuntimePaths = {
+  backend: ReaderBackend;
   directory: string;
   documentLinux: string;
-  documentWindows: string;
   heartbeatLinux: string;
-  heartbeatWindows: string;
   stopLinux: string;
-  stopWindows: string;
-  watcherWindows: string;
-  mdcatWindows: string;
+  watcherLinux: string;
+  documentWindows?: string;
+  heartbeatWindows?: string;
+  stopWindows?: string;
+  watcherWindows?: string;
+  mdcatWindows?: string;
+  tmuxPaneId?: string;
 };
+
+export function selectReaderBackend(env: NodeJS.ProcessEnv = process.env): ReaderBackend | undefined {
+  if (env.WSL_DISTRO_NAME) return "wsl-windows-terminal";
+  if (env.TMUX && env.TMUX_PANE) return "tmux";
+  return undefined;
+}
 
 function stripControlCharacters(value: string): string {
   return value.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/g, "");
@@ -272,6 +283,46 @@ while (-not (Test-Path -LiteralPath $StopFile)) {
 Write-Host 'Reader pane stopped.' -ForegroundColor DarkGray
 `;
 
+const TMUX_WATCHER_SCRIPT = String.raw`import { readFileSync, statSync } from "node:fs";
+
+const [document, heartbeat, stopFile] = process.argv.slice(2);
+const esc = "\u001b[";
+const style = (code, text) => esc + code + "m" + text + esc + "0m";
+const inline = (line) => line
+  .replace(/\x60([^\x60]+)\x60/g, (_, value) => style("38;5;215", value))
+  .replace(/\*\*([^*]+)\*\*/g, (_, value) => style("1", value))
+  .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => style("4;36", label) + style("2", " (" + url + ")"));
+function render(markdown) {
+  let fenced = false;
+  return markdown.split("\n").map((raw) => {
+    if (/^\s*(?:\x60{3}|~{3})/.test(raw)) { fenced = !fenced; return style("2", "─".repeat(Math.max(12, process.stdout.columns || 72))); }
+    if (fenced) return style("38;5;114", "  " + raw);
+    const heading = raw.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) return style(heading[1].length < 3 ? "1;38;5;81" : "1;38;5;117", heading[2]);
+    if (/^\s*---+\s*$/.test(raw)) return style("2", "─".repeat(Math.max(12, process.stdout.columns || 72)));
+    if (/^>/.test(raw)) return style("3;38;5;244", "│ " + inline(raw.replace(/^>\s?/, "")));
+    if (/^\s*[-*+]\s+/.test(raw)) return inline(raw.replace(/^(\s*)[-*+]\s+/, "$1• "));
+    return inline(raw);
+  }).join("\n");
+}
+let stamp = 0;
+const redraw = () => {
+  try {
+    const next = statSync(document).mtimeMs;
+    if (next === stamp) return;
+    stamp = next;
+    process.stdout.write(esc + "2J" + esc + "H" + render(readFileSync(document, "utf8")));
+    process.stdout.write("\n\n" + style("2", "Auto-updates after each completed Pi response. /reader-pane-off closes reader.") + "\n");
+  } catch {}
+};
+const timer = setInterval(() => {
+  try { if (statSync(stopFile).isFile() || Date.now() - statSync(heartbeat).mtimeMs > 20000) process.exit(0); } catch {}
+  redraw();
+}, 500);
+process.on("SIGTERM", () => process.exit(0));
+redraw();
+`;
+
 async function toWindowsPath(pi: ExtensionAPI, path: string): Promise<string> {
   const result = await pi.exec("wslpath", ["-w", path], { timeout: 5_000 });
   if (result.code !== 0 || !result.stdout.trim()) throw new Error(result.stderr.trim() || `wslpath failed for ${path}`);
@@ -293,25 +344,25 @@ async function locateMdcat(pi: ExtensionAPI): Promise<string> {
   return `${windowsProfile}\\scoop\\shims\\mdcat.exe`;
 }
 
-async function createRuntime(pi: ExtensionAPI): Promise<RuntimePaths> {
+async function createRuntime(pi: ExtensionAPI, backend: ReaderBackend): Promise<RuntimePaths> {
   const directory = await mkdtemp(join(tmpdir(), "pi-reader-pane-"));
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const documentLinux = join(directory, "last-response.md");
   const heartbeatLinux = join(directory, "heartbeat");
   const stopLinux = join(directory, "stop");
-  const watcherLinux = join(directory, "watch-reader.ps1");
+  const watcherLinux = join(directory, backend === "tmux" ? "watch-reader.mjs" : "watch-reader.ps1");
+  if (backend === "tmux") {
+    await writeFile(watcherLinux, TMUX_WATCHER_SCRIPT, { encoding: "utf8", mode: 0o600 });
+    return { backend, directory, documentLinux, heartbeatLinux, stopLinux, watcherLinux };
+  }
   const mdcatWindows = await locateMdcat(pi);
   await writeFile(watcherLinux, WATCHER_SCRIPT, { encoding: "utf8", mode: 0o600 });
   return {
-    directory,
-    documentLinux,
+    backend, directory, documentLinux, heartbeatLinux, stopLinux, watcherLinux, mdcatWindows,
     documentWindows: await toWindowsPath(pi, documentLinux),
-    heartbeatLinux,
     heartbeatWindows: await toWindowsPath(pi, heartbeatLinux),
-    stopLinux,
     stopWindows: await toWindowsPath(pi, stopLinux),
     watcherWindows: await toWindowsPath(pi, watcherLinux),
-    mdcatWindows,
   };
 }
 
@@ -353,12 +404,13 @@ export default function readerPaneExtension(pi: ExtensionAPI): void {
       ctx.ui.notify("Reader pane is already enabled", "info");
       return;
     }
-    if (!process.env.WSL_DISTRO_NAME) {
-      ctx.ui.notify("Reader pane requires Pi running inside WSL", "error");
+    const backend = selectReaderBackend();
+    if (!backend) {
+      ctx.ui.notify("Reader pane requires WSL + Windows Terminal or a tmux session", "error");
       return;
     }
     try {
-      runtime = await createRuntime(pi);
+      runtime = await createRuntime(pi, backend);
       enabled = true;
       const entries = ctx.sessionManager.getBranch();
       latestText = selectLatestAssistantText(
@@ -371,19 +423,29 @@ export default function readerPaneExtension(pi: ExtensionAPI): void {
       }, 3_000);
       heartbeatTimer.unref?.();
 
-      const targetWindow = process.env.WT_SESSION?.trim() || "0";
-      const args = [
-        "-w", targetWindow,
-        "split-pane", "-V", "--size", "0.45", "--title", "Pi-reader",
-        "powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", runtime.watcherWindows,
-        "-Mdcat", runtime.mdcatWindows,
-        "-Document", runtime.documentWindows,
-        "-Heartbeat", runtime.heartbeatWindows,
-        "-StopFile", runtime.stopWindows,
-      ];
-      const launched = await pi.exec("wt.exe", args, { timeout: 10_000 });
-      if (launched.code !== 0) throw new Error(launched.stderr.trim() || `wt.exe exited ${launched.code}`);
-      setStatus(ctx, "reader:on");
+      if (runtime.backend === "tmux") {
+        const launched = await pi.exec("tmux", [
+          "split-window", "-h", "-l", "45%", "-d", "-P", "-F", "#{pane_id}",
+          "-t", process.env.TMUX_PANE!,
+          process.execPath, runtime.watcherLinux, runtime.documentLinux, runtime.heartbeatLinux, runtime.stopLinux,
+        ], { timeout: 10_000 });
+        if (launched.code !== 0) throw new Error(launched.stderr.trim() || `tmux exited ${launched.code}`);
+        runtime.tmuxPaneId = launched.stdout.trim();
+      } else {
+        const targetWindow = process.env.WT_SESSION?.trim() || "0";
+        const args = [
+          "-w", targetWindow,
+          "split-pane", "-V", "--size", "0.45", "--title", "Pi-reader",
+          "powershell.exe", "-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", runtime.watcherWindows!,
+          "-Mdcat", runtime.mdcatWindows!,
+          "-Document", runtime.documentWindows!,
+          "-Heartbeat", runtime.heartbeatWindows!,
+          "-StopFile", runtime.stopWindows!,
+        ];
+        const launched = await pi.exec("wt.exe", args, { timeout: 10_000 });
+        if (launched.code !== 0) throw new Error(launched.stderr.trim() || `wt.exe exited ${launched.code}`);
+      }
+      setStatus(ctx, `reader:${runtime.backend === "tmux" ? "tmux" : "wt"}`);
       ctx.ui.notify("Reader pane enabled. Use /reader-pane-off to stop it", "info");
     } catch (error) {
       await stop(ctx);

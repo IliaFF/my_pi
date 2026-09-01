@@ -5,6 +5,7 @@ PI_VERSION="0.84.2"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
+CONTEXT_SETTINGS="$AGENT_DIR/my-pi-settings.json"
 INSTALL_CORE=0
 DRY_RUN=0
 
@@ -35,7 +36,7 @@ for command in node npm python3 patch tar; do
   command -v "$command" >/dev/null || { echo "FAIL missing command: $command" >&2; exit 1; }
 done
 node -e 'const [M]=process.versions.node.split(".").map(Number); if (M<24) process.exit(1)' || {
-  echo "FAIL Node $(node --version). Required >=24.0.0 for pi-fabric" >&2; exit 1;
+  echo "FAIL Node $(node --version). Required >=24.0.0" >&2; exit 1;
 }
 python3 "$ROOT/scripts/test-release.py" "$ROOT"
 
@@ -44,8 +45,8 @@ if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/nu
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
-  echo "DRY-RUN extensions: npm ci from exact package-lock.json, including pi-fabric"
-  echo "DRY-RUN configs: one default profile + safe Fabric config + eight local extensions"
+  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with @spences10/pi-context@0.1.16 and without Fabric/output-compactor"
+  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + seven local extensions"
   echo "DRY-RUN patches: 3 exact-version patches"
   exit 0
 fi
@@ -55,11 +56,11 @@ if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
 fi
 
 managed=(
-  "settings.json" "APPEND_SYSTEM.md" "fabric.json"
+  "settings.json" "APPEND_SYSTEM.md" "my-pi-settings.json" "fabric.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
-  "extensions/context-compaction.ts" "extensions/auto-ultra-compact" "extensions/fabric-output"
-  "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/fabric-output.json"
+  "extensions/context-compaction.ts" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
+  "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
   "npm" "maintenance"
 )
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -99,14 +100,34 @@ rollback_install() {
 }
 trap rollback_install ERR
 
-mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/maintenance"
+mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/maintenance"
+rm -f "$AGENT_DIR/fabric.json" "$AGENT_DIR/extensions/fabric-output.json" "$AGENT_DIR/extensions/output-compactor.json"
+rm -rf "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/extensions/output-compactor"
 cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
 cp "$ROOT/npm/package-lock.json" "$AGENT_DIR/npm/package-lock.json"
 npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
+probe_dir="$backup/pi-context-runtime-probe"
+mkdir -m 700 "$probe_dir"
+node "$ROOT/scripts/test-pi-context-runtime.mjs" "$AGENT_DIR/npm/node_modules/@spences10/pi-context" "$probe_dir"
+rm -rf "$probe_dir"
 
 cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"
+python3 - "$CONTEXT_SETTINGS" "$ROOT/configs/pi-context.json" <<'PY'
+import json, os, sys
+from pathlib import Path
+path, policy_path = map(Path, sys.argv[1:])
+settings = json.loads(path.read_text()) if path.exists() else {"version": 1, "extensions": {"enabled": {}}, "trust": {}, "packages": {}}
+if not isinstance(settings, dict) or not isinstance(settings.get("packages", {}), dict):
+    raise SystemExit(f"FAIL invalid my-pi settings: {path}")
+settings["version"] = 1
+settings["packages"] = {**settings.get("packages", {}), "context": json.loads(policy_path.read_text())}
+path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+tmp = path.with_name(path.name + f".tmp-{os.getpid()}")
+tmp.write_text(json.dumps(settings, indent="\t") + "\n")
+os.chmod(tmp, 0o600)
+tmp.replace(path)
+PY
 cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
-cp "$ROOT/configs/fabric.json" "$AGENT_DIR/fabric.json"
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
 cp "$ROOT/configs/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.json"
@@ -119,13 +140,11 @@ cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$A
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
-cp "$ROOT/configs/fabric-output.json" "$AGENT_DIR/extensions/fabric-output.json"
-cp -a "$ROOT/local-extensions/fabric-output/." "$AGENT_DIR/extensions/fabric-output/"
 cp "$ROOT/configs/pi-canary.json" "$AGENT_DIR/npm/node_modules/pi-canary/extensions/canary.json"
 
 rm -rf "$AGENT_DIR/maintenance"
 mkdir -p "$AGENT_DIR/maintenance"
-tar -C "$ROOT" --exclude=.git --exclude=backups -cf - . | tar -C "$AGENT_DIR/maintenance" -xf -
+tar -C "$ROOT" --exclude=.git --exclude=backups --exclude=npm/node_modules --exclude='*/__pycache__' -cf - . | tar -C "$AGENT_DIR/maintenance" -xf -
 
 if [[ "$current_version" != "$PI_VERSION" ]]; then
   core_changed=1
@@ -135,6 +154,9 @@ fi
 [[ "$(pi --version)" == "$PI_VERSION" ]] || { echo "FAIL Pi $PI_VERSION is not active on PATH" >&2; false; }
 PI_CODING_AGENT_DIR="$AGENT_DIR" python3 "$AGENT_DIR/maintenance/scripts/maintenance.py" apply
 PI_CODING_AGENT_DIR="$AGENT_DIR" python3 "$AGENT_DIR/maintenance/scripts/maintenance.py" verify
+# Pre-create the sidecar privately: upstream otherwise creates it as 0644 under a common umask.
+touch "$AGENT_DIR/context.db"
+chmod 600 "$AGENT_DIR/context.db" "$AGENT_DIR"/context.db-wal "$AGENT_DIR"/context.db-shm 2>/dev/null || chmod 600 "$AGENT_DIR/context.db"
 printf '%s\n' "$backup" > "$AGENT_DIR/.my-pi-last-backup"
 trap - ERR
 echo "PASS installed my_pi. Backup: $backup"

@@ -6,27 +6,31 @@ import { pathToFileURL } from "node:url";
 
 const root = process.argv[2] ?? new URL("..", import.meta.url).pathname;
 const source = await readFile(join(root, "local-extensions/tools.ts"), "utf8");
-const fabric = JSON.parse(await readFile(join(root, "configs/fabric.json"), "utf8"));
-assert.deepEqual(fabric.capture.keepVisible, ["fabric_exec", "ask_user_question", "context_recall"], "Fabric must keep every intended model-facing tool visible");
+const contextTools = ["context_search", "context_get", "context_export", "context_list", "context_stats", "context_purge"];
+const expectedVisible = ["read", "grep", "find", "edit", "write", "bash", ...contextTools, "ask_user_question", "context_recall"];
+assert.ok(!source.includes("fabric_exec"), "Fabric tool must not remain in direct surface reconciler");
 const dir = await mkdtemp(join(tmpdir(), "pi-tools-test-"));
 const modulePath = join(dir, "tools.ts");
 await writeFile(modulePath, source.replace(/^import .*;\n/gm, ""));
 try {
   const { default: toolsExtension } = await import(pathToFileURL(modulePath).href);
   const handlers = new Map();
-  let active = ["fabric_exec", "ask_user_question"];
+  let active = ["ask_user_question"];
   const pi = {
     appendEntry() {},
     getActiveTools: () => active,
-    getAllTools: () => ["fabric_exec", "ask_user_question", "context_recall"].map((name) => ({ name })),
+    getAllTools: () => expectedVisible.map((name) => ({ name })),
     on: (event, handler) => handlers.set(event, handler),
     registerCommand() {},
     setActiveTools: (tools) => { active = tools; },
   };
   toolsExtension(pi);
   await handlers.get("session_compact")({}, { sessionManager: { getBranch: () => [{ type: "compaction", summary: "Use ctxref://session/item" }] } });
-  assert.deepEqual(active, ["fabric_exec", "ask_user_question", "context_recall"]);
-  console.log("PASS compaction preserves reconciled tools and Fabric keeps context_recall visible");
+  assert.deepEqual(active, ["read", "grep", "find", "edit", "write", "bash", ...contextTools, "ask_user_question", "context_recall"]);
+  await handlers.get("session_tree")({}, { sessionManager: { getBranch: () => [{ type: "custom", customType: "tools-config", data: { enabledTools: ["ask_user_question"] } }] } });
+  assert.deepEqual(active, ["ask_user_question", ...contextTools], "legacy manual selection must migrate searchable context tools once");
+  assert.ok(!active.includes("fabric_exec"));
+  console.log("PASS direct/searchable tool surface, legacy selection migration, and compaction context_recall reconciliation");
 } finally {
   await rm(dir, { recursive: true, force: true });
 }

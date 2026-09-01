@@ -44,7 +44,7 @@ def main() -> int:
     if manifest.get("piCoreVersion") != "0.84.2":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
-        fail("pi-fabric requires Node >=24")
+        fail("Node >=24 required")
     package_json = json.loads((ROOT / "npm/package.json").read_text())
     package_lock = json.loads((ROOT / "npm/package-lock.json").read_text())
     root_lock = package_lock["packages"][""]
@@ -61,35 +61,32 @@ def main() -> int:
             fail(f"missing snapshot: {item['snapshot']}")
         if snapshot.suffix == ".json":
             json.loads(snapshot.read_text())
-    if package_json["dependencies"].get("pi-fabric") != "0.52.0":
-        fail("pi-fabric is not exactly pinned")
-    fabric_lock = package_lock["packages"].get("node_modules/pi-fabric", {})
-    if fabric_lock.get("version") != "0.52.0" or fabric_lock.get("integrity") != "sha512-Y9EvOkwE7FM7W2b8YjQKrc01NyqOzpahPMiKhWfEUa9dA3lvwN7Kxdogj6ffElzOOoZQ7hc5G0oUig5AWWdGew==":
-        fail("unexpected pi-fabric lock identity")
-    fabric = json.loads((ROOT / "configs/fabric.json").read_text())
-    required_fabric = {
-        ("configVersion",): 3,
-        ("fullCodeMode",): True,
-        ("executor", "runtime"): "quickjs",
-        ("compaction", "engine"): "pi",
-        ("mcp", "enabled"): False,
-        ("agents", "enabled"): False,
-        ("agents", "maxDepth"): 0,
-        ("mesh", "enabled"): False,
-        ("memory", "enabled"): False,
-        ("schema", "mode"): "off",
-        ("capture", "hideFromModel"): True,
-        ("capture", "keepVisible"): ["fabric_exec", "ask_user_question", "context_recall"],
-    }
-    for keys, expected in required_fabric.items():
-        value = fabric
-        for key in keys:
-            value = value.get(key) if isinstance(value, dict) else None
-        if value != expected:
-            fail(f"unsafe Fabric config: {'.'.join(keys)} expected={expected!r} actual={value!r}")
+    if "pi-fabric" in package_json["dependencies"] or "node_modules/pi-fabric" in package_lock["packages"]:
+        fail("Fabric remains in npm runtime/build lock")
+    if (ROOT / "configs/fabric.json").exists():
+        fail("Fabric runtime config remains")
+    context_policy = json.loads((ROOT / "configs/pi-context.json").read_text())
+    expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
+    if context_policy != expected_context_policy:
+        fail(f"unexpected pi-context policy: {context_policy!r}")
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "typebox": "1.3.7", "@earendil-works/pi-coding-agent": "0.84.2", "@earendil-works/pi-tui": "0.84.2"}
+    if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
+        fail("pi-context or its runtime peers are not exactly pinned")
+    retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs"]
+    if any(path.exists() for path in retired_compactor):
+        fail("retired local output-compactor remains in release")
     routing_source = (ROOT / "local-extensions/tools.ts").read_text()
-    if 'const STABLE_TOOLS = ["fabric_exec"] as const;' not in routing_source:
-        fail("fabric_exec-only stable tool default missing")
+    for stable_tool in ["read", "grep", "find", "edit", "write", "bash", "context_search", "context_get", "context_export", "context_list", "context_stats", "context_purge"]:
+        if f'"{stable_tool}"' not in routing_source:
+            fail(f"direct/searchable stable tool surface missing: {stable_tool}")
+    if "fabric_exec" in routing_source:
+        fail("Fabric remains in stable tool surface")
+    append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
+    for required in ["Use direct tools by default", "Run 2–4 statically known independent operations as parallel direct tool calls", "Large direct tool results are indexed automatically by `pi-context`"]:
+        if required not in append_system:
+            fail(f"direct tool policy missing: {required}")
+    if "fabric_exec" in append_system or "pi-fabric" in append_system:
+        fail("Fabric remains in system policy")
     if "const ROUTES" in routing_source or "routePrompt(" in routing_source or 'registerTool({' in routing_source:
         fail("legacy dynamic tool routing still present")
     if 'pi.on("before_agent_start"' in routing_source or 'pi.on("agent_start"' in routing_source:
@@ -143,6 +140,8 @@ def main() -> int:
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
             fail("pi-canary must remain installed but disabled")
+        if "npm:@spences10/pi-context@0.1.16" not in active_sources:
+            fail("exact pi-context settings wiring missing")
     readme = (ROOT / "README.md").read_text()
     for package in package_json["dependencies"]:
         if ("`" + package + "`") not in readme:
@@ -151,8 +150,8 @@ def main() -> int:
         "## Текущие packages и расширения",
         "### Локальные extensions",
         "### Что отключено и почему",
-        'compaction.engine: "pi"',
-        "Fabric agents/RLM/councils",
+        "Searchable context sidecar",
+        "@spences10/pi-context",
         "Legacy project-loop",
         "## Decision observability",
         "decision-observer.ts",
@@ -164,27 +163,32 @@ def main() -> int:
     install_source = (ROOT / "install.sh").read_text()
     uninstall_source = (ROOT / "uninstall.sh").read_text()
     for required in [
-        'cp "$ROOT/configs/fabric-output.json" "$AGENT_DIR/extensions/fabric-output.json"',
-        'cp -a "$ROOT/local-extensions/fabric-output/." "$AGENT_DIR/extensions/fabric-output/"',
+        'settings["packages"] = {**settings.get("packages", {}), "context": json.loads(policy_path.read_text())}',
+        'node "$ROOT/scripts/test-pi-context-runtime.mjs" "$AGENT_DIR/npm/node_modules/@spences10/pi-context" "$probe_dir"',
+        'touch "$AGENT_DIR/context.db"',
+        'chmod 600 "$AGENT_DIR/context.db"',
+        'rm -f "$AGENT_DIR/fabric.json" "$AGENT_DIR/extensions/fabric-output.json" "$AGENT_DIR/extensions/output-compactor.json"',
+        'rm -rf "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/extensions/output-compactor"',
     ]:
         if required not in install_source:
-            fail(f"installer fabric-output wiring missing: {required}")
+            fail(f"installer pi-context/stale cleanup wiring missing: {required}")
     managed_match = re.search(r"managed=\((.*?)\n\)", install_source, re.DOTALL)
     rollback_paths = {
         "extensions/context-compaction.json",
-        "extensions/fabric-output.json",
-        "extensions/fabric-output",
+        "my-pi-settings.json",
+        "extensions/output-compactor.json",
+        "extensions/output-compactor",
     }
     if managed_match is None or any(f'"{path}"' not in managed_match.group(1) for path in rollback_paths):
         fail("installer rollback set omits managed extension config")
     if any(f'"{path}"' not in uninstall_source for path in rollback_paths):
         fail("uninstaller rollback allowance omits managed extension config")
-    print("PASS installer and rollback include fabric-output and managed JSON configs")
+    print("PASS installer and rollback include merged pi-context package settings, private DB bootstrap, and stale compactor/Fabric cleanup")
 
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):
-        if ".git" in path.parts or not path.is_file():
+        if ".git" in path.parts or "node_modules" in path.parts or not path.is_file():
             continue
         if forbidden_path.search(path.relative_to(ROOT).as_posix()):
             fail(f"forbidden path in release: {path.relative_to(ROOT)}")
@@ -197,6 +201,26 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="my-pi-test-") as temp:
         temp_path = Path(temp)
+        context_destination = temp_path / "pi-context"
+        context_destination.mkdir()
+        extract_package(tarball("@spences10/pi-context", "0.1.16"), context_destination)
+        context_root = context_destination / "package"
+        published = json.loads((context_root / "package.json").read_text())
+        if published.get("version") != "0.1.16" or published.get("peerDependencies", {}).get("typebox") != "*":
+            fail("published pi-context package/peer contract changed")
+        for relative, marker in {
+            "dist/text.js": "[context-sidecar] Large",
+            "dist/config.js": "max_mb: 250",
+            "dist/export-files.js": "mode: 0o600",
+            "dist/lifecycle.js": "should_index_text",
+        }.items():
+            if marker not in (context_root / relative).read_text():
+                fail(f"published pi-context contract missing {relative}: {marker}")
+        expected_tools = {"search.js", "get.js", "export.js", "list.js", "stats.js", "purge.js"}
+        if not expected_tools.issubset({path.name for path in (context_root / "dist/tools").glob("*.js")}):
+            fail("published pi-context retrieval tool set changed")
+        print("PASS published @spences10/pi-context@0.1.16 capture/retrieval/policy surface")
+
         for item in manifest["patchedPackages"]:
             destination = temp_path / re.sub(r"[^A-Za-z0-9_.-]", "_", item["package"])
             destination.mkdir()
@@ -245,17 +269,6 @@ def main() -> int:
         fail(f"loop profiler test failed: {profiler_test.stdout.strip()}")
     print(profiler_test.stdout.strip())
 
-    fabric_output_test = subprocess.run(
-        ["node", str(ROOT / "local-extensions/fabric-output/core.test.mjs")],
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if fabric_output_test.returncode != 0:
-        fail(f"fabric-output test failed: {fabric_output_test.stdout.strip()}")
-    print(fabric_output_test.stdout.strip())
-
     decision_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-decision-observer.mjs"), str(ROOT)],
         cwd=ROOT,
@@ -295,7 +308,7 @@ def main() -> int:
     print(reader_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS single default configuration, observability selection, and safe pi-fabric wiring")
+    print("PASS single direct-only configuration, observability selection, and searchable context policy")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 

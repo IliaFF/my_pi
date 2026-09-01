@@ -3,18 +3,18 @@ import { appendFileSync, chmodSync, mkdirSync, readFileSync, renameSync, writeFi
 import { basename, dirname, join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-const VERSION = 1;
+const VERSION = 4;
 const AGENT_ROOT = resolve(process.env.PI_CODING_AGENT_DIR || join(process.env.HOME || "~", ".pi", "agent"));
 const OBSERVABILITY_DIR = join(AGENT_ROOT, "observability");
 const RUNS_PATH = process.env.PI_LOOP_RUNS_OUT || join(OBSERVABILITY_DIR, "loop-runs.jsonl");
 const MAX_RUNS_BYTES = 5 * 1024 * 1024;
 const MAX_RUNS = 500;
-const BATCHING_POLICY = "fabric-batching-v1";
+const BATCHING_POLICY = "searchable-context-v4";
 const PILOT_RUNS = 10;
 
 type Counter = Record<string, number>;
 type LoopRun = {
-  version: 1;
+  version: 1 | 2 | 3 | 4;
   timestamp: string;
   runId: string;
   project: string;
@@ -39,6 +39,14 @@ type LoopRun = {
   parallelToolBatches: number;
   toolErrors: number;
   toolOutputChars: number;
+  modelContextToolOutputChars?: number;
+  fabricContextOutputChars?: number;
+  directContextOutputChars?: number;
+  nestedToolOutputChars?: number;
+  modelContextToolOutputImages?: number;
+  nestedToolOutputImages?: number;
+  contextOutputByTool?: Counter;
+  nestedOutputByTool?: Counter;
   toolDurationMs: number;
   batchingPolicy?: string;
   fabricPrograms?: number;
@@ -53,6 +61,19 @@ type LoopRun = {
   nestedToolDurationMs?: number;
   outerTools?: Counter;
   nestedTools?: Counter;
+  fabricProgramsZeroNested?: number;
+  fabricProgramsSingleNested?: number;
+  fabricProgramsMultiNested?: number;
+  fabricProgramsFivePlusNested?: number;
+  fabricProgramMaxNested?: number;
+  fabricProgramNestedHistogram?: Counter;
+  ambiguousNestedAttribution?: number;
+  contextLargeToolResults?: number;
+  nestedLargeToolResults?: number;
+  contextExternalizedToolResults?: number;
+  contextIndexedToolResults?: number;
+  externalizedOriginalChars?: number;
+  externalizedReturnedChars?: number;
   providerResponseMs: number;
   validationRounds: number;
   inspectTurns?: number;
@@ -80,10 +101,8 @@ type LoopRun = {
   providerStatuses: Counter;
 };
 
-type ToolBoundary = "fabric" | "nested" | "direct";
 type ToolExecution = {
   startedNs: bigint;
-  boundary: ToolBoundary;
   validationHash?: string;
   mutation: boolean;
 };
@@ -91,7 +110,6 @@ type ToolExecution = {
 type MutableRun = LoopRun & {
   startedNs: bigint;
   toolStartedNs: Map<string, ToolExecution>;
-  activeFabricCalls: Set<string>;
   turnTools: string[];
   outerTurnTools: string[];
   previousTool?: string;
@@ -102,7 +120,6 @@ type MutableRun = LoopRun & {
   turnHasMutation: boolean;
   mutationGeneration: number;
   validationGenerations: Map<string, number>;
-  pendingFabricNestedErrors: number;
 };
 
 function enabled(value: string | undefined, defaultValue: boolean): boolean {
@@ -117,6 +134,14 @@ function contentChars(value: unknown): number {
     if (!item || typeof item !== "object") return total;
     const record = item as Record<string, unknown>;
     return total + (typeof record.text === "string" ? record.text.length : 0);
+  }, 0);
+}
+
+function contentImages(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  return value.reduce((total, item) => {
+    if (!item || typeof item !== "object") return total;
+    return total + ((item as Record<string, unknown>).type === "image" ? 1 : 0);
   }, 0);
 }
 
@@ -163,7 +188,7 @@ function readRuns(projectHash?: string): LoopRun[] {
       .filter(Boolean)
       .slice(-MAX_RUNS)
       .map((line) => JSON.parse(line) as LoopRun)
-      .filter((run) => run.version === VERSION && (!projectHash || run.projectHash === projectHash));
+      .filter((run) => run.version >= 1 && run.version <= VERSION && (!projectHash || run.projectHash === projectHash));
   } catch {
     return [];
   }
@@ -235,6 +260,21 @@ function topCounter(counter: Counter, limit = 5): string {
     .join(", ") || "none";
 }
 
+function outputSummary(run: LoopRun): string {
+  if (run.modelContextToolOutputChars === undefined) return `tool output legacy mixed ${run.toolOutputChars} ch (context split unavailable)`;
+  if (run.batchingPolicy === BATCHING_POLICY) return `tool context output ${run.modelContextToolOutputChars} ch (direct ${run.directContextOutputChars ?? 0}) · indexed receipts ${run.contextIndexedToolResults ?? 0} · images ${run.modelContextToolOutputImages ?? 0}`;
+  const nested = run.nestedToolOutputChars ?? 0;
+  const fabric = run.fabricContextOutputChars ?? 0;
+  const projection = nested > 0 ? `${(fabric / nested * 100).toFixed(1)}%` : "n/a";
+  return `tool context output ${run.modelContextToolOutputChars} ch (direct ${run.directContextOutputChars ?? 0}, Fabric ${fabric}) · nested produced ${nested} ch · Fabric projection ${projection} · images context ${run.modelContextToolOutputImages ?? 0}, nested ${run.nestedToolOutputImages ?? 0}`;
+}
+
+function programSizeSummary(run: LoopRun): string {
+  if (run.batchingPolicy === BATCHING_POLICY) return `Searchable context policy · indexed receipts ${run.contextIndexedToolResults ?? 0}`;
+  if (run.fabricProgramNestedHistogram === undefined) return "Fabric program sizes unavailable (legacy record)";
+  return `Fabric program sizes 0:${run.fabricProgramsZeroNested ?? 0}, 1:${run.fabricProgramsSingleNested ?? 0}, 2+:${run.fabricProgramsMultiNested ?? 0}, 5+:${run.fabricProgramsFivePlusNested ?? 0} · max ${run.fabricProgramMaxNested ?? 0} · ambiguous attribution ${run.ambiguousNestedAttribution ?? 0}`;
+}
+
 function cohortSummary(label: string, runs: LoopRun[]): string {
   if (runs.length === 0) return `${label} 0: no eligible runs`;
   const modelCalls = runs.map((run) => run.modelCalls);
@@ -244,16 +284,19 @@ function cohortSummary(label: string, runs: LoopRun[]): string {
 
 function formatBatchingReport(runs: LoopRun[]): string {
   const eligible = runs.filter((run) => run.modelCalls > 0 && run.contextChars >= 1_000);
-  const baseline = eligible.filter((run) => !run.batchingPolicy).slice(-PILOT_RUNS);
+  const baseline = eligible.filter((run) => run.batchingPolicy !== BATCHING_POLICY).slice(-PILOT_RUNS);
   const policy = eligible.filter((run) => run.batchingPolicy === BATCHING_POLICY).slice(-PILOT_RUNS);
-  const fabric = policy.reduce((total, run) => total + (run.fabricPrograms ?? 0), 0);
-  const nested = policy.reduce((total, run) => total + (run.nestedOperations ?? 0), 0);
   const direct = policy.reduce((total, run) => total + (run.directToolCalls ?? 0), 0);
+  const indexed = policy.reduce((total, run) => total + (run.contextIndexedToolResults ?? 0), 0);
+  const telemetry = policy.filter((run) => run.modelContextToolOutputChars !== undefined);
+  const contextOutput = telemetry.reduce((total, run) => total + (run.modelContextToolOutputChars ?? 0), 0);
+
   const lines = [
-    `Batching pilot · ${BATCHING_POLICY} · post-policy ${policy.length}/${PILOT_RUNS} real runs`,
+    `Searchable context pilot · ${BATCHING_POLICY} · post-policy ${policy.length}/${PILOT_RUNS} real runs`,
     cohortSummary("baseline", baseline),
     cohortSummary("policy", policy),
-    `policy boundaries: fabric ${fabric} · nested ${nested} (${fabric > 0 ? (nested / fabric).toFixed(2) : "0.00"}/fabric) · direct ${direct}`,
+    `policy boundaries: direct ${direct}`,
+    `policy output (${telemetry.length}/${policy.length} v4): context ${contextOutput} ch · indexed receipts ${indexed}`,
   ];
   if (policy.length < PILOT_RUNS) lines.push(`collecting: ${PILOT_RUNS - policy.length} more non-synthetic runs required before conclusion`);
   else if (baseline.length > 0) {
@@ -271,22 +314,35 @@ export function formatLoopReport(runs: LoopRun[], mode: "last" | "baseline" | "b
   if (runs.length === 0) return `No loop baseline records yet. Recorder: ${RUNS_PATH}`;
   if (mode === "last") {
     const run = runs[runs.length - 1]!;
+    const directPolicy = run.batchingPolicy === BATCHING_POLICY;
     const fabric = run.fabricPrograms ?? 0;
     const nested = run.nestedOperations ?? 0;
-    const batching = run.batchingPolicy
-      ? `batching ${run.batchingPolicy} · fabric ${fabric} · nested ${nested} (${fabric > 0 ? (nested / fabric).toFixed(2) : "0.00"}/fabric) · direct ${run.directToolCalls ?? 0}`
-      : "batching legacy record: outer/nested unavailable";
-    return [
+    const batching = directPolicy
+      ? `policy ${run.batchingPolicy} · direct ${run.directToolCalls ?? 0} · indexed receipts ${run.contextIndexedToolResults ?? 0}`
+      : run.batchingPolicy ? `legacy batching ${run.batchingPolicy} · fabric ${fabric} · nested ${nested} (${fabric > 0 ? (nested / fabric).toFixed(2) : "0.00"}/fabric) · direct ${run.directToolCalls ?? 0}` : "batching legacy record: outer/nested unavailable";
+    const common = [
       `Loop last · ${run.project} · ${formatDuration(run.durationMs)} · model ${run.modelCalls} · turns ${run.turns} · tools ${run.toolCalls}`,
       `TTFT ${formatDuration(run.ttftMs)} · provider headers ${formatDuration(run.providerResponseMs)} · validation rounds ${run.validationRounds ?? 0}`,
       batching,
-      `outer ${run.outerToolCalls ?? 0} · batches single ${run.outerSingleToolBatches ?? 0}, parallel ${run.outerParallelToolBatches ?? 0}`,
-      `durations outer ${formatDuration(run.outerToolDurationMs)}, nested ${formatDuration(run.nestedToolDurationMs)} · errors outer ${run.outerToolErrors ?? 0}, nested ${run.nestedToolErrors ?? 0}`,
+      `direct ${run.directToolCalls ?? 0} · batches single ${run.outerSingleToolBatches ?? 0}, parallel ${run.outerParallelToolBatches ?? 0}`,
+      `duration tools ${formatDuration(run.outerToolDurationMs)} · errors ${run.outerToolErrors ?? 0}`,
       `efficiency inspect ${run.inspectTurns ?? 0} · mutation+validation ${run.mutationValidationTurns ?? 0}/${run.mutationTurns ?? 0} · unchanged validation reruns ${run.unchangedValidationReruns ?? 0}`,
-      `evidence externalized ${run.externalizedToolResults ?? 0}/${run.largeToolResults ?? 0} · failures root ${run.rootToolErrors ?? run.toolErrors}, wrappers ${run.wrapperToolErrors ?? 0}, contained ${run.containedNestedFailures ?? 0} · categories ${topCounter(run.errorCategories ?? {})}`,
-      `context ${run.contextMessages} msg/${run.contextChars} ch · tool output ${run.toolOutputChars} ch · payload ${run.payloadBytes} B`,
+    ];
+    const evidence = directPolicy
+      ? [`evidence indexed receipts ${run.contextIndexedToolResults ?? 0} · failures root ${run.rootToolErrors ?? run.toolErrors} · categories ${topCounter(run.errorCategories ?? {})}`]
+      : [
+          `durations legacy nested ${formatDuration(run.nestedToolDurationMs)} · errors nested ${run.nestedToolErrors ?? 0}`,
+          `evidence externalized legacy-mixed ${run.externalizedToolResults ?? 0}/${run.largeToolResults ?? 0}, context ${run.contextExternalizedToolResults ?? 0}/${run.contextLargeToolResults ?? 0}, nested large ${run.nestedLargeToolResults ?? 0} · failures root ${run.rootToolErrors ?? run.toolErrors}, wrappers ${run.wrapperToolErrors ?? 0}, contained ${run.containedNestedFailures ?? 0} · categories ${topCounter(run.errorCategories ?? {})}`,
+        ];
+    return [
+      ...common,
+      ...evidence,
+      `context ${run.contextMessages} msg/${run.contextChars} ch · payload ${run.payloadBytes} B`,
+      outputSummary(run),
+      programSizeSummary(run),
       `tokens in ${run.inputTokens} + cache ${run.cacheReadTokens} (${(cacheShare(run) * 100).toFixed(1)}%) · out ${run.outputTokens}`,
-      `outer tools ${topCounter(run.outerTools ?? {})} · nested ${topCounter(run.nestedTools ?? {})}`,
+      `direct tools ${topCounter(run.outerTools ?? {})}`,
+      `output chars by context tool ${topCounter(run.contextOutputByTool ?? {})}`,
     ].join("\n");
   }
   const modelCalls = runs.map((run) => run.modelCalls);
@@ -302,7 +358,10 @@ export function formatLoopReport(runs: LoopRun[], mode: "last" | "baseline" | "b
     errors: sum.errors + run.toolErrors,
     validation: sum.validation + (run.validationRounds ?? 0),
     providerResponse: sum.providerResponse + (run.providerResponseMs ?? 0),
-  }), { single: 0, parallel: 0, input: 0, cache: 0, output: 0, tools: 0, errors: 0, validation: 0, providerResponse: 0 });
+    contextOutput: sum.contextOutput + (run.modelContextToolOutputChars ?? 0),
+    nestedOutput: sum.nestedOutput + (run.nestedToolOutputChars ?? 0),
+    outputTelemetryRuns: sum.outputTelemetryRuns + (run.modelContextToolOutputChars === undefined ? 0 : 1),
+  }), { single: 0, parallel: 0, input: 0, cache: 0, output: 0, tools: 0, errors: 0, validation: 0, providerResponse: 0, contextOutput: 0, nestedOutput: 0, outputTelemetryRuns: 0 });
   const cacheTotal = totals.input + totals.cache;
   return [
     `Loop baseline · ${runs.length} runs · recorder ${RUNS_PATH}`,
@@ -311,6 +370,7 @@ export function formatLoopReport(runs: LoopRun[], mode: "last" | "baseline" | "b
     `duration p50 ${formatDuration(percentile(durations, 0.5))}, p90 ${formatDuration(percentile(durations, 0.9))}`,
     `batches single ${totals.single}, parallel ${totals.parallel} · validation rounds ${totals.validation} · tool errors ${totals.errors}/${totals.tools}`,
     `provider headers mean ${formatDuration(totals.providerResponse / runs.length)} · cache read share ${cacheTotal > 0 ? ((totals.cache / cacheTotal) * 100).toFixed(1) : "0.0"}% · output tokens ${totals.output}`,
+    `tool output (${totals.outputTelemetryRuns}/${runs.length} v2): context ${totals.contextOutput} ch · nested ${totals.nestedOutput} ch; legacy mixed records remain readable`,
   ].join("\n");
 }
 
@@ -342,7 +402,6 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     const {
       startedNs,
       toolStartedNs: _toolStartedNs,
-      activeFabricCalls: _activeFabricCalls,
       turnTools: _turnTools,
       outerTurnTools: _outerTurnTools,
       previousTool: _previousTool,
@@ -353,13 +412,11 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       turnHasMutation: _turnHasMutation,
       mutationGeneration: _mutationGeneration,
       validationGenerations: _validationGenerations,
-      pendingFabricNestedErrors: _pendingFabricNestedErrors,
       ...run
     } = current;
     run.durationMs = round(elapsedMs(startedNs));
     run.toolDurationMs = round(run.toolDurationMs);
     run.outerToolDurationMs = round(run.outerToolDurationMs ?? 0);
-    run.nestedToolDurationMs = round(run.nestedToolDurationMs ?? 0);
     run.providerResponseMs = round(run.providerResponseMs);
     if (recordRuns) appendRun(run);
     current = undefined;
@@ -422,20 +479,24 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       parallelToolBatches: 0,
       toolErrors: 0,
       toolOutputChars: 0,
+      modelContextToolOutputChars: 0,
+      directContextOutputChars: 0,
+      modelContextToolOutputImages: 0,
+      contextOutputByTool: {},
       toolDurationMs: 0,
       batchingPolicy: BATCHING_POLICY,
-      fabricPrograms: 0,
-      nestedOperations: 0,
       directToolCalls: 0,
       outerToolCalls: 0,
       outerSingleToolBatches: 0,
       outerParallelToolBatches: 0,
       outerToolErrors: 0,
-      nestedToolErrors: 0,
       outerToolDurationMs: 0,
-      nestedToolDurationMs: 0,
       outerTools: {},
-      nestedTools: {},
+      contextLargeToolResults: 0,
+      contextExternalizedToolResults: 0,
+      contextIndexedToolResults: 0,
+      externalizedOriginalChars: 0,
+      externalizedReturnedChars: 0,
       providerResponseMs: 0,
       validationRounds: 0,
       inspectTurns: 0,
@@ -446,12 +507,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       largeToolResults: 0,
       externalizedToolResults: 0,
       largeInlineToolResults: 0,
-      containedNestedFailures: 0,
-      propagatedFabricFailures: 0,
       validationReruns: 0,
       unchangedValidationReruns: 0,
       rootToolErrors: 0,
-      wrapperToolErrors: 0,
       errorCategories: {},
       payloadBytes: 0,
       inputTokens: 0,
@@ -463,7 +521,6 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       providerStatuses: {},
       startedNs,
       toolStartedNs: new Map(),
-      activeFabricCalls: new Set(),
       turnTools: [],
       outerTurnTools: [],
       turnHasValidation: false,
@@ -472,7 +529,6 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       turnHasMutation: false,
       mutationGeneration: 0,
       validationGenerations: new Map(),
-      pendingFabricNestedErrors: 0,
     };
     rawMark("before_agent_start", {
       prompt_chars: event.prompt.length,
@@ -546,30 +602,19 @@ export default function loopProfiler(pi: ExtensionAPI): void {
     }
   });
   pi.on("tool_execution_start", (event) => {
-    let boundary: ToolBoundary | undefined;
     if (current) {
-      const nested = event.toolName !== "fabric_exec" && current.activeFabricCalls.size > 0;
-      boundary = nested ? "nested" : event.toolName === "fabric_exec" ? "fabric" : "direct";
       const hash = validationHash(event.toolName, event.args);
       const mutation = isMutationTool(event.toolName);
       current.toolCalls += 1;
+      current.directToolCalls = (current.directToolCalls ?? 0) + 1;
+      current.outerToolCalls = (current.outerToolCalls ?? 0) + 1;
       current.turnTools.push(event.toolName);
-      current.toolStartedNs.set(event.toolCallId, { startedNs: process.hrtime.bigint(), boundary, validationHash: hash, mutation });
+      current.outerTurnTools.push(event.toolName);
+      current.toolStartedNs.set(event.toolCallId, { startedNs: process.hrtime.bigint(), validationHash: hash, mutation });
       increment(current.tools, event.toolName);
+      increment(current.outerTools ?? (current.outerTools = {}), event.toolName);
       if (current.previousTool) increment(current.transitions, `${current.previousTool}->${event.toolName}`);
       current.previousTool = event.toolName;
-      if (boundary === "nested") {
-        current.nestedOperations = (current.nestedOperations ?? 0) + 1;
-        increment(current.nestedTools ?? (current.nestedTools = {}), event.toolName);
-      } else {
-        current.outerToolCalls = (current.outerToolCalls ?? 0) + 1;
-        current.outerTurnTools.push(event.toolName);
-        increment(current.outerTools ?? (current.outerTools = {}), event.toolName);
-        if (boundary === "fabric") {
-          current.fabricPrograms = (current.fabricPrograms ?? 0) + 1;
-          current.activeFabricCalls.add(event.toolCallId);
-        } else current.directToolCalls = (current.directToolCalls ?? 0) + 1;
-      }
       if (hash) current.turnHasValidation = true;
       if (event.toolName === "grep" || event.toolName === "find") current.turnHasSearch = true;
       if (event.toolName === "read") current.turnHasRead = true;
@@ -578,43 +623,38 @@ export default function loopProfiler(pi: ExtensionAPI): void {
         current.turnHasMutation = true;
       }
     }
-    rawMark("tool_start", { id: event.toolCallId, tool: event.toolName, boundary });
+    rawMark("tool_start", { id: event.toolCallId, tool: event.toolName, boundary: "direct" });
   });
   pi.on("tool_call", (event) => rawMark("tool_preflight", { id: event.toolCallId, tool: event.toolName }));
   pi.on("tool_execution_end", (event) => {
-    let boundary: ToolBoundary | undefined;
     if (current) {
       const text = contentText(event.result?.content);
-      const outputChars = text.length;
-      current.toolOutputChars += outputChars;
-      if (outputChars >= 32_768) {
+      const outputChars = contentChars(event.result?.content);
+      const outputImages = contentImages(event.result?.content);
+      current.toolOutputChars += text.length;
+      const contextIndexed = text.startsWith("[context-sidecar]") && text.includes("\nSource: ");
+      if (contextIndexed) {
+        current.contextIndexedToolResults = (current.contextIndexedToolResults ?? 0) + 1;
+      } else if (outputChars >= 32_768) {
         current.largeToolResults = (current.largeToolResults ?? 0) + 1;
-        const externalized = text.includes("[Native fabric full output") || text.includes("Full output:");
-        if (externalized) current.externalizedToolResults = (current.externalizedToolResults ?? 0) + 1;
-        else current.largeInlineToolResults = (current.largeInlineToolResults ?? 0) + 1;
+        current.largeInlineToolResults = (current.largeInlineToolResults ?? 0) + 1;
+        current.contextLargeToolResults = (current.contextLargeToolResults ?? 0) + 1;
       }
-      if (event.isError) current.toolErrors += 1;
+      if (event.isError) {
+        current.toolErrors += 1;
+        current.outerToolErrors = (current.outerToolErrors ?? 0) + 1;
+        current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
+        increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
+      }
       const execution = current.toolStartedNs.get(event.toolCallId);
-      boundary = execution?.boundary;
       if (execution) {
         const duration = elapsedMs(execution.startedNs);
         current.toolDurationMs += duration;
-        if (execution.boundary === "nested") {
-          current.nestedToolDurationMs = (current.nestedToolDurationMs ?? 0) + duration;
-          if (event.isError) {
-            current.nestedToolErrors = (current.nestedToolErrors ?? 0) + 1;
-            current.pendingFabricNestedErrors += 1;
-            current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
-            increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
-          }
-        } else {
-          current.outerToolDurationMs = (current.outerToolDurationMs ?? 0) + duration;
-          if (event.isError) current.outerToolErrors = (current.outerToolErrors ?? 0) + 1;
-          if (execution.boundary === "direct" && event.isError) {
-            current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
-            increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
-          }
-        }
+        current.outerToolDurationMs = (current.outerToolDurationMs ?? 0) + duration;
+        current.modelContextToolOutputChars = (current.modelContextToolOutputChars ?? 0) + outputChars;
+        current.directContextOutputChars = (current.directContextOutputChars ?? 0) + outputChars;
+        current.modelContextToolOutputImages = (current.modelContextToolOutputImages ?? 0) + outputImages;
+        if (outputChars > 0) increment(current.contextOutputByTool ?? (current.contextOutputByTool = {}), event.toolName, outputChars);
         if (execution.mutation && !event.isError) current.mutationGeneration += 1;
         if (execution.validationHash) {
           const previous = current.validationGenerations.get(execution.validationHash);
@@ -624,23 +664,10 @@ export default function loopProfiler(pi: ExtensionAPI): void {
           }
           current.validationGenerations.set(execution.validationHash, current.mutationGeneration);
         }
-        if (execution.boundary === "fabric") {
-          current.activeFabricCalls.delete(event.toolCallId);
-          if (event.isError && current.pendingFabricNestedErrors > 0) {
-            current.wrapperToolErrors = (current.wrapperToolErrors ?? 0) + 1;
-            current.propagatedFabricFailures = (current.propagatedFabricFailures ?? 0) + current.pendingFabricNestedErrors;
-          } else if (event.isError) {
-            current.rootToolErrors = (current.rootToolErrors ?? 0) + 1;
-            increment(current.errorCategories ?? (current.errorCategories = {}), classifyError(event.result?.content));
-          } else {
-            current.containedNestedFailures = (current.containedNestedFailures ?? 0) + current.pendingFabricNestedErrors;
-          }
-          if (current.activeFabricCalls.size === 0) current.pendingFabricNestedErrors = 0;
-        }
         current.toolStartedNs.delete(event.toolCallId);
       }
     }
-    rawMark("tool_end", { id: event.toolCallId, tool: event.toolName, boundary, error: event.isError });
+    rawMark("tool_end", { id: event.toolCallId, tool: event.toolName, boundary: "direct", error: event.isError });
   });
   pi.on("message_end", (event) => {
     if (event.message.role !== "assistant") return;
