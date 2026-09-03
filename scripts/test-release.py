@@ -71,7 +71,7 @@ def main() -> int:
         fail(f"unexpected pi-context policy: {context_policy!r}")
     if json.loads((ROOT / "configs/context-compaction.json").read_text()) != {"mode": "builtin"}:
         fail("built-in compaction is not the release default")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "typebox": "1.3.7", "@earendil-works/pi-coding-agent": "0.84.4", "@earendil-works/pi-tui": "0.84.4"}
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "typebox": "1.3.25", "@earendil-works/pi-coding-agent": "0.84.4", "@earendil-works/pi-tui": "0.84.4"}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs"]
@@ -143,7 +143,7 @@ def main() -> int:
             package = raw.rsplit("@", 1)[0] if (raw.startswith("@") and raw.count("@") > 1) or (not raw.startswith("@") and "@" in raw) else raw
             if package not in package_json["dependencies"]:
                 fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
-        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass@0.10.1"), None)
+        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass@0.10.2"), None)
         required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**"}
         if pine is None or set(pine.get("extensions", [])) != required_pine:
             fail("pine-of-glass observability extension selection mismatch")
@@ -152,7 +152,7 @@ def main() -> int:
             fail("pi-canary must remain installed but disabled")
         if "npm:@spences10/pi-context@0.1.16" not in active_sources:
             fail("exact pi-context settings wiring missing")
-        for exact_source in ["npm:@dietrichgebert/ponytail@4.9.0", "npm:@juicesharp/rpiv-ask-user-question@2.5.2"]:
+        for exact_source in ["npm:@dietrichgebert/ponytail@4.9.0", "npm:@juicesharp/rpiv-ask-user-question@2.9.0"]:
             if exact_source not in active_sources:
                 fail(f"exact settings pin missing: {exact_source}")
     readme = (ROOT / "README.md").read_text()

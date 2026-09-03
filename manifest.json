@@ -25,9 +25,9 @@
     },
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.5.2",
-      "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question@2.5.2",
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.5.2.patch",
+      "version": "2.9.0",
+      "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question@2.9.0",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.9.0.patch",
       "files": [
         "reconcile.ts"
       ],
