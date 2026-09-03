@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "0.84.2",
+  "piCoreVersion": "0.84.4",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -26,7 +26,7 @@
     {
       "package": "@juicesharp/rpiv-ask-user-question",
       "version": "2.5.2",
-      "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question",
+      "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question@2.5.2",
       "patch": "patches/@juicesharp+rpiv-ask-user-question+2.5.2.patch",
       "files": [
         "reconcile.ts"
@@ -46,6 +46,18 @@
       "snapshot": "configs/APPEND_SYSTEM.md",
       "restore": false,
       "reason": "Portable baseline only; host-specific policies stay local and maintenance updates do not overwrite them."
+    },
+    {
+      "source": "skills/openalex/SKILL.md",
+      "snapshot": "skills/openalex/SKILL.md",
+      "restore": true,
+      "reason": "Install the dependency-free OpenAlex literature-search workflow."
+    },
+    {
+      "source": "skills/openalex/scripts/openalex.mjs",
+      "snapshot": "skills/openalex/scripts/openalex.mjs",
+      "restore": true,
+      "reason": "Install the bounded OpenAlex API helper and self-test."
     },
     {
       "source": "extensions/quotas.json",
@@ -82,12 +94,6 @@
       "snapshot": "local-extensions/loop-profiler.ts",
       "restore": true,
       "reason": "Persistent bounded direct-tool loop baseline with externalized-output metrics and /loop-report; raw trace remains opt-in."
-    },
-    {
-      "source": "extensions/decision-observer.ts",
-      "snapshot": "local-extensions/decision-observer.ts",
-      "restore": true,
-      "reason": "Project-opt-in bounded decision marker ledger, deterministic outcomes, reports, and terminal dashboard without model-facing tools."
     },
     {
       "source": "extensions/reader-pane.ts",

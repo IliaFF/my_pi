@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_VERSION="0.84.2"
+PI_VERSION="0.84.4"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -46,7 +46,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, with @spences10/pi-context@0.1.16 and without Fabric/output-compactor"
-  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + seven local extensions"
+  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + six local extensions + OpenAlex skill"
   echo "DRY-RUN patches: 3 exact-version patches"
   exit 0
 fi
@@ -61,7 +61,7 @@ managed=(
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
   "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
-  "npm" "maintenance"
+  "skills/openalex" "npm" "maintenance"
 )
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_ROOT"
@@ -100,7 +100,7 @@ rollback_install() {
 }
 trap rollback_install ERR
 
-mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/maintenance"
+mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/skills" "$AGENT_DIR/maintenance"
 rm -f "$AGENT_DIR/fabric.json" "$AGENT_DIR/extensions/fabric-output.json" "$AGENT_DIR/extensions/output-compactor.json"
 rm -rf "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/extensions/output-compactor"
 cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
@@ -134,12 +134,14 @@ cp "$ROOT/configs/context-compaction.json" "$AGENT_DIR/extensions/context-compac
 cp "$ROOT/local-extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
 rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
-cp "$ROOT/local-extensions/decision-observer.ts" "$AGENT_DIR/extensions/decision-observer.ts"
+rm -f "$AGENT_DIR/extensions/decision-observer.ts"
 cp "$ROOT/local-extensions/reader-pane.ts" "$AGENT_DIR/extensions/reader-pane.ts"
 cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
+rm -rf "$AGENT_DIR/skills/openalex"
+cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"
 cp "$ROOT/configs/pi-canary.json" "$AGENT_DIR/npm/node_modules/pi-canary/extensions/canary.json"
 
 rm -rf "$AGENT_DIR/maintenance"

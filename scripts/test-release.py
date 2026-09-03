@@ -41,7 +41,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "0.84.2":
+    if manifest.get("piCoreVersion") != "0.84.4":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
@@ -69,7 +69,9 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "typebox": "1.3.7", "@earendil-works/pi-coding-agent": "0.84.2", "@earendil-works/pi-tui": "0.84.2"}
+    if json.loads((ROOT / "configs/context-compaction.json").read_text()) != {"mode": "builtin"}:
+        fail("built-in compaction is not the release default")
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "typebox": "1.3.7", "@earendil-works/pi-coding-agent": "0.84.4", "@earendil-works/pi-tui": "0.84.4"}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs"]
@@ -105,14 +107,22 @@ def main() -> int:
     if not image.is_file() or hashlib.sha256(image.read_bytes()).hexdigest() != "f2cefea8de06d1abdabb29248e2405aed0708b87d4504d33bec9f12edfcc4098":
         fail("Windows Terminal background asset mismatch")
 
-    decision_source = (ROOT / "local-extensions/decision-observer.ts").read_text()
-    decision_example = json.loads((ROOT / "configs/decision-observability.example.json").read_text())
-    if "registerTool" in decision_source or any(f'pi.on("{event}"' in decision_source for event in ["input", "context", "before_provider_request", "tool_execution_end", "message_update"]):
-        fail("decision observer exposes a model tool or content-bearing event hook")
-    if decision_example.get("enabled") is not False or decision_example.get("mode") != "structured-markers":
-        fail("decision observer example must remain explicit opt-in structured-marker mode")
-    if any(decision_example.get(key) is not False for key in ["captureToolOutput", "captureMessages", "capturePrompts"]):
-        fail("decision observer privacy defaults changed")
+    removed_decision_paths = [
+        ROOT / "local-extensions/decision-observer.ts",
+        ROOT / "configs/decision-observability.example.json",
+        ROOT / "scripts/test-decision-observer.mjs",
+    ]
+    if any(path.exists() for path in removed_decision_paths):
+        fail("removed decision observer files still present")
+    openalex_skill = ROOT / "skills/openalex/SKILL.md"
+    openalex_helper = ROOT / "skills/openalex/scripts/openalex.mjs"
+    skill_text = openalex_skill.read_text()
+    if "name: openalex-literature-search" not in skill_text or "description:" not in skill_text:
+        fail("OpenAlex skill frontmatter missing")
+    for command in (["node", "--check", str(openalex_helper)], ["node", str(openalex_helper), "--self-test"]):
+        result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if result.returncode:
+            fail(f"OpenAlex helper check failed: {result.stdout.strip()}")
     reader_source = (ROOT / "local-extensions/reader-pane.ts").read_text()
     for required in ["export function adaptWideTables", "adaptWideTables(text, WIDTH)", 'registerCommand("reader-pane-on"', 'registerCommand("reader-pane-off"']:
         if required not in reader_source:
@@ -142,6 +152,9 @@ def main() -> int:
             fail("pi-canary must remain installed but disabled")
         if "npm:@spences10/pi-context@0.1.16" not in active_sources:
             fail("exact pi-context settings wiring missing")
+        for exact_source in ["npm:@dietrichgebert/ponytail@4.9.0", "npm:@juicesharp/rpiv-ask-user-question@2.5.2"]:
+            if exact_source not in active_sources:
+                fail(f"exact settings pin missing: {exact_source}")
     readme = (ROOT / "README.md").read_text()
     for package in package_json["dependencies"]:
         if ("`" + package + "`") not in readme:
@@ -152,9 +165,8 @@ def main() -> int:
         "### Что отключено и почему",
         "Searchable context sidecar",
         "@spences10/pi-context",
+        "OpenAlex",
         "Legacy project-loop",
-        "## Decision observability",
-        "decision-observer.ts",
     ]:
         if required not in readme:
             fail(f"README extension status documentation missing: {required}")
@@ -169,6 +181,8 @@ def main() -> int:
         'chmod 600 "$AGENT_DIR/context.db"',
         'rm -f "$AGENT_DIR/fabric.json" "$AGENT_DIR/extensions/fabric-output.json" "$AGENT_DIR/extensions/output-compactor.json"',
         'rm -rf "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/extensions/output-compactor"',
+        'rm -f "$AGENT_DIR/extensions/decision-observer.ts"',
+        'cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"',
     ]:
         if required not in install_source:
             fail(f"installer pi-context/stale cleanup wiring missing: {required}")
@@ -178,6 +192,7 @@ def main() -> int:
         "my-pi-settings.json",
         "extensions/output-compactor.json",
         "extensions/output-compactor",
+        "skills/openalex",
     }
     if managed_match is None or any(f'"{path}"' not in managed_match.group(1) for path in rollback_paths):
         fail("installer rollback set omits managed extension config")
@@ -268,17 +283,6 @@ def main() -> int:
     if profiler_test.returncode:
         fail(f"loop profiler test failed: {profiler_test.stdout.strip()}")
     print(profiler_test.stdout.strip())
-
-    decision_test = subprocess.run(
-        ["node", str(ROOT / "scripts/test-decision-observer.mjs"), str(ROOT)],
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if decision_test.returncode:
-        fail(f"decision observer test failed: {decision_test.stdout.strip()}")
-    print(decision_test.stdout.strip())
 
     todo_test = subprocess.run(
         ["node", "--test", str(ROOT / "scripts/test-todo-queue.mjs")],
