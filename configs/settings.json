@@ -26,7 +26,8 @@
       ]
     },
     "npm:pi-my-setup",
-    "npm:pi-markdown-preview"
+    "npm:pi-markdown-preview",
+    "npm:context-fold@0.4.0"
   ],
   "readseek": {
     "replacedTools": [

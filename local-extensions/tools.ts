@@ -11,7 +11,7 @@ const CONTEXT_TOOLS = ["context_search", "context_get", "context_export", "conte
 const STABLE_TOOLS = ["read", "grep", "find", "edit", "write", "bash", ...CONTEXT_TOOLS] as const;
 
 export function toolsFromCompactedContext(text: string): string[] {
-	return /ctxref:\/\//iu.test(text) ? ["context_recall"] : [];
+	return /\{#[a-z0-9]+ FOLDED\}/iu.test(text) ? ["recall_folded"] : [];
 }
 
 export default function toolsExtension(pi: ExtensionAPI) {

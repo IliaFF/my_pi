@@ -45,8 +45,8 @@ if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/nu
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
-  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with @spences10/pi-context@0.1.16 and without Fabric/output-compactor"
-  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + six local extensions + OpenAlex skill"
+  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.4.0 and @spences10/pi-context@0.1.16"
+  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + five local extensions + OpenAlex skill"
   echo "DRY-RUN patches: 3 exact-version patches"
   exit 0
 fi
@@ -59,7 +59,7 @@ managed=(
   "settings.json" "APPEND_SYSTEM.md" "my-pi-settings.json" "fabric.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
-  "extensions/context-compaction.ts" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
+  "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
   "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
   "skills/openalex" "npm" "maintenance"
 )
@@ -130,7 +130,7 @@ PY
 cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
-cp "$ROOT/configs/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.json"
+rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts.disabled"
 cp "$ROOT/local-extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
 rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
@@ -138,7 +138,6 @@ rm -f "$AGENT_DIR/extensions/decision-observer.ts"
 cp "$ROOT/local-extensions/reader-pane.ts" "$AGENT_DIR/extensions/reader-pane.ts"
 cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
-cp "$ROOT/local-extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
 rm -rf "$AGENT_DIR/skills/openalex"
 cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"

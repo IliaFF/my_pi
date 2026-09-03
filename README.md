@@ -6,14 +6,12 @@
 
 - Pi core `@earendil-works/pi-coding-agent@0.84.4`
 - Node.js `>=24.0.0`
-- 20 прямых npm dependencies с точными версиями: 16 settings entries, один dormant package и exact runtime peers; полный `package-lock.json`
+- 21 прямая npm dependency с точными версиями: 17 settings entries, один dormant package и exact runtime peers; полный `package-lock.json`
 - direct-only default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
-- recovery-aware compaction `recovery-v4-chronological-10k`
-- summarizer всегда использует текущую выбранную модель Pi
-- deterministic authoritative-state projection, строгая validation и немедленный Pi built-in fallback после первой неудачной попытки
-- checksum-verified external excerpts и lazy `context_recall`
-- bounded recovery packet как emergency fallback, а не обязательный повтор summary
-- precise tool restoration: compaction сохраняет уже reconciled tools и добавляет только `context_recall` по `ctxref://`
+- детерминированное сжатие `context-fold@0.4.0` без model call и пересказа
+- обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
+- bounded recovery packet `auto-ultra-compact` как emergency fallback
+- precise tool restoration после compaction добавляет `recall_folded` при наличии folded pointers
 - Contextimate для оценки статического context footprint
 - Cachemire для cache/turn cost diagnostics
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
@@ -23,13 +21,14 @@
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 20 прямых dependencies. В `configs/settings.json` перечислены 16 Pi packages; `pi-canary` установлен и patch-tested, но намеренно не загружается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.25`/`0.84.4`/`0.84.4` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 21 прямую dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` установлен и patch-tested, но намеренно не загружается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.25`/`0.84.4`/`0.84.4` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.10.6` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
 | `@monotykamary/pi-retry` | `0.8.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
+| `context-fold` | `0.4.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
 | `pi-web-access` | `0.27.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
 | `@llblab/pi-telegram` | `0.42.2` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
 | `pi-caveman` | `1.0.8` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
@@ -50,11 +49,10 @@
 | Файл | Статус | Назначение |
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
-| `context-compaction.ts` | активен | Одна custom-summary попытка текущей моделью, chronological marker reducer с reopen semantics, deterministic projection canonical marker-state, строгая validation, Pi fallback, external excerpts и `context_recall`. |
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; считает direct context output, `pi-context` receipts и errors; читает legacy v1/v2/v3 records; raw trace только при `PI_PROFILE=1`. |
 | `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
-| `tools.ts` | активен | Держит стабильными direct coding tools и шесть `context_*` retrieval/maintenance tools, не меняет surface по словам prompt, сохраняет явный `/tools` selection; после compaction добавляет `context_recall` только при `ctxref://`. |
+| `tools.ts` | активен | Держит стабильными direct coding tools и шесть `context_*` retrieval/maintenance tools, не меняет surface по словам prompt, сохраняет явный `/tools` selection; после compaction добавляет `recall_folded` при `{#code FOLDED}`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: coding flow выполняется последовательными или параллельными direct tool calls.
 
@@ -68,6 +66,7 @@
 | --- | --- | --- |
 | Fabric runtime | полностью удалён | Full-code mode скрывал direct schemas, добавлял latency и orchestration complexity без экономии model calls. |
 | Локальный `output-compactor` | полностью удалён | Заменён готовым searchable sidecar `@spences10/pi-context@0.1.16`; оба `tool_result` interceptor одновременно не загружаются. |
+| Локальный `context-compaction.ts` | полностью удалён | Заменён `context-fold@0.4.0`: без model summarizer, external excerpt store и второго compaction-owner. |
 | Pi experimental tool-output pruning | выключен | Не мутирует историю lossy pruning; большие результаты обрабатывает searchable context sidecar. |
 | `pi-canary` runtime | отсутствует в `settings.json` | Избегаем скрытой per-turn context проверки; exact package и patch сохранены для rollback/эксперимента. |
 | Legacy project-loop | удалён | Убирает auto-preflight и пять постоянных schemas; discovery/edit/test остаётся direct. |
@@ -130,29 +129,18 @@ PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 
 ## Compaction
 
-Default-конфигурация использует:
+`context-fold@0.4.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256.
 
-- `reserveTokens: 12500`
-- `keepRecentTokens: 12000`
-- hard summary output cap 10k
-- Pi built-in compaction по умолчанию; custom compaction текущей моделью доступен opt-in
-- deterministic projector добавляет active marker-state кодом до строгого validator
-- одна custom-попытка, затем немедленный Pi built-in fallback
-- external exact excerpts под `~/.pi/agent/context-store/`
-- lazy `context_recall`
-- compactability guard: высокий provider context сам по себе не запускает `ctx.compact()`, если session history не имеет discardable prefix; это предотвращает `Nothing to compact (session too small)` loop
+Fold ladder начинает сворачивать stale `tool_result` и `thinking` blocks при 45% context window; user intent, assistant conclusions, tool calls и свежий tail не сворачиваются. Обычный fold требует экономию минимум 12% окна. Несжимаемый tail/roots остаётся честно обозначенным floor.
 
-Guard использует `keepRecentTokens: 12000`; при отдельном изменении этого значения синхронизируйте `PI_AUTO_COMPACT_KEEP_RECENT_TOKENS`. После первого завершённого post-compaction turn watchdog сверяет реальный provider usage: если prompt всё ещё выше порога и есть discardable prefix, повторное сжатие запускается сразу, без трёхходового cooldown.
+Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRecentTokens: 12000`. `auto-ultra-compact` проверяет compactability, запускает threshold compaction и post-compaction usage check; recovery packet используется только как emergency fallback. Ручной `/compact` остаётся без automatic continuation.
 
-После auto-compaction validated summary продолжает работу напрямую. Ручной `/compact` остаётся idle и не отправляет continuation prompt. `/clear-context` полностью очищает LLM-контекст без model call и новой сессии; прежняя история остаётся отдельной веткой текущего session-файла. Recovery packet читается только при явной потере state.
-
-Default — штатное сжатие Pi (`builtin`). Custom summarizer включается явно:
+Настройка и статус:
 
 ```text
-/compaction-mode custom
+/context-fold
+/context-fold config
 ```
-
-Режим сохраняется в `~/.pi/agent/extensions/context-compaction.json`. Возврат к default: `/compaction-mode builtin`. Проверка: `/compaction-mode status`.
 
 ## Observability
 

@@ -69,12 +69,10 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    if json.loads((ROOT / "configs/context-compaction.json").read_text()) != {"mode": "builtin"}:
-        fail("built-in compaction is not the release default")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "typebox": "1.3.25", "@earendil-works/pi-coding-agent": "0.84.4", "@earendil-works/pi-tui": "0.84.4"}
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.4.0", "typebox": "1.3.25", "@earendil-works/pi-coding-agent": "0.84.4", "@earendil-works/pi-tui": "0.84.4"}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
-    retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs"]
+    retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
     if any(path.exists() for path in retired_compactor):
         fail("retired local output-compactor remains in release")
     routing_source = (ROOT / "local-extensions/tools.ts").read_text()
@@ -152,6 +150,8 @@ def main() -> int:
             fail("pi-canary must remain installed but disabled")
         if "npm:@spences10/pi-context@0.1.16" not in active_sources:
             fail("exact pi-context settings wiring missing")
+        if "npm:context-fold@0.4.0" not in active_sources:
+            fail("exact context-fold settings wiring missing")
         for exact_source in ["npm:@dietrichgebert/ponytail@4.9.0", "npm:@juicesharp/rpiv-ask-user-question@2.9.0"]:
             if exact_source not in active_sources:
                 fail(f"exact settings pin missing: {exact_source}")
@@ -180,6 +180,7 @@ def main() -> int:
         'touch "$AGENT_DIR/context.db"',
         'chmod 600 "$AGENT_DIR/context.db"',
         'rm -f "$AGENT_DIR/fabric.json" "$AGENT_DIR/extensions/fabric-output.json" "$AGENT_DIR/extensions/output-compactor.json"',
+        'rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts.disabled"',
         'rm -rf "$AGENT_DIR/extensions/fabric-output" "$AGENT_DIR/extensions/output-compactor"',
         'rm -f "$AGENT_DIR/extensions/decision-observer.ts"',
         'cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"',
@@ -189,6 +190,7 @@ def main() -> int:
     managed_match = re.search(r"managed=\((.*?)\n\)", install_source, re.DOTALL)
     rollback_paths = {
         "extensions/context-compaction.json",
+        "extensions/context-compaction.ts.disabled",
         "my-pi-settings.json",
         "extensions/output-compactor.json",
         "extensions/output-compactor",

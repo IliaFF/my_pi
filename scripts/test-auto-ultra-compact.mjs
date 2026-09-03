@@ -111,13 +111,6 @@ assert.ok(validateProjectedAuthoritativeState(`${projected}\n[NEXT] Outside mark
 assert.equal(projectAuthoritativeState(projected, event), projected, "projection must be idempotent");
 assert.equal((projected.match(/<!-- authoritative-state:start -->/g) ?? []).length, 1);
 
-const compactionSource = readFileSync(resolve(root, "local-extensions/context-compaction.ts"), "utf8");
-const projectionAt = compactionSource.indexOf("parsed.summary = projectAuthoritativeState(parsed.summary, { preparation, branchEntries: entries });");
-const validationAt = compactionSource.indexOf("const validation = validateSummary(parsed.summary, preparation, entries);");
-assert.ok(projectionAt >= 0 && validationAt > projectionAt, "projector must run before strict validation");
-assert.equal((compactionSource.match(/const response = await call\(prompt\);/g) ?? []).length, 1, "custom compaction must keep one model call");
-
-
 async function createContinuationHarness(home) {
   const handlers = new Map();
   const sent = [];
@@ -212,4 +205,4 @@ try {
   rmSync(testHome, { recursive: true, force: true });
 }
 
-console.log("PASS auto-ultra-compact 12k retention, post-compaction verification, compactability, authoritative-state projector, and continuation lifecycle");
+console.log("PASS auto-ultra-compact 12k retention, post-compaction verification, compactability, recovery projector, and continuation lifecycle");
