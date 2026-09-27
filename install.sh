@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_VERSION="0.84.4"
+PI_VERSION="0.87.1"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -45,7 +45,7 @@ if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/nu
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
-  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.4.0 and @spences10/pi-context@0.1.16"
+  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.6.0 and @spences10/pi-context@0.1.16"
   echo "DRY-RUN configs: one default profile + balanced searchable-context policy + five local extensions + OpenAlex skill"
   echo "DRY-RUN patches: 3 exact-version patches"
   exit 0

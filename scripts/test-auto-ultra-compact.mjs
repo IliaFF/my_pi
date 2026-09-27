@@ -116,7 +116,7 @@ async function createContinuationHarness(home) {
   const sent = [];
   let compactOptions;
   let compactionLocked = false;
-  let contextTokens = 150_000;
+  let contextTokens = 170_000;
   let compactCalls = 0;
   const api = {
     on(name, handler) {
@@ -165,8 +165,13 @@ const testHome = mkdtempSync(join(tmpdir(), "pi-compaction-followup-"));
 process.env.HOME = testHome;
 try {
   const automatic = await createContinuationHarness(testHome);
-  const preparation = { tokensBefore: 150_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
+  const preparation = { tokensBefore: 170_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
+  automatic.setContextTokens(169_999);
   await automatic.emit("turn_end");
+  assert.equal(automatic.compactCalls(), 0, "must not compact below 170k");
+  automatic.setContextTokens(170_000);
+  await automatic.emit("turn_end");
+  assert.equal(automatic.compactCalls(), 1, "must compact at 170k");
   await automatic.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
   await automatic.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
   assert.equal(automatic.sent.length, 0, "extension continuation must wait until Pi unlocks manual compaction");
@@ -174,7 +179,7 @@ try {
   assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
   assert.match(automatic.sent[0].message, /^Продолжай после автосжатия по validated compact summary/);
-  automatic.setContextTokens(155_000);
+  automatic.setContextTokens(175_000);
   await automatic.emit("turn_end");
   assert.equal(automatic.compactCalls(), 2, "ineffective compaction must bypass cooldown and compact again after first real post-compaction usage");
 
