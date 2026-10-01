@@ -11,14 +11,12 @@ type CompactOptions = {
 type UnknownRecord = Record<string, unknown>;
 
 type RecoveryState = {
-	currentGoal: string;
 	readFiles: string[];
 	modifiedFiles: string[];
 	commands: string[];
 	decisions: string[];
 	constraints: string[];
 	blockers: string[];
-	nextSteps: string[];
 	validationResults: string[];
 	recentUserMessages: string[];
 };
@@ -56,12 +54,12 @@ export const ULTRA_INSTRUCTIONS = `These rules override conflicting preservation
 
 Hard output limit: 10,000 tokens. Prefer 2,000-6,000 tokens when sufficient for correct continuation. Density and recoverability matter more than narrative completeness.
 
-Treat standalone recovery markers as authoritative workflow state, newer markers overriding older prose and previous summaries:
-- [GOAL] is the active objective; keep the latest applicable goal.
+Project TODO.md is the only authority for task goals, status, and next steps. Treat summary task sections as historical context, not instructions to resume. Do not carry forward [GOAL], [NEXT], or [COMPLETED] markers. On resumption reread the current TODO.md; if it is missing, unreadable, or has no clear active task, stop and ask instead of guessing.
+
+Treat standalone recovery markers for non-task state as authoritative, newer markers overriding older prose and previous summaries:
 - [DECISION] is a consequential choice; [SUPERSEDED] with the exact old description removes it.
 - [CONSTRAINT] is durable; [REVOKED] with the exact old description removes it.
 - [BLOCKER] is active only until a matching [RESOLVED] marker; never carry resolved blockers forward.
-- [NEXT] is immediate pending work; [COMPLETED] with the exact step removes it.
 - [VALIDATION] is exact evidence. Preserve command, exit status, test counts, diagnostics, and exact error text when relevant.
 
 Use the required structured checkpoint format, with these rules:
@@ -70,7 +68,7 @@ Use the required structured checkpoint format, with these rules:
 - Constraints & Preferences: separate durable constraints from temporary implementation decisions.
 - Key Decisions: retain current decisions and brief rationale; remove superseded choices.
 - Blocked: include unresolved blockers only.
-- Next Steps: ordered, concrete, pending actions only.
+- Goal, Progress, and Next Steps: point to project TODO.md; do not infer task state from conversation.
 - Critical Context: include exact validation results and external artifact pointers, not bulky artifact contents.
 - Preserve exact file paths, symbols, commands, versions, test counts, exit codes, and unresolved error messages.
 - Omit raw logs, repeated explanations, stale exploration, abandoned branches, conversational filler, and details recoverable from cited files or artifact pointers.
@@ -78,9 +76,9 @@ Use the required structured checkpoint format, with these rules:
 
 export const SUMMARY_CONTRACT_ID = "recovery-v4-chronological-10k";
 const FALLBACK_RESTORE_MESSAGE =
-	"Продолжай после автосжатия. Сначала восстановись по recovery packet, затем продолжай с текущего next step. Не перечитывай raw logs/large dirs без необходимости.";
+	"После автосжатия сначала прочитай текущий TODO.md в корне проекта: только он определяет задачу и следующий шаг. Если файл недоступен или активная задача неясна — остановись и спроси. Для прочих деталей используй recovery packet; не перечитывай raw logs/large dirs без необходимости.";
 const VALIDATED_RESTORE_MESSAGE =
-	"Продолжай после автосжатия по validated compact summary и текущему next step. Recovery packet — только emergency fallback при явной потере state; без необходимости не читай его или raw logs/large dirs.";
+	"После автосжатия сначала прочитай текущий TODO.md в корне проекта: только он определяет задачу и следующий шаг. Если файл недоступен или активная задача неясна — остановись и спроси. Для прочих деталей используй compact summary; recovery packet — только при явной потере состояния.";
 
 function envNumber(name: string, fallback: number): number {
 	const raw = process.env[name];
@@ -329,18 +327,17 @@ function lineMatches(text: string, pattern: RegExp): string[] {
 		.map((line) => truncate(line, 500));
 }
 
-type RecoveryMarker = "GOAL" | "DECISION" | "SUPERSEDED" | "CONSTRAINT" | "REVOKED" | "BLOCKER" | "RESOLVED" | "NEXT" | "COMPLETED" | "VALIDATION";
+type RecoveryMarker = "DECISION" | "SUPERSEDED" | "CONSTRAINT" | "REVOKED" | "BLOCKER" | "RESOLVED" | "VALIDATION";
 
-const RECOVERY_MARKER_RE = /^\s*(?:[-*]\s*)?\[(GOAL|DECISION|SUPERSEDED|CONSTRAINT|REVOKED|BLOCKER|RESOLVED|NEXT|COMPLETED|VALIDATION)\]\s*:?\s*(.+?)\s*$/i;
+const RECOVERY_MARKER_RE = /^\s*(?:[-*]\s*)?\[(DECISION|SUPERSEDED|CONSTRAINT|REVOKED|BLOCKER|RESOLVED|VALIDATION)\]\s*:?\s*(.+?)\s*$/i;
+const LEGACY_TASK_MARKER_RE = /^\s*(?:[-*]\s*)?\[(?:GOAL|NEXT|COMPLETED)\]\s*:?\s*.+/i;
 
 type RecoveryMarkerEvent = { marker: RecoveryMarker; value: string };
 
 type ReducedMarkedRecoveryState = {
-	goals: string[];
 	decisions: string[];
 	constraints: string[];
 	blockers: string[];
-	nextSteps: string[];
 	validations: string[];
 };
 
@@ -356,13 +353,11 @@ function markedRecoveryEvents(text: string): RecoveryMarkerEvent[] {
 }
 
 function reduceMarkedRecoveryState(events: RecoveryMarkerEvent[]): ReducedMarkedRecoveryState {
-	const goals: string[] = [];
 	const validations: string[] = [];
 	const active = {
 		DECISION: new Map<string, string>(),
 		CONSTRAINT: new Map<string, string>(),
 		BLOCKER: new Map<string, string>(),
-		NEXT: new Map<string, string>(),
 	};
 	const reopen = (kind: keyof typeof active, value: string) => {
 		const key = markerIdentity(value);
@@ -372,24 +367,19 @@ function reduceMarkedRecoveryState(events: RecoveryMarkerEvent[]): ReducedMarked
 	const close = (kind: keyof typeof active, value: string) => active[kind].delete(markerIdentity(value));
 	for (const event of events) {
 		switch (event.marker) {
-			case "GOAL": goals.push(event.value); break;
 			case "DECISION": reopen("DECISION", event.value); break;
 			case "SUPERSEDED": close("DECISION", event.value); break;
 			case "CONSTRAINT": reopen("CONSTRAINT", event.value); break;
 			case "REVOKED": close("CONSTRAINT", event.value); break;
 			case "BLOCKER": reopen("BLOCKER", event.value); break;
 			case "RESOLVED": close("BLOCKER", event.value); break;
-			case "NEXT": reopen("NEXT", event.value); break;
-			case "COMPLETED": close("NEXT", event.value); break;
 			case "VALIDATION": validations.push(event.value); break;
 		}
 	}
 	return {
-		goals,
 		decisions: [...active.DECISION.values()],
 		constraints: [...active.CONSTRAINT.values()],
 		blockers: [...active.BLOCKER.values()],
-		nextSteps: [...active.NEXT.values()],
 		validations,
 	};
 }
@@ -418,7 +408,6 @@ export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): R
 	const decisions: string[] = [];
 	const constraints: string[] = [];
 	const blockers: string[] = [];
-	const nextSteps: string[] = [];
 	const validationResults: string[] = [];
 	const recentUserMessages: string[] = [];
 	const texts: string[] = [];
@@ -454,26 +443,21 @@ export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): R
 	blockers.push(...(hasMarkedState
 		? marked.blockers
 		: lineMatches(combined, /error|failed|exception|cannot|enoent|syntaxerror|typeerror|blocked|blocker|risk|ошиб|падает|не работает|блок|риск/i)));
-	nextSteps.push(...(hasMarkedState
-		? marked.nextSteps
-		: lineMatches(combined, /next|todo|plan|fix|implement|continue|следующ|дальше|потом|исправ|сделать|реализ/i)));
 	validationResults.push(...marked.validations);
 
 	return {
-		currentGoal: marked.goals.length ? marked.goals[marked.goals.length - 1] : recentUserMessages.length ? recentUserMessages[recentUserMessages.length - 1] : "Captured automatically before compaction. If goal missing, infer from compact summary and latest user request.",
 		readFiles: uniqueLimit(readFiles.sort(), 8),
 		modifiedFiles: uniqueLimit(modifiedFiles.sort(), 15),
 		commands: uniqueLimit(commands.reverse(), 5),
 		decisions: uniqueLimit(decisions.reverse(), 12),
 		constraints: uniqueLimit(constraints.reverse(), 12),
 		blockers: uniqueLimit(blockers.reverse(), 12),
-		nextSteps: uniqueLimit(nextSteps.reverse(), 12),
 		validationResults: uniqueLimit(validationResults.reverse(), 12),
 		recentUserMessages: uniqueLimit(recentUserMessages.reverse(), 3),
 	};
 }
 
-type AuthoritativeRecoveryMarker = "GOAL" | "CONSTRAINT" | "DECISION" | "BLOCKER" | "VALIDATION" | "NEXT";
+type AuthoritativeRecoveryMarker = "CONSTRAINT" | "DECISION" | "BLOCKER" | "VALIDATION";
 type AuthoritativeRecoveryEntry = { marker: AuthoritativeRecoveryMarker; value: string };
 
 const AUTHORITATIVE_STATE_START = "<!-- authoritative-state:start -->";
@@ -493,12 +477,10 @@ export function authoritativeRecoveryEntries(event?: unknown): AuthoritativeReco
 			entries.push({ marker, value });
 		}
 	};
-	add("GOAL", [state.currentGoal]);
 	add("CONSTRAINT", state.constraints);
 	add("DECISION", state.decisions);
 	add("BLOCKER", state.blockers);
 	add("VALIDATION", state.validationResults.slice(0, 4));
-	add("NEXT", state.nextSteps.slice(0, 3));
 	return entries.filter((entry, index, all) => all.findIndex((candidate) => candidate.marker === entry.marker && markerIdentity(candidate.value) === markerIdentity(entry.value)) === index);
 }
 
@@ -507,7 +489,7 @@ export function projectAuthoritativeState(summary: string, event?: unknown): str
 	const base = summary
 		.replace(/\n?<!-- authoritative-state:start -->[\s\S]*?<!-- authoritative-state:end -->\n?/gi, "\n")
 		.split("\n")
-		.filter((line) => !RECOVERY_MARKER_RE.test(line))
+		.filter((line) => !RECOVERY_MARKER_RE.test(line) && !LEGACY_TASK_MARKER_RE.test(line))
 		.join("\n")
 		.trim();
 	const entries = authoritativeRecoveryEntries(event);
@@ -534,6 +516,7 @@ export function validateProjectedAuthoritativeState(summary: string, event?: unk
 	const starts = summary.split(AUTHORITATIVE_STATE_START).length - 1;
 	const ends = summary.split(AUTHORITATIVE_STATE_END).length - 1;
 	const allMarkers = markedRecoveryEvents(summary);
+	if (summary.split("\n").some((line) => LEGACY_TASK_MARKER_RE.test(line))) return ["legacy task marker outside TODO.md"];
 	if (!expected.length) return starts || ends || allMarkers.length ? ["unexpected authoritative state block"] : [];
 	const block = summary.match(/<!-- authoritative-state:start -->\s*\n### Authoritative State\s*\n([\s\S]*?)\n<!-- authoritative-state:end -->/i);
 	const errors: string[] = [];
@@ -569,15 +552,11 @@ summary_contract_source: "~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULT
 
 ## Restore sequence
 
-1. Read this recovery packet.
-2. Read compact summary already injected by Pi.
-3. Restore current goal, durable constraints, current decisions, validation evidence, changed files, unresolved blockers, and next step.
-4. Read project AGENTS.md / CLAUDE.md / .pi-stack/navigation/project-map.md only if present and needed.
-5. Continue from latest unfinished user request.
-
-## Current goal
-
-${state.currentGoal}
+1. Read the current project TODO.md at \`${cwd}/TODO.md\`. It alone defines task goals, status, and next steps; ignore stale task state in this packet or compact summary.
+2. If TODO.md is missing, unreadable, or has no clear active task, stop and ask; never guess from conversation.
+3. Use this packet and compact summary only for durable constraints, decisions, validation evidence, changed files, and unresolved blockers.
+4. Read project AGENTS.md / CLAUDE.md only if present and needed.
+5. Continue the current TODO.md task.
 
 ## Recent user messages
 
@@ -611,13 +590,10 @@ ${mdList(state.readFiles)}
 
 ${mdList(state.commands)}
 
-## Next steps
-
-${mdList(state.nextSteps, "- Continue from latest unfinished user request. If ambiguous, ask one concise question.")}
-
 ## State pointers
 
 - CWD: \`${cwd}\`
+- Task ledger: \`${cwd}/TODO.md\` (read live; not snapshotted)
 - Recovery packet: \`${globalRecoveryPath(ctx)}\`
 - Project recovery mirror: \`${projectRecoveryPath(ctx) ?? "disabled"}\`
 - Context usage: ${tokens}/${window} tokens (${usagePercent.toFixed(1)}%)

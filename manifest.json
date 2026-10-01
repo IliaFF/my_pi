@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "0.87.1",
+  "piCoreVersion": "0.99.2",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -16,7 +16,7 @@
     {
       "package": "pi-caveman",
       "version": "1.0.8",
-      "settingsSpec": "npm:pi-caveman@1.0.8",
+      "pinRequired": false,
       "patch": "patches/pi-caveman+1.0.8.patch",
       "files": [
         "extensions/caveman.ts"
@@ -25,9 +25,9 @@
     },
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.11.0",
-      "settingsSpec": "npm:@juicesharp/rpiv-ask-user-question@2.11.0",
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.11.0.patch",
+      "version": "2.12.0",
+      "pinRequired": false,
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.12.0.patch",
       "files": [
         "reconcile.ts"
       ],

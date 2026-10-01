@@ -90,19 +90,16 @@ Generated goal
 [COMPLETED] Finished step`;
 const entries = authoritativeRecoveryEntries(event);
 assert.deepEqual(entries.map(({ marker, value }) => `${marker}:${value}`), [
-  "GOAL:Current goal",
   "CONSTRAINT:Reopened constraint",
   "CONSTRAINT:Keep selected model",
   "DECISION:Reopened decision",
   "DECISION:Active decision",
   "BLOCKER:Reopened blocker",
   "VALIDATION:focused test PASS",
-  "NEXT:Reopened step",
-  "NEXT:Immediate step",
 ]);
 const projected = projectAuthoritativeState(summary, event);
-for (const value of ["[GOAL] Current goal", "[CONSTRAINT] Reopened constraint", "[CONSTRAINT] Keep selected model", "[DECISION] Reopened decision", "[DECISION] Active decision", "[BLOCKER] Reopened blocker", "[VALIDATION] focused test PASS", "[NEXT] Reopened step", "[NEXT] Immediate step"]) assert.ok(projected.includes(value));
-for (const closedMarker of ["[DECISION] Retired decision", "[BLOCKER] Resolved blocker", "[NEXT] Finished step", "[COMPLETED] Finished step"]) assert.ok(!projected.includes(closedMarker));
+for (const value of ["[CONSTRAINT] Reopened constraint", "[CONSTRAINT] Keep selected model", "[DECISION] Reopened decision", "[DECISION] Active decision", "[BLOCKER] Reopened blocker", "[VALIDATION] focused test PASS"]) assert.ok(projected.includes(value));
+for (const closedMarker of ["[DECISION] Retired decision", "[BLOCKER] Resolved blocker", "[GOAL]", "[NEXT]", "[COMPLETED]"]) assert.ok(!projected.includes(closedMarker));
 assert.ok(projected.includes("- [x] Finished step"), "closed work must remain valid Done prose");
 assert.ok(!projected.includes("Model invented state"), "model-generated marker lines must be removed");
 assert.deepEqual(validateProjectedAuthoritativeState(projected, event), []);
@@ -178,7 +175,7 @@ try {
   automatic.completeCompaction();
   assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
-  assert.match(automatic.sent[0].message, /^Продолжай после автосжатия по validated compact summary/);
+  assert.match(automatic.sent[0].message, /^После автосжатия сначала прочитай текущий TODO\.md/);
   automatic.setContextTokens(175_000);
   await automatic.emit("turn_end");
   assert.equal(automatic.compactCalls(), 2, "ineffective compaction must bypass cooldown and compact again after first real post-compaction usage");

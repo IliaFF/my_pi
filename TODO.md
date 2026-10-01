@@ -1,6 +1,7 @@
 # TODO
 
 ## In progress
+- [ ] Синхронизировать Pi 0.99.2 и последние расширения с активной установкой. Release и isolated install PASS; verify failures=0 warnings=0; RPC rc=0, stderr empty, 58 commands. Осталось отправить в origin/main.
 
 ## Blocked
 

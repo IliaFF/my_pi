@@ -41,7 +41,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "0.87.1":
+    if manifest.get("piCoreVersion") != "0.99.2":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
@@ -69,7 +69,7 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.27", "@earendil-works/pi-coding-agent": "0.87.1", "@earendil-works/pi-tui": "0.87.1"}
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.34", "@earendil-works/pi-coding-agent": "0.99.2", "@earendil-works/pi-tui": "0.99.2"}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
@@ -141,20 +141,18 @@ def main() -> int:
             package = raw.rsplit("@", 1)[0] if (raw.startswith("@") and raw.count("@") > 1) or (not raw.startswith("@") and "@" in raw) else raw
             if package not in package_json["dependencies"]:
                 fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
-        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass@0.13.0"), None)
+        pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass"), None)
         required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**"}
         if pine is None or set(pine.get("extensions", [])) != required_pine:
             fail("pine-of-glass observability extension selection mismatch")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
             fail("pi-canary must remain installed but disabled")
-        if "npm:@spences10/pi-context@0.1.16" not in active_sources:
-            fail("exact pi-context settings wiring missing")
-        if "npm:context-fold@0.6.0" not in active_sources:
-            fail("exact context-fold settings wiring missing")
-        for exact_source in ["npm:@dietrichgebert/ponytail@4.10.0", "npm:@juicesharp/rpiv-ask-user-question@2.11.0"]:
-            if exact_source not in active_sources:
-                fail(f"exact settings pin missing: {exact_source}")
+        for package in package_json["dependencies"]:
+            if package in {"pi-canary", "typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
+                continue
+            if f"npm:{package}" not in active_sources:
+                fail(f"unpinned settings source missing: npm:{package}")
         if settings.get("extensions") != ["-extensions/tools.ts"]:
             fail("tools extension must remain disabled by default")
     readme = (ROOT / "README.md").read_text()
