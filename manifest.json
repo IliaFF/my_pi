@@ -4,16 +4,6 @@
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
-      "package": "pi-canary",
-      "version": "1.5.0",
-      "pinRequired": false,
-      "patch": "patches/pi-canary+1.5.0.patch",
-      "files": [
-        "extensions/canary.ts"
-      ],
-      "reason": "Preserve current child-process guard; package remains locked but disabled in default settings."
-    },
-    {
       "package": "pi-caveman",
       "version": "1.0.8",
       "pinRequired": false,
@@ -88,18 +78,6 @@
       "snapshot": "local-extensions/reader-pane.ts",
       "restore": true,
       "reason": "Safe opt-in Windows Terminal reader with bounded tool images and wide-table card layout."
-    },
-    {
-      "source": "extensions/tools.ts",
-      "snapshot": "local-extensions/tools.ts",
-      "restore": true,
-      "reason": "Stable direct-tool default, explicit manual selection, and post-compaction recall_folded restoration."
-    },
-    {
-      "source": "npm/node_modules/pi-canary/extensions/canary.json",
-      "snapshot": "configs/pi-canary.json",
-      "restore": true,
-      "reason": "Preserve dormant Canary configuration if package is enabled later."
     },
     {
       "source": "extensions/todo-queue/README.md",

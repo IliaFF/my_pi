@@ -1,6 +1,7 @@
 # TODO
 
 ## In progress
+- [ ] Разгрузить стек: Canary/tools удалены из release и active; release/isolated install/runtime probes PASS, 20 dependencies/2 patches. FFF оставлен по benchmark; Caveman/RPIV патчи нужны. Quota OpenAI-only ограничение описано в docs/stack-review.md. Active/isolated RPC rc=0, stderr empty, 58 commands; safe updater dry-run failures=0 warnings=0. Осталось отправить изменения.
 
 ## Blocked
 

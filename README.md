@@ -6,7 +6,7 @@
 
 - Pi core `@earendil-works/pi-coding-agent@0.99.2`
 - Node.js `>=24.0.0`
-- 21 прямая npm dependency с точными версиями: 17 settings entries, один dormant package и exact runtime peers; полный `package-lock.json`
+- 20 прямых npm dependencies с точными версиями: 17 settings entries и exact runtime peers; полный `package-lock.json`
 - direct-only default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
 - детерминированное сжатие `context-fold@0.6.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
@@ -17,11 +17,11 @@
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
 - глобальный OpenAlex skill с dependency-free Node helper для поиска научных публикаций и OA-ссылок
 
-Репозиторий содержит три version-gated patch для `pi-canary@1.5.0`, `pi-caveman@1.0.8` и `@juicesharp/rpiv-ask-user-question@2.12.0`. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
+Репозиторий содержит два version-gated patch: `pi-caveman@1.0.8` защищает UI после reload, `@juicesharp/rpiv-ask-user-question@2.12.0` убирает недоступную анкету до первого хода. Выключенные Canary и локальный `/tools` удалены из сборки. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 21 прямую dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` установлен и patch-tested, но намеренно не загружается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.34`/`0.99.2`/`0.99.2` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 20 прямых dependencies. В `configs/settings.json` перечислены 17 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.34`/`0.99.2`/`0.99.2` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
@@ -42,7 +42,6 @@
 | `pine-of-glass` | `0.15.0` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
 | `pi-my-setup` | `0.4.12` | установлен как package/CLI helper | Сохраняет и восстанавливает наборы Pi packages и skills; model-facing tool не регистрирует. |
 | `pi-markdown-preview` | `0.19.2` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
-| `pi-canary` | `1.5.0` | **не загружен**, pinned + patched | Hidden context-awareness canary. Отключён, чтобы не добавлять скрытый token/context check каждый turn; остаётся воспроизводимым для будущего отдельного теста. |
 
 ### Локальные extensions
 
@@ -52,7 +51,6 @@
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; считает direct context output, `pi-context` receipts и errors; читает legacy v1/v2/v3 records; raw trace только при `PI_PROFILE=1`. |
 | `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
-| `tools.ts` | отключён по умолчанию | Исходник сохранён для ручного `/tools`, но `configs/settings.json` исключает extension: native direct tools и `recall_folded` уже покрывают текущий workflow без лишнего lifecycle-owner. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: coding flow выполняется последовательными или параллельными direct tool calls.
 
@@ -68,7 +66,8 @@
 | Локальный `output-compactor` | полностью удалён | Заменён готовым searchable sidecar `@spences10/pi-context@0.1.16`; оба `tool_result` interceptor одновременно не загружаются. |
 | Локальный `context-compaction.ts` | полностью удалён | Заменён `context-fold@0.6.0`: без model summarizer, external excerpt store и второго compaction-owner. |
 | Pi experimental tool-output pruning | выключен | Не мутирует историю lossy pruning; большие результаты обрабатывает searchable context sidecar. |
-| `pi-canary` runtime | отсутствует в `settings.json` | Избегаем скрытой per-turn context проверки; exact package и patch сохранены для rollback/эксперимента. |
+| `pi-canary` | удалён из lock, patches и managed configs | Не загружался и не давал функций рабочему стеку. Повторная установка — только под конкретную задачу. |
+| Локальный `tools.ts` | полностью удалён | Уже был выключен; native tools и `context-fold` покрывают текущую поверхность без дополнительного lifecycle-owner. |
 | Legacy project-loop | удалён | Убирает auto-preflight и пять постоянных schemas; discovery/edit/test остаётся direct. |
 | Legacy keyword tool router и `lean-tools.ts` | удалены | Они вызывали `setActiveTools()` на turn boundaries; web `promptSnippet` пересобирал system prompt и ломал prefix cache. |
 
@@ -184,6 +183,8 @@ Report фильтруется по текущему project path и показы
 
 ## Проверка установленного стека
 
+Проверка разгрузки стека, границы совместимости и измерения поиска: [docs/stack-review.md](docs/stack-review.md).
+
 ```bash
 ~/.pi/agent/maintenance/scripts/verify.sh
 ```
@@ -192,6 +193,8 @@ Report фильтруется по текущему project path и показы
 
 ```bash
 python3 scripts/test-release.py
+node scripts/test-stack-surface.mjs ~/.pi/agent
+node scripts/compare-search.mjs "$PWD" ~/.pi/agent
 ```
 
 Smoke startup:
@@ -235,7 +238,7 @@ Update script создаёт backup npm tree, обновляет расшире�
 
 - `npm/` — exact dependency set и lock
 - `configs/` — default configs без секретов, включая balanced `pi-context.json`
-- `local-extensions/` — compaction, tool routing и profiler
+- `local-extensions/` — compaction, profiler, reader и TODO queue
 - `skills/openalex/` — OpenAlex workflow и dependency-free helper
 - `patches/` — exact-version diffs
 - `scripts/maintenance.py` — snapshot, backup, patch, restore и verify

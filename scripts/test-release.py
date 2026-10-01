@@ -75,22 +75,15 @@ def main() -> int:
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
     if any(path.exists() for path in retired_compactor):
         fail("retired local output-compactor remains in release")
-    routing_source = (ROOT / "local-extensions/tools.ts").read_text()
-    for stable_tool in ["read", "grep", "find", "edit", "write", "bash", "context_search", "context_get", "context_export", "context_list", "context_stats", "context_purge"]:
-        if f'"{stable_tool}"' not in routing_source:
-            fail(f"direct/searchable stable tool surface missing: {stable_tool}")
-    if "fabric_exec" in routing_source:
-        fail("Fabric remains in stable tool surface")
+    retired_surface = [ROOT / "local-extensions/tools.ts", ROOT / "scripts/test-tools.mjs", ROOT / "configs/pi-canary.json", ROOT / "patches/pi-canary+1.5.0.patch"]
+    if any(path.exists() for path in retired_surface) or "pi-canary" in package_json["dependencies"] or any("node_modules/pi-canary" in path for path in package_lock["packages"]):
+        fail("retired tools/Canary artifacts remain in release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
     for required in ["Use direct tools by default", "Run 2–4 statically known independent operations as parallel direct tool calls", "Large direct tool results are indexed automatically by `pi-context`"]:
         if required not in append_system:
             fail(f"direct tool policy missing: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:
         fail("Fabric remains in system policy")
-    if "const ROUTES" in routing_source or "routePrompt(" in routing_source or 'registerTool({' in routing_source:
-        fail("legacy dynamic tool routing still present")
-    if 'pi.on("before_agent_start"' in routing_source or 'pi.on("agent_start"' in routing_source:
-        fail("tools extension must not reset active tools between turns")
     if (ROOT / "local-extensions/lean-tools.ts").exists():
         fail("legacy lean-tools extension still present")
     todo_source = (ROOT / "local-extensions/todo-queue/index.ts").read_text()
@@ -126,9 +119,8 @@ def main() -> int:
         if required not in reader_source:
             fail(f"reader pane wiring missing: {required}")
 
-    removed_names = ["project_context", "project_probe", "edit_verify", "targeted_test", "finish_gate", "fast-fix"]
     removed_paths = [ROOT / "local-extensions/project-loop.ts", ROOT / "configs/project-loop.schema.json", ROOT / "configs/project-loop.example.json"]
-    if any(path.exists() for path in removed_paths) or any(name in routing_source for name in removed_names):
+    if any(path.exists() for path in removed_paths):
         fail("legacy project-loop surface still present")
 
     for settings_file in [ROOT / "configs/settings.json"]:
@@ -147,14 +139,14 @@ def main() -> int:
             fail("pine-of-glass observability extension selection mismatch")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
-            fail("pi-canary must remain installed but disabled")
+            fail("pi-canary must not be configured")
         for package in package_json["dependencies"]:
-            if package in {"pi-canary", "typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
+            if package in {"typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
                 continue
             if f"npm:{package}" not in active_sources:
                 fail(f"unpinned settings source missing: npm:{package}")
-        if settings.get("extensions") != ["-extensions/tools.ts"]:
-            fail("tools extension must remain disabled by default")
+        if any("tools.ts" in entry for entry in settings.get("extensions", [])):
+            fail("retired tools extension must not be configured")
     readme = (ROOT / "README.md").read_text()
     for package in package_json["dependencies"]:
         if ("`" + package + "`") not in readme:
@@ -293,14 +285,6 @@ def main() -> int:
     if todo_test.returncode:
         fail(f"todo-queue test failed: {todo_test.stdout.strip()}")
     print(todo_test.stdout.strip())
-
-    tools_test = subprocess.run(
-        ["node", str(ROOT / "scripts/test-tools.mjs"), str(ROOT)],
-        cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-    )
-    if tools_test.returncode:
-        fail(f"tools test failed: {tools_test.stdout.strip()}")
-    print(tools_test.stdout.strip())
 
     reader_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-reader-pane.mjs")],

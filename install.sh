@@ -131,7 +131,7 @@ cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
 rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts.disabled"
-cp "$ROOT/local-extensions/tools.ts" "$AGENT_DIR/extensions/tools.ts"
+rm -f "$AGENT_DIR/extensions/tools.ts"
 rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
@@ -141,7 +141,6 @@ rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
 rm -rf "$AGENT_DIR/skills/openalex"
 cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"
-cp "$ROOT/configs/pi-canary.json" "$AGENT_DIR/npm/node_modules/pi-canary/extensions/canary.json"
 
 rm -rf "$AGENT_DIR/maintenance"
 mkdir -p "$AGENT_DIR/maintenance"
@@ -155,6 +154,7 @@ fi
 [[ "$(pi --version)" == "$PI_VERSION" ]] || { echo "FAIL Pi $PI_VERSION is not active on PATH" >&2; false; }
 PI_CODING_AGENT_DIR="$AGENT_DIR" python3 "$AGENT_DIR/maintenance/scripts/maintenance.py" apply
 PI_CODING_AGENT_DIR="$AGENT_DIR" python3 "$AGENT_DIR/maintenance/scripts/maintenance.py" verify
+node "$ROOT/scripts/test-stack-surface.mjs" "$AGENT_DIR"
 # Pre-create the sidecar privately: upstream otherwise creates it as 0644 under a common umask.
 touch "$AGENT_DIR/context.db"
 chmod 600 "$AGENT_DIR/context.db" "$AGENT_DIR"/context.db-wal "$AGENT_DIR"/context.db-shm 2>/dev/null || chmod 600 "$AGENT_DIR/context.db"

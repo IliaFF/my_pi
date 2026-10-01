@@ -29,9 +29,6 @@
     "npm:pi-markdown-preview",
     "npm:context-fold"
   ],
-  "extensions": [
-    "-extensions/tools.ts"
-  ],
   "readseek": {
     "replacedTools": [
       "read",
