@@ -1,8 +1,14 @@
 {
-  "lastChangelogVersion": "0.99.2",
+  "lastChangelogVersion": "1.0.0",
   "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-5.6-sol",
+  "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "medium",
+  "defaultTools": [
+    "+codemode"
+  ],
+  "codemode": {
+    "mode": "on"
+  },
   "packages": [
     "npm:@ff-labs/pi-fff",
     "npm:@monotykamary/pi-retry",
@@ -27,7 +33,13 @@
     },
     "npm:pi-my-setup",
     "npm:pi-markdown-preview",
-    "npm:context-fold"
+    "npm:context-fold",
+    "npm:pi-train-agents@0.2.7",
+    {
+      "source": "npm:@amaster.ai/pi-browser-use@0.1.22",
+      "extensions": []
+    },
+    "npm:pi-ssh-remote@0.1.14"
   ],
   "readseek": {
     "replacedTools": [
@@ -55,5 +67,15 @@
   "experimentalToolOutputPruning": false,
   "toolOutputPruningMode": "off",
   "toolOutputPruneStrategy": "stub",
-  "enableSkillCommands": true
+  "enableSkillCommands": true,
+  "pi-browser-use": {
+    "sessionMode": "isolated",
+    "headless": true,
+    "executablePath": "/usr/bin/google-chrome",
+    "toolProfile": "core",
+    "experimentalVision": false,
+    "usageStatistics": false,
+    "performanceCrux": false,
+    "redactNetworkHeaders": true
+  }
 }

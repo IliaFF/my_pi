@@ -40,7 +40,9 @@ allowed = {
  "extensions/loop-profiler.ts", "extensions/decision-observer.ts", "extensions/reader-pane.ts", "extensions/todo-queue", "extensions/project-loop.ts", "extensions/context-compaction.ts", "extensions/context-compaction.ts.disabled", "extensions/auto-ultra-compact", "extensions/output-compactor", "extensions/fabric-output",
  "extensions/pi-fast-resume.json", "extensions/quotas.json", "extensions/context-compaction.json", "extensions/output-compactor.json", "extensions/fabric-output.json", "skills/openalex", "npm", "maintenance",
 }
-if set(s.get("agentManaged", [])) != allowed:
+legacy = allowed.copy()
+allowed.update({"mcp.json", "train-agents/config.json", "extensions/jev-review", "extensions/herdr-agent-state.ts"})
+if set(s.get("agentManaged", [])) not in (legacy, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 PY
 mapfile -t managed < <(python3 -c 'import json,sys; sys.stdout.write("\n".join(json.load(open(sys.argv[1]))["agentManaged"]))' "$state")

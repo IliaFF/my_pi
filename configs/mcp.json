@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "chrome": {
+      "command": "node",
+      "args": [
+        "~/.pi/agent/npm/node_modules/chrome-devtools-mcp/build/src/bin/chrome-devtools-mcp.js",
+        "--headless",
+        "--executable-path=/usr/bin/google-chrome",
+        "--isolated",
+        "--category-performance=false",
+        "--experimental-page-id-routing",
+        "--no-usage-statistics",
+        "--no-performance-crux",
+        "--redact-network-headers"
+      ],
+      "exposure": "codemode",
+      "description": "Isolated headless Chrome in WSL. Discover browser tools with searchTools or describeNamespace('chrome'); call list_pages first and pass pageId explicitly. Screenshots return image blocks."
+    }
+  }
+}

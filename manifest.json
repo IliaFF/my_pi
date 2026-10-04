@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "0.99.2",
+  "piCoreVersion": "1.0.0",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -22,14 +22,47 @@
         "reconcile.ts"
       ],
       "reason": "Reconcile UI availability at session_start so first-turn system instructions match later turns and preserve prefix cache."
+    },
+    {
+      "package": "pi-train-agents",
+      "version": "0.2.7",
+      "pinRequired": true,
+      "settingsSpec": "npm:pi-train-agents@0.2.7",
+      "patch": "patches/pi-train-agents+0.2.7.patch",
+      "files": ["dist/train-agents.ts"],
+      "reason": "Separate global APPEND_SYSTEM.md target from all-project session discovery; bind every quote to its session; keep manual review with freshness, subset validation, atomic writes and backups."
     }
   ],
   "managedConfigs": [
+    {
+      "source": "extensions/jev-review/index.ts",
+      "snapshot": "local-extensions/jev-review/index.ts",
+      "restore": true,
+      "reason": "Bounded Jev final-answer review, one correction at most, redacted diagnostics; OpenRouter credentials remain local."
+    },
+    {
+      "source": "extensions/herdr-agent-state.ts",
+      "snapshot": "local-extensions/herdr-agent-state.ts",
+      "restore": true,
+      "reason": "Optional Herdr TUI status integration; inactive without explicit Herdr environment."
+    },
+    {
+      "source": "train-agents/config.json",
+      "snapshot": "configs/train-agents/config.json",
+      "restore": false,
+      "reason": "Audit the user-approved all-project history scope and global rules target; updates must not silently overwrite later choices."
+    },
     {
       "source": "settings.json",
       "snapshot": "configs/settings.json",
       "restore": false,
       "reason": "Audit snapshot; installer applies it, maintenance updates never overwrite it silently."
+    },
+    {
+      "source": "mcp.json",
+      "snapshot": "configs/mcp.json",
+      "restore": false,
+      "reason": "Audit native Chrome MCP codemode exposure and safety flags; never overwrite other user MCP servers during maintenance."
     },
     {
       "source": "APPEND_SYSTEM.md",

@@ -41,7 +41,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "0.99.2":
+    if manifest.get("piCoreVersion") != "1.0.0":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
@@ -69,7 +69,7 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.34", "@earendil-works/pi-coding-agent": "0.99.2", "@earendil-works/pi-tui": "0.99.2"}
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.34", "@earendil-works/pi-coding-agent": "1.0.0", "@earendil-works/pi-tui": "1.0.0"}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
@@ -140,11 +140,11 @@ def main() -> int:
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
             fail("pi-canary must not be configured")
-        for package in package_json["dependencies"]:
+        for package, version in package_json["dependencies"].items():
             if package in {"typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
                 continue
-            if f"npm:{package}" not in active_sources:
-                fail(f"unpinned settings source missing: npm:{package}")
+            if not {f"npm:{package}", f"npm:{package}@{version}"} & active_sources:
+                fail(f"settings source missing or mismatched: npm:{package}@{version}")
         if any("tools.ts" in entry for entry in settings.get("extensions", [])):
             fail("retired tools extension must not be configured")
     readme = (ROOT / "README.md").read_text()
@@ -162,6 +162,17 @@ def main() -> int:
     ]:
         if required not in readme:
             fail(f"README extension status documentation missing: {required}")
+    if settings.get("codemode", {}).get("mode") != "on":
+        fail("native codemode must be enabled")
+    if "npm:pi-ssh-remote@0.1.14" not in active_sources:
+        fail("SSH package must be exactly pinned")
+    chrome = json.loads((ROOT / "configs/mcp.json").read_text())["mcpServers"]["chrome"]
+    if chrome.get("exposure") != "codemode":
+        fail("Chrome tools must be exposed through codemode")
+    merge_test = subprocess.run([sys.executable, str(ROOT / "scripts/test-portable-configs.py")], capture_output=True, text=True)
+    if merge_test.returncode:
+        fail(f"portable config merge failed: {merge_test.stdout}{merge_test.stderr}")
+    print(merge_test.stdout.strip())
     print("PASS README extension inventory and disabled-component rationale")
 
     install_source = (ROOT / "install.sh").read_text()
@@ -298,7 +309,7 @@ def main() -> int:
     print(reader_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS single direct-only configuration, observability selection, and searchable context policy")
+    print("PASS direct coding tools + native codemode configuration, observability selection, and searchable context policy")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 

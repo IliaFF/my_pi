@@ -4,10 +4,10 @@
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@0.99.2`
+- Pi core `@earendil-works/pi-coding-agent@1.0.0`
 - Node.js `>=24.0.0`
-- 20 прямых npm dependencies с точными версиями: 17 settings entries и exact runtime peers; полный `package-lock.json`
-- direct-only default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
+- 23 прямых npm dependencies с точными версиями: 20 settings entries и exact runtime peers; полный `package-lock.json`
+- direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
 - детерминированное сжатие `context-fold@0.6.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
 - bounded recovery packet `auto-ultra-compact` как emergency fallback
@@ -17,31 +17,63 @@
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
 - глобальный OpenAlex skill с dependency-free Node helper для поиска научных публикаций и OA-ссылок
 
-Репозиторий содержит два version-gated patch: `pi-caveman@1.0.8` защищает UI после reload, `@juicesharp/rpiv-ask-user-question@2.12.0` убирает недоступную анкету до первого хода. Выключенные Canary и локальный `/tools` удалены из сборки. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
+Репозиторий содержит три version-gated patch; `pi-train-agents@0.2.7` закреплён и расширен для глобального `APPEND_SYSTEM.md` с историей всех проектов. Два прежних patch: `pi-caveman@1.0.8` защищает UI после reload, `@juicesharp/rpiv-ask-user-question@2.12.0` убирает недоступную анкету до первого хода. Выключенные Canary и локальный `/tools` удалены из сборки. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает корректную обработку optional Codex quota windows.
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 20 прямых dependencies. В `configs/settings.json` перечислены 17 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.34`/`0.99.2`/`0.99.2` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 23 прямые dependency. В `configs/settings.json` перечислены 20 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.34`/`1.0.0`/`1.0.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.11.0` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.10.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `@monotykamary/pi-retry` | `0.10.4` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
 | `context-fold` | `0.6.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
 | `pi-web-access` | `0.35.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
 | `@llblab/pi-telegram` | `0.51.6` | загружен, tools lazy | Telegram runtime adapter: сообщения и вложения; используется только по явному запросу. |
 | `pi-caveman` | `1.0.8` | загружен, patched | Сокращает verbosity/output tokens без удаления технической сути; patch сохраняет текущую prompt/UI интеграцию. |
-| `@dietrichgebert/ponytail` | `4.10.0` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
+| `@dietrichgebert/ponytail` | `4.10.1` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
 | `@juicesharp/rpiv-ask-user-question` | `2.12.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `@tunnckocore/pi-gpt-fast-mode` | `0.4.0` | загружен, default off | `/fast` добавляет `service_tier: "priority"` только поддерживаемым GPT-5.4/5.5/5.6; через ChatGPT subscription ускоряет ответы ценой повышенного расхода credits. |
 | `pi-token-speed` | `0.10.2` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
-| `pi-fast-resume` | `1.4.14` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
+| `pi-fast-resume` | `1.4.15` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `pi-diff-review` | `0.1.27` | загружен | Локальный TUI для просмотра и review Git diff. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
-| `pine-of-glass` | `0.15.0` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
+| `pine-of-glass` | `0.15.2` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
 | `pi-my-setup` | `0.4.12` | установлен как package/CLI helper | Сохраняет и восстанавливает наборы Pi packages и skills; model-facing tool не регистрирует. |
 | `pi-markdown-preview` | `0.19.2` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
+| `@amaster.ai/pi-browser-use` | `0.1.22` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
+
+| `pi-ssh-remote` | `0.1.14` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
+
+### SSH
+
+```text
+/remote ssh user@server -p 22
+/remote cd /srv/project
+/remote disconnect
+```
+
+Без `-i` расширение пробует SSH-agent и ключи, затем запрашивает пароль. Пароли и passphrases хранятся только в памяти процесса; `/remote forget` очищает их. На сервере нужны Bash, SFTP и GNU `timeout`. Сохранённые endpoints, host keys, server memory и credentials в сборку не включены. Установка и регистрация tools проверены; реальное SSH-подключение не проверялось.
+
+### Chrome в WSL
+
+`@amaster.ai/pi-browser-use@0.1.22` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
+
+Сохранены headless, isolated profile на сессию, executable `/usr/bin/google-chrome`, pageId routing, выключенные usageStatistics/CrUX/experimentalVision и включённый network headers redact. Старый блок `pi-browser-use` в settings не управляет native сервером: менять браузерные flags нужно в `mcp.json`. Chrome должен быть установлен отдельно. MCP подключается на session_start, Chrome запускается при первом браузерном действии; это не on-demand запуск самого MCP process.
+
+На рабочем Pi1.0.0 подтверждены real Chrome150/MCP1.10.1 и 9 nested browser calls через настоящий codemode/AgentSession: snapshot, fill, click, DOM, image и закрытие страницы. В каждой scripted model request: 0 браузерных schemas; прежний wrapper объявлял 16 schemas/15 263 JSON characters. Description codemode остался 1 059 characters в изолированном сравнении. Это символы, не измеренные provider tokens. Fresh полный RPC: stderr0, native `/mcp` присутствует, `/browser-tools` отсутствует, 0 messages/model runs. LLM planning, произвольные сайты, полный interacting tool loop всех extensions и Windows CDP этим не сертифицируются; произвольные сайты требуют отдельной проверки.
+
+`configs/mcp.json` — переносимый baseline. Installer добавляет отсутствующий entry `chrome`, сохраняя существующие servers и пользовательский entry с тем же именем; путь MCP адаптируется к agent directory. Maintenance не перезаписывает пользовательский `mcp.json`. После изменения — `/reload`; состояние — `pi mcp list` или `/mcp`. Браузерные schemas из уже записанной истории сессии задним числом не исчезают.
+
+### pi-train-agents: глобальные правила
+
+`pi-train-agents@0.2.7` установлен с version-gated patch `patches/pi-train-agents+0.2.7.patch`. Конфиг `train-agents/config.json`: `targetFile: "APPEND_SYSTEM.md"` относительно agent directory, `sessionScope: "all"` через native `SessionManager.listAll()`. История ограничена текущим agent directory, последними 30 днями и 100 новыми/изменёнными сессиями за проход; текущая сессия и копии с тем же session id исключаются. Кэш общ для выбранного глобального файла.
+
+Команды: `/train-agents status`, `/train-agents analyze`, `/train-agents propose`, `/train-agents review`; без аргумента — анализ и предложение. Ничего не анализируется автоматически. Анализ отправляет историю выбранному провайдеру; setup и offline regression этого не делают. Запись — только после ручных подтверждений. Цитаты связаны с конкретным source; принятая часть предложения повторно проверяется, файл обновляется атомарно с backup и freshness guard. Skills не изменяются. После изменения глобальных инструкций `/reload` перечитывает их.
+
+Регрессионная проверка: `node scripts/test-train-agents.mjs` (проверяет live installation в `~/.pi/agent`, либо путь из первого аргумента; только временные сессии, fake model/UI). Maintenance update переиспользует патч; перенос на новую версию требует явной проверки. Кэш между разными Pi processes остаётся last-writer-wins; полноценный межпроцессный lock не добавлен.
 
 ### Локальные extensions
 
@@ -51,6 +83,8 @@
 | `loop-profiler.ts` | активен | Хранит bounded агрегаты последних 500 runs; считает direct context output, `pi-context` receipts и errors; читает legacy v1/v2/v3 records; raw trace только при `PI_PROFILE=1`. |
 | `reader-pane.ts` | активен, opt-in | Безопасная правая панель Windows Terminal/WSL; последний Markdown, bounded tool images и карточки для широких таблиц без потери текста. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
+| `jev-review/index.ts` | активен | Bounded review итогового ответа через OpenRouter `typesafe/jev-1.13`; максимум один дополнительный проход, `/jev-review off` отключает. Передаёт redacted инструкции и excerpts выбранному провайдеру; redaction не DLP, для конфиденциальных проектов отключать. |
+| `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Сам Herdr устанавливается отдельно. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: coding flow выполняется последовательными или параллельными direct tool calls.
 
@@ -78,7 +112,7 @@
 - `auth.json`, API keys, токены или npm credentials
 - sessions, recovery packets, context-store и логи
 - npm cache и установленное `node_modules`
-- runtime-состояние Telegram, Intercom и Pi Studio
+- runtime-состояние Telegram, Intercom, Pi Studio и SSH; `models-store.json`, host-specific `models.json` и cloud account IDs
 - project-specific конфиги
 - абсолютные host-specific пути
 
@@ -102,7 +136,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --install-core
 ```
 
-Если Pi `0.99.2` уже доступен через `PATH`:
+Если Pi `1.0.0` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -114,7 +148,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 2. Проверяет release и exact-version patch replay.
 3. Создаёт rollback backup управляемых agent-файлов.
 4. Выполняет `npm ci --ignore-scripts --legacy-peer-deps` по lock-файлу.
-5. Устанавливает default config, local extensions, OpenAlex skill и UI configs.
+5. Устанавливает default config, local extensions, OpenAlex skill и UI configs; добавляет Chrome MCP без перезаписи существующих servers, а train-agents config — только если его ещё нет.
 6. Применяет совместимые patch и запускает verification.
 7. При ошибке восстанавливает backup.
 
@@ -143,7 +177,7 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 
 ## Observability
 
-Default-конфигурация включает `pi-contextimate`, `pi-cachemire` и `pi-traceline` из `pine-of-glass@0.15.0`.
+Default-конфигурация включает `pi-contextimate`, `pi-cachemire` и `pi-traceline` из `pine-of-glass@0.15.2`.
 
 `loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl`: каталог создаётся с правами `0700`, файл — `0600`. Prompt, messages, tool arguments, tool results, call IDs и секреты туда не записываются; сохраняются только числовые counters/histograms. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
 
@@ -219,11 +253,11 @@ timeout 20 pi --mode rpc --no-session </dev/null
 
 Update script создаёт backup npm tree, обновляет расширения, возвращает managed configs, повторно применяет совместимые patch и проверяет результат. Неизвестная версия patch-пакета вызывает отказ и rollback.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `0.99.2`; обновление core нужно сначала проверить и зафиксировать здесь.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.0.0`; обновление core нужно сначала проверить и зафиксировать здесь.
 
 Все прямые зависимости сверены с npm `latest` при обновлении. `configs/settings.json` больше не закрепляет версии packages: `pi update --extensions` обновляет их, а exact lock сохраняет воспроизводимую установку этого release. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
 
-Известные ограничения release: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`; RPC startup проверяется отдельно. `npm audit` сообщает 1 high для `brace-expansion@5.0.9`, закреплённого upstream `npm-shrinkwrap.json` Pi `0.99.2`; обычный `npm audit fix` его не устраняет.
+Известные ограничения release: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`; RPC startup проверяется отдельно. `npm audit` сообщает 1 high для `brace-expansion@5.0.9`, закреплённого upstream `npm-shrinkwrap.json` Pi `1.0.0`; обычный `npm audit fix` его не устраняет.
 
 ## Откат
 

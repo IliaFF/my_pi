@@ -1,0 +1,15 @@
+{
+  "targetFile": "APPEND_SYSTEM.md",
+  "sessionScope": "all",
+  "language": "en",
+  "budgetTokens": 5000,
+  "minGapEvidence": 2,
+  "maxEditsPerRun": 5,
+  "since": "30d",
+  "gapLedgerMaxAge": "90d",
+  "maxTranscripts": 100,
+  "minUserTurns": 2,
+  "jobs": 4,
+  "analysis": { "model": null, "effort": "medium" },
+  "synthesis": { "model": null, "effort": "high" }
+}
