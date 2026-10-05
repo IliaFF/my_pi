@@ -158,6 +158,9 @@ async function createContinuationHarness(home) {
 }
 
 const oldHome = process.env.HOME;
+const compactEnvNames = ["PI_AUTO_COMPACT_PERCENT", "PI_AUTO_COMPACT_EFFECTIVE_TOKENS", "PI_AUTO_COMPACT_CONTEXT_WINDOW_TOKENS", "PI_AUTO_COMPACT_COOLDOWN_TURNS", "PI_AUTO_COMPACT_FOLLOWUP"];
+const oldCompactEnv = Object.fromEntries(compactEnvNames.map((name) => [name, process.env[name]]));
+for (const name of compactEnvNames) delete process.env[name];
 const testHome = mkdtempSync(join(tmpdir(), "pi-compaction-followup-"));
 process.env.HOME = testHome;
 try {
@@ -204,6 +207,11 @@ try {
 } finally {
   if (oldHome === undefined) delete process.env.HOME;
   else process.env.HOME = oldHome;
+  for (const name of compactEnvNames) {
+    const value = oldCompactEnv[name];
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
   rmSync(testHome, { recursive: true, force: true });
 }
 

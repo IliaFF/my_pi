@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "1.0.0",
+  "piCoreVersion": "1.0.4",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {

@@ -41,7 +41,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "1.0.0":
+    if manifest.get("piCoreVersion") != "1.0.4":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
@@ -69,7 +69,7 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.34", "@earendil-works/pi-coding-agent": "1.0.0", "@earendil-works/pi-tui": "1.0.0"}
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.35", "@earendil-works/pi-coding-agent": "1.0.4", "@earendil-works/pi-tui": "1.0.4"}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
