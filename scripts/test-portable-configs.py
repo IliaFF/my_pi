@@ -28,3 +28,5 @@ with tempfile.TemporaryDirectory(prefix="pi-config-merge-") as temp:
     assert json.loads((agent / "mcp.json").read_text()) == custom
     assert json.loads(train.read_text()) == {"targetFile": "custom.md"}
 print("PASS installer: custom agent path; existing MCP servers/Chrome and training config preserved")
+
+subprocess.run([sys.executable, str(root / "scripts/test-install-preservation.py")], check=True)

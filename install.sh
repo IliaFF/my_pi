@@ -8,12 +8,14 @@ BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
 CONTEXT_SETTINGS="$AGENT_DIR/my-pi-settings.json"
 INSTALL_CORE=0
 DRY_RUN=0
+PRESERVE_SETTINGS=0
 
 usage() {
   cat <<'EOF'
-Usage: ./install.sh [--install-core] [--dry-run]
+Usage: ./install.sh [--install-core] [--dry-run] [--preserve-settings]
 
 --install-core  Install exact global Pi core when missing or mismatched.
+--preserve-settings  Keep personal settings/instructions/policy; align managed npm pins.
 --dry-run       Validate release and print planned changes without modifying host.
 
 Environment:
@@ -26,6 +28,7 @@ while (($#)); do
   case "$1" in
     --install-core) INSTALL_CORE=1 ;;
     --dry-run) DRY_RUN=1 ;;
+    --preserve-settings) PRESERVE_SETTINGS=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -45,7 +48,8 @@ if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/nu
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
-  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.6.0 and @spences10/pi-context@0.1.16"
+  echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.7.0 and @spences10/pi-context@0.1.16"
+  echo "DRY-RUN preserve personal configuration: $PRESERVE_SETTINGS"
   echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + seven local extensions + OpenAlex skill"
   echo "DRY-RUN patches: manifest exact-version patches"
   exit 0
@@ -112,7 +116,38 @@ mkdir -m 700 "$probe_dir"
 node "$ROOT/scripts/test-pi-context-runtime.mjs" "$AGENT_DIR/npm/node_modules/@spences10/pi-context" "$probe_dir"
 rm -rf "$probe_dir"
 
-cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"
+# Personal configuration start
+if ((PRESERVE_SETTINGS)) && [[ -f "$AGENT_DIR/settings.json" ]]; then
+  python3 - "$AGENT_DIR/settings.json" "$ROOT/npm/package.json" <<'PYCONFIG'
+import json, sys
+from pathlib import Path
+path, lock = map(Path, sys.argv[1:])
+data = json.loads(path.read_text())
+deps = json.loads(lock.read_text())["dependencies"]
+if not isinstance(data, dict) or not isinstance(data.get("packages", []), list):
+    raise SystemExit("FAIL invalid personal settings")
+changed = False
+for index, item in enumerate(data.get("packages", [])):
+    source = item if isinstance(item, str) else item.get("source", "") if isinstance(item, dict) else ""
+    if not isinstance(source, str) or not source.startswith("npm:"):
+        continue
+    name, separator, version = source[4:].rpartition("@")
+    if not separator or name not in deps:
+        continue
+    updated = f"npm:{name}@{deps[name]}"
+    if updated == source:
+        continue
+    changed = True
+    if isinstance(item, str):
+        data["packages"][index] = updated
+    else:
+        item["source"] = updated
+if changed:
+    path.write_text(json.dumps(data, indent=2) + "\n")
+PYCONFIG
+else
+  cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"
+fi
 python3 - "$AGENT_DIR" "$ROOT/configs" <<'PY'
 import json, os, sys
 from pathlib import Path
@@ -130,6 +165,7 @@ train.parent.mkdir(parents=True, exist_ok=True)
 if not train.exists():
     train.write_bytes((configs / "train-agents/config.json").read_bytes())
 PY
+if ((!PRESERVE_SETTINGS)) || [[ ! -f "$CONTEXT_SETTINGS" ]]; then
 python3 - "$CONTEXT_SETTINGS" "$ROOT/configs/pi-context.json" <<'PY'
 import json, os, sys
 from pathlib import Path
@@ -145,7 +181,11 @@ tmp.write_text(json.dumps(settings, indent="\t") + "\n")
 os.chmod(tmp, 0o600)
 tmp.replace(path)
 PY
-cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
+fi
+if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/APPEND_SYSTEM.md" ]]; then
+  cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
+fi
+# Personal configuration end
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
 rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts.disabled"

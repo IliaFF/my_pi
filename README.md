@@ -65,7 +65,7 @@ npm run verify:host                  # только patches/snapshots integrity
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 23 прямые dependency. В `configs/settings.json` перечислены 20 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.34`/`1.2.0`/`1.2.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 23 прямые dependency. В `configs/settings.json` перечислены 20 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.37`/`1.2.0`/`1.2.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
@@ -87,9 +87,9 @@ npm run verify:host                  # только patches/snapshots integrity
 | `pi-my-setup` | `0.4.12` | установлен как package/CLI helper | Сохраняет и восстанавливает наборы Pi packages и skills; model-facing tool не регистрирует. |
 | `pi-markdown-preview` | `0.22.2` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
-| `@amaster.ai/pi-browser-use` | `0.1.22` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
+| `@amaster.ai/pi-browser-use` | `0.1.26` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
 
-| `pi-ssh-remote` | `0.1.14` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
+| `pi-ssh-remote` | `0.1.15` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
 
 ### SSH
 
@@ -103,7 +103,7 @@ npm run verify:host                  # только patches/snapshots integrity
 
 ### Chrome в WSL
 
-`@amaster.ai/pi-browser-use@0.1.22` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
+`@amaster.ai/pi-browser-use@0.1.26` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
 
 Сохранены headless, isolated profile на сессию, executable `/usr/bin/google-chrome`, pageId routing, выключенные usageStatistics/CrUX/experimentalVision и включённый network headers redact. Старый блок `pi-browser-use` в settings не управляет native сервером: менять браузерные flags нужно в `mcp.json`. Chrome должен быть установлен отдельно. MCP подключается на session_start, Chrome запускается при первом браузерном действии; это не on-demand запуск самого MCP process.
 
@@ -186,6 +186,14 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ```bash
 ./install.sh
 ```
+
+Для обновления существующего личного runtime без сброса модели, провайдера и инструкций:
+
+```bash
+./install.sh --preserve-settings --install-core
+```
+
+Сохраняются settings/APPEND/context policy; только известные explicit npm pins выравниваются по source lock. Управляемые расширения заменяются под backup. После установки нужен restart; текущая сессия не перезагружается автоматически.
 
 Установщик:
 
