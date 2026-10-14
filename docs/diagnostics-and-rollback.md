@@ -2,9 +2,9 @@
 
 ## Источник и runtime — разные вещи
 
-`pi-build/` — Git-источник: код, portable configs, exact locks, patches, OpenSpec, тесты. `~/.pi/agent/` — личный установленный runtime. `~/.pi/agent/maintenance` пока остаётся прежней копией: эта миграция **не устанавливает** новый baseline автоматически.
+`pi-build/` — Git-источник: код, portable configs, exact locks, patches, OpenSpec, тесты. `~/.pi/agent/` — личный установленный runtime. `~/.pi/agent/maintenance` — установленная копия исходников. Source не устанавливается автоматически; в change align-latest-stable-runtime пользователь отдельно разрешил установку latest stable с backup и сохранением личных настроек.
 
-Baseline закрепляет фактически используемое ядро Pi **1.2.0** и pi-tui **1.2.0**. Версии остальных direct dependencies сверены с установленным runtime. Установленные SDK peers 1.0.0 заменены в source на согласованные 1.2.0; это не меняет production. Stock RPIV 2.13.8 провалил проверку first-turn UI availability; однострочный patch перенесён на 2.13.8 и проверяется fresh replay. У старого maintenance было ядро 1.0.0; его инструкции/API-проверки частично отстали от рабочего окружения.
+Baseline закрепляет фактически используемое ядро Pi **1.2.0** и pi-tui **1.2.0**. Версии остальных direct dependencies сверены с установленным runtime. SDK peers были1.0.0; после согласованной latest-stable установки они выровнены с core1.2.0 и в source, и на диске runtime. Stock RPIV 2.13.8 провалил проверку first-turn UI availability; однострочный patch перенесён на 2.13.8 и проверяется fresh replay. У старого maintenance было ядро 1.0.0; его инструкции/API-проверки частично отстали от рабочего окружения.
 
 ## При поломке
 
@@ -34,7 +34,9 @@ npm test -- --agent "$HOME/.pi/agent"
 
 ## Известные границы
 
-- Production drift RPIV patch и loop-profiler обнаружен ранее; новой миграцией он не скрывается и не устраняется. Runtime с drift должен отклоняться update preflight.
+- Ранее обнаруженный drift RPIV patch и loop-profiler устранён согласованной latest-stable установкой. Host gate PASS; verify failures=0, warnings=3 относятся к сохранённым личным settings/mcp/APPEND (audit-only). Текущий процесс требует restart; не считать обновление файлов hot reload.
+- Для существующего runtime используйте install.sh --preserve-settings --install-core; bare install применяет default settings.
+- OpenSpec1.14.1 tooling audit сохраняет4 high в transitive glob dependencies; runtime audit0. Не применять audit fix --force: предложен несовместимый downgrade OpenSpec.
 - Mandatory gate проверяет real SDK + faux provider, real CLI startup, local patched packages, temporary filesystem. MCP transports отключены; API keys не передаются.
 - Smoke guard блокирует Node fetch/http/net, но не является OS sandbox для native code/подпроцессов.
 - Registry archive replay остаётся в отдельном `python3 scripts/test-release.py`; `npm test` проверяет fresh lock installation + application/reverse verification установленных патчей без повторного скачивания архивов.

@@ -8,6 +8,7 @@ Runtime SDK peers отстали от core 1.2.0, RPIV patch и loop-profiler о
 
 ## Capabilities
 ### Modified Capabilities
+- build-validation: installed archive must not require source Git metadata for isolated unit tests.
 - build-governance: preserving personal configuration during explicitly approved installation.
 
 ## Impact

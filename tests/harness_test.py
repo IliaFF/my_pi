@@ -45,12 +45,15 @@ class HarnessTests(unittest.TestCase):
     def test_git_excludes_runtime_but_keeps_source(self):
         paths = ["node_modules", "npm/node_modules", "context-fold/fixture/seed-index.jsonl", "test-results/results.json",
                  "auth.json", "sessions/private.jsonl", ".npmrc", ".env", ".pi/settings.json"]
-        result = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "--no-index", "--stdin"],
-            input="\n".join(paths) + "\n", capture_output=True, text=True, timeout=5)
-        self.assertEqual(set(result.stdout.splitlines()), set(paths), result.stdout + result.stderr)
-        public = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "--no-index", "manifest.json", "npm/package-lock.json",
-            "openspec/config.yaml", ".github/workflows/test.yml"], capture_output=True, text=True, timeout=5)
-        self.assertEqual(public.returncode, 1, public.stdout + public.stderr)
+        with tempfile.TemporaryDirectory(prefix="pi-ignore-") as temp:
+            (Path(temp) / ".gitignore").write_bytes((ROOT / ".gitignore").read_bytes())
+            subprocess.run(["git", "init", "-q", temp], check=True, timeout=5)
+            result = subprocess.run(["git", "-C", temp, "check-ignore", "--no-index", "--stdin"],
+                input="\n".join(paths) + "\n", capture_output=True, text=True, timeout=5)
+            self.assertEqual(set(result.stdout.splitlines()), set(paths), result.stdout + result.stderr)
+            public = subprocess.run(["git", "-C", temp, "check-ignore", "--no-index", "manifest.json", "npm/package-lock.json",
+                "openspec/config.yaml", ".github/workflows/test.yml"], capture_output=True, text=True, timeout=5)
+            self.assertEqual(public.returncode, 1, public.stdout + public.stderr)
 
     def test_invalid_openspec_is_rejected(self):
         with tempfile.TemporaryDirectory(prefix="pi-invalid-spec-") as temp:

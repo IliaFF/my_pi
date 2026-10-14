@@ -15,7 +15,7 @@ npm test
 
 `npm test`: строгая OpenSpec validation; portable release/unit (queue, reader, compaction, profiler); self-tests runner и backup/restore; реальные Pi SDK integration; применение/проверка patches; настоящий RPC startup configured stack. Личные credentials и sessions не используются. `test-results/results.json` и отдельные логи содержат стадии, exit codes, версии и Git revision. В Git не включаются. Все subprocess ограничены deadline.
 
-`.github/workflows/test.yml` вызывает тот же gate на push/pull_request и сохраняет artifacts даже при ошибке. Hosted CI подтверждён: [GitHub Actions run 38652731907](https://github.com/IliaFF/my_pi/actions/runs/38652731907), main SHA 1b9b4b3, conclusion success, test-results artifact сохранён. Публикация в main выполнена по явному указанию пользователя; production установка не выполнялась.
+`.github/workflows/test.yml` вызывает тот же gate на push/pull_request и сохраняет artifacts даже при ошибке. Hosted CI подтверждён: [GitHub Actions run 38652731907](https://github.com/IliaFF/my_pi/actions/runs/38652731907), main SHA 1b9b4b3, conclusion success, test-results artifact сохранён. Публикация в main выполнена по явному указанию пользователя. В последующем change align-latest-stable-runtime отдельно согласована и выполнена установка latest stable: source/host gate PASS, личные настройки сохранены, текущему процессу нужен restart.
 
 ## Как менять сборку
 
