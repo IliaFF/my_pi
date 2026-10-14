@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -41,7 +42,7 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "1.0.4":
+    if manifest.get("piCoreVersion") != "1.2.0":
         fail("unexpected Pi core version")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
@@ -69,7 +70,7 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.6.0", "typebox": "1.3.35", "@earendil-works/pi-coding-agent": "1.0.4", "@earendil-works/pi-tui": "1.0.4"}
+    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.7.0", "typebox": "1.3.34", "@earendil-works/pi-coding-agent": manifest["piCoreVersion"], "@earendil-works/pi-tui": manifest["piCoreVersion"]}
     if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
         fail("pi-context or its runtime peers are not exactly pinned")
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
@@ -79,9 +80,9 @@ def main() -> int:
     if any(path.exists() for path in retired_surface) or "pi-canary" in package_json["dependencies"] or any("node_modules/pi-canary" in path for path in package_lock["packages"]):
         fail("retired tools/Canary artifacts remain in release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
-    for required in ["Use direct tools by default", "Run 2–4 statically known independent operations as parallel direct tool calls", "Large direct tool results are indexed automatically by `pi-context`"]:
+    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status"]:
         if required not in append_system:
-            fail(f"direct tool policy missing: {required}")
+            fail(f"tool routing / task policy missing: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:
         fail("Fabric remains in system policy")
     if (ROOT / "local-extensions/lean-tools.ts").exists():
@@ -205,10 +206,10 @@ def main() -> int:
         fail("uninstaller rollback allowance omits managed extension config")
     print("PASS installer and rollback include merged pi-context package settings, private DB bootstrap, and stale compactor/Fabric cleanup")
 
-    forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|logs?|mcp-cache(?:\.json)?)($|/)")
+    forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|context-fold|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
     for path in ROOT.rglob("*"):
-        if ".git" in path.parts or "node_modules" in path.parts or not path.is_file():
+        if ".git" in path.parts or "node_modules" in path.parts or "test-results" in path.parts or not path.is_file():
             continue
         if forbidden_path.search(path.relative_to(ROOT).as_posix()):
             fail(f"forbidden path in release: {path.relative_to(ROOT)}")
@@ -219,53 +220,56 @@ def main() -> int:
         if secret_content.search(text):
             fail(f"possible secret in: {path.relative_to(ROOT)}")
 
-    with tempfile.TemporaryDirectory(prefix="my-pi-test-") as temp:
-        temp_path = Path(temp)
-        context_destination = temp_path / "pi-context"
-        context_destination.mkdir()
-        extract_package(tarball("@spences10/pi-context", "0.1.16"), context_destination)
-        context_root = context_destination / "package"
-        published = json.loads((context_root / "package.json").read_text())
-        if published.get("version") != "0.1.16" or published.get("peerDependencies", {}).get("typebox") != "*":
-            fail("published pi-context package/peer contract changed")
-        for relative, marker in {
-            "dist/text.js": "[context-sidecar] Large",
-            "dist/config.js": "max_mb: 250",
-            "dist/export-files.js": "mode: 0o600",
-            "dist/lifecycle.js": "should_index_text",
-        }.items():
-            if marker not in (context_root / relative).read_text():
-                fail(f"published pi-context contract missing {relative}: {marker}")
-        expected_tools = {"search.js", "get.js", "export.js", "list.js", "stats.js", "purge.js"}
-        if not expected_tools.issubset({path.name for path in (context_root / "dist/tools").glob("*.js")}):
-            fail("published pi-context retrieval tool set changed")
-        print("PASS published @spences10/pi-context@0.1.16 capture/retrieval/policy surface")
+    if os.environ.get("PI_TEST_OFFLINE") != "1":
+        with tempfile.TemporaryDirectory(prefix="my-pi-test-") as temp:
+            temp_path = Path(temp)
+            context_destination = temp_path / "pi-context"
+            context_destination.mkdir()
+            extract_package(tarball("@spences10/pi-context", "0.1.16"), context_destination)
+            context_root = context_destination / "package"
+            published = json.loads((context_root / "package.json").read_text())
+            if published.get("version") != "0.1.16" or published.get("peerDependencies", {}).get("typebox") != "*":
+                fail("published pi-context package/peer contract changed")
+            for relative, marker in {
+                "dist/text.js": "[context-sidecar] Large",
+                "dist/config.js": "max_mb: 250",
+                "dist/export-files.js": "mode: 0o600",
+                "dist/lifecycle.js": "should_index_text",
+            }.items():
+                if marker not in (context_root / relative).read_text():
+                    fail(f"published pi-context contract missing {relative}: {marker}")
+            expected_tools = {"search.js", "get.js", "export.js", "list.js", "stats.js", "purge.js"}
+            if not expected_tools.issubset({path.name for path in (context_root / "dist/tools").glob("*.js")}):
+                fail("published pi-context retrieval tool set changed")
+            print("PASS published @spences10/pi-context@0.1.16 capture/retrieval/policy surface")
 
-        for item in manifest["patchedPackages"]:
-            destination = temp_path / re.sub(r"[^A-Za-z0-9_.-]", "_", item["package"])
-            destination.mkdir()
-            extract_package(tarball(item["package"], item["version"]), destination)
-            root = destination / "package"
-            patch = ROOT / item["patch"]
-            result = subprocess.run(
-                ["patch", "--batch", "--silent", "-p1", "-d", str(root)],
-                stdin=patch.open(),
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-            if result.returncode:
-                fail(f"patch replay failed for {item['package']}: {result.stdout.strip()}")
-            reverse = subprocess.run(
-                ["patch", "--batch", "--silent", "--dry-run", "--reverse", "-p1", "-d", str(root)],
-                stdin=patch.open(),
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-            )
-            if reverse.returncode:
-                fail(f"reverse patch check failed for {item['package']}: {reverse.stdout.strip()}")
-            print(f"PASS patch {item['package']}@{item['version']}")
+            for item in manifest["patchedPackages"]:
+                destination = temp_path / re.sub(r"[^A-Za-z0-9_.-]", "_", item["package"])
+                destination.mkdir()
+                extract_package(tarball(item["package"], item["version"]), destination)
+                root = destination / "package"
+                patch = ROOT / item["patch"]
+                result = subprocess.run(
+                    ["patch", "--batch", "--silent", "-p1", "-d", str(root)],
+                    stdin=patch.open(),
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+                if result.returncode:
+                    fail(f"patch replay failed for {item['package']}: {result.stdout.strip()}")
+                reverse = subprocess.run(
+                    ["patch", "--batch", "--silent", "--dry-run", "--reverse", "-p1", "-d", str(root)],
+                    stdin=patch.open(),
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+                if reverse.returncode:
+                    fail(f"reverse patch check failed for {item['package']}: {reverse.stdout.strip()}")
+                print(f"PASS patch {item['package']}@{item['version']}")
+    else:
+        print("SKIP registry archive replay in offline gate; fresh npm lock + patch integration cover installation")
 
     compaction_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-auto-ultra-compact.mjs"), str(ROOT)],
@@ -309,7 +313,7 @@ def main() -> int:
     print(reader_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
-    print("PASS direct coding tools + native codemode configuration, observability selection, and searchable context policy")
+    print("PASS native codemode configuration, tool routing, observability selection, and searchable context policy")
     print("PASS release contains no known credential, session, cache, recovery, context-store, or log paths")
     return 0
 

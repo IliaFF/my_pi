@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "1.0.4",
+  "piCoreVersion": "1.2.0",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -15,13 +15,13 @@
     },
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.12.0",
+      "version": "2.13.8",
       "pinRequired": false,
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.12.0.patch",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.13.8.patch",
       "files": [
         "reconcile.ts"
       ],
-      "reason": "Reconcile UI availability at session_start so first-turn system instructions match later turns and preserve prefix cache."
+      "reason": "Reconcile UI availability at session_start; stock 2.13.8 fails first-turn tool availability regression."
     },
     {
       "package": "pi-train-agents",
@@ -29,17 +29,13 @@
       "pinRequired": true,
       "settingsSpec": "npm:pi-train-agents@0.2.7",
       "patch": "patches/pi-train-agents+0.2.7.patch",
-      "files": ["dist/train-agents.ts"],
+      "files": [
+        "dist/train-agents.ts"
+      ],
       "reason": "Separate global APPEND_SYSTEM.md target from all-project session discovery; bind every quote to its session; keep manual review with freshness, subset validation, atomic writes and backups."
     }
   ],
   "managedConfigs": [
-    {
-      "source": "extensions/jev-review/index.ts",
-      "snapshot": "local-extensions/jev-review/index.ts",
-      "restore": true,
-      "reason": "Bounded Jev final-answer review, one correction at most, redacted diagnostics; OpenRouter credentials remain local."
-    },
     {
       "source": "extensions/herdr-agent-state.ts",
       "snapshot": "local-extensions/herdr-agent-state.ts",

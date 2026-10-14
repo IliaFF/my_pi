@@ -14,3 +14,20 @@ logs/
 node_modules/
 .env
 .env.*
+test-results/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite*
+models-store.json
+credentials.json
+mcp-auth.json
+.npmrc
+.pi/settings.json
+.pi/mcp*.json
+.pi/models*.json
+.pi/agent/
+
+# Directory-only ignores do not match dependency symlinks.
+node_modules
+/context-fold/

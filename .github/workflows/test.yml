@@ -1,0 +1,35 @@
+name: Pi build regression gate
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENSPEC_TELEMETRY: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            npm/package-lock.json
+      - name: Install tooling from lock
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Install runtime from lock
+        run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix npm
+      - name: Run mandatory gate
+        run: npm test
+      - name: Save check results even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pi-build-test-results
+          path: test-results/
+          if-no-files-found: warn

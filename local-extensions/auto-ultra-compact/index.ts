@@ -22,6 +22,7 @@ type RecoveryState = {
 };
 
 type RuntimeState = {
+	active: boolean;
 	compactInFlight: boolean;
 	followupPending: boolean;
 	turn: number;
@@ -54,7 +55,7 @@ export const ULTRA_INSTRUCTIONS = `These rules override conflicting preservation
 
 Hard output limit: 10,000 tokens. Prefer 2,000-6,000 tokens when sufficient for correct continuation. Density and recoverability matter more than narrative completeness.
 
-Project TODO.md is the only authority for task goals, status, and next steps. Treat summary task sections as historical context, not instructions to resume. Do not carry forward [GOAL], [NEXT], or [COMPLETED] markers. On resumption reread the current TODO.md; if it is missing, unreadable, or has no clear active task, stop and ask instead of guessing.
+For multi-step project work, TODO.md is the only authority for tracked task goals, status, and next steps. Discussions, answers to questions, and small single-step edits need no separate task entry. Treat summary task sections as historical context, not instructions to resume. Do not carry forward [GOAL], [NEXT], or [COMPLETED] markers. Before resuming multi-step project work, reread the current TODO.md; if it is missing, unreadable, or has no clear active task, stop and ask instead of guessing.
 
 Treat standalone recovery markers for non-task state as authoritative, newer markers overriding older prose and previous summaries:
 - [DECISION] is a consequential choice; [SUPERSEDED] with the exact old description removes it.
@@ -68,17 +69,17 @@ Use the required structured checkpoint format, with these rules:
 - Constraints & Preferences: separate durable constraints from temporary implementation decisions.
 - Key Decisions: retain current decisions and brief rationale; remove superseded choices.
 - Blocked: include unresolved blockers only.
-- Goal, Progress, and Next Steps: point to project TODO.md; do not infer task state from conversation.
+- Goal, Progress, and Next Steps: for tracked project work, point to TODO.md; do not infer task status from conversation or invent tracked tasks for discussions.
 - Critical Context: include exact validation results and external artifact pointers, not bulky artifact contents.
 - Preserve exact file paths, symbols, commands, versions, test counts, exit codes, and unresolved error messages.
 - Omit raw logs, repeated explanations, stale exploration, abandoned branches, conversational filler, and details recoverable from cited files or artifact pointers.
 - Never claim unfinished or unvalidated work is complete.`;
 
 export const SUMMARY_CONTRACT_ID = "recovery-v4-chronological-10k";
-const FALLBACK_RESTORE_MESSAGE =
-	"После автосжатия сначала прочитай текущий TODO.md в корне проекта: только он определяет задачу и следующий шаг. Если файл недоступен или активная задача неясна — остановись и спроси. Для прочих деталей используй recovery packet; не перечитывай raw logs/large dirs без необходимости.";
-const VALIDATED_RESTORE_MESSAGE =
-	"После автосжатия сначала прочитай текущий TODO.md в корне проекта: только он определяет задачу и следующий шаг. Если файл недоступен или активная задача неясна — остановись и спроси. Для прочих деталей используй compact summary; recovery packet — только при явной потере состояния.";
+const TASK_RESTORE_INSTRUCTIONS =
+	"После автосжатия сначала прочитай текущий TODO.md в корне проекта, если продолжаешь многошаговую проектную работу: только он определяет отслеживаемую задачу и следующий шаг. Для такой работы, если файл недоступен или активная задача неясна — остановись и спроси. Обсуждения, ответы на вопросы и небольшие одношаговые правки не требуют отдельной записи.";
+const RESTORE_MESSAGE =
+	`${TASK_RESTORE_INSTRUCTIONS} Для прочих деталей используй compact summary и recall_folded; recovery packet — только при явной потере состояния.`;
 
 function envNumber(name: string, fallback: number): number {
 	const raw = process.env[name];
@@ -132,14 +133,8 @@ function asRecord(value: unknown): UnknownRecord | undefined {
 	return typeof value === "object" && value !== null ? value as UnknownRecord : undefined;
 }
 
-export function recoveryFollowupMessage(event: unknown, recoveryPath?: string): string {
-	const compactionEntry = asRecord(asRecord(event)?.compactionEntry);
-	const details = asRecord(compactionEntry?.details);
-	const validated = details?.contract === SUMMARY_CONTRACT_ID && details?.validator === "passed";
-	const base = validated ? VALIDATED_RESTORE_MESSAGE : FALLBACK_RESTORE_MESSAGE;
-	if (!recoveryPath) return base;
-	const label = validated ? "Emergency recovery packet" : "Recovery packet";
-	return `${base}\n\n${label}: ${recoveryPath}`;
+export function recoveryFollowupMessage(_event: unknown, recoveryPath?: string): string {
+	return recoveryPath ? `${RESTORE_MESSAGE}\n\nEmergency recovery packet: ${recoveryPath}` : RESTORE_MESSAGE;
 }
 
 function asArray(value: unknown): unknown[] {
@@ -419,7 +414,11 @@ export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): R
 	const branchMessages = branchEntries.map(entryMessage).filter(Boolean) as UnknownRecord[];
 	const allMessages = [...preparationMessages, ...branchMessages];
 	const markerMessages = preparationMessages.length ? preparationMessages : branchMessages;
-	const markerEvents: RecoveryMarkerEvent[] = [];
+	// Carry only the canonical state from the previous checkpoint, not stale summary prose.
+	const previousBlock = typeof prep.previousSummary === "string"
+		? prep.previousSummary.match(/<!-- authoritative-state:start -->\s*\n### Authoritative State\s*\n([\s\S]*?)\n<!-- authoritative-state:end -->/i)?.[1]
+		: undefined;
+	const markerEvents: RecoveryMarkerEvent[] = markedRecoveryEvents(previousBlock ?? "");
 
 	for (const message of allMessages) {
 		collectToolDataFromMessage(message, readFiles, modifiedFiles, commands);
@@ -531,7 +530,7 @@ function recoveryBody(ctx: ExtensionContext, reason: string, usagePercent: numbe
 	const cwd = (ctx as unknown as { cwd?: string }).cwd ?? process.cwd();
 	const now = new Date().toISOString();
 	const state = extractRecoveryState(event, ctx);
-	const summaryModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "current-pi-model";
+	const summaryModel = "none (deterministic context-fold)";
 	return `---
 agent_id: ${yamlString(agentId(cwd))}
 project: ${yamlString(projectSlug(cwd))}
@@ -542,7 +541,7 @@ reason: ${yamlString(reason)}
 context_tokens: ${tokens}
 effective_window: ${window}
 context_usage_percent: ${usagePercent.toFixed(1)}
-summary_engine: current-model-custom-with-pi-built-in-fallback
+summary_engine: context-fold-deterministic
 summary_model: ${yamlString(summaryModel)}
 summary_contract: ${yamlString(SUMMARY_CONTRACT_ID)}
 summary_contract_source: "~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULTRA_INSTRUCTIONS"
@@ -552,11 +551,11 @@ summary_contract_source: "~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULT
 
 ## Restore sequence
 
-1. Read the current project TODO.md at \`${cwd}/TODO.md\`. It alone defines task goals, status, and next steps; ignore stale task state in this packet or compact summary.
-2. If TODO.md is missing, unreadable, or has no clear active task, stop and ask; never guess from conversation.
+1. Before resuming multi-step project work, read the current TODO.md at \`${cwd}/TODO.md\`. It alone defines tracked task goals, status, and next steps; ignore stale task state in this packet or compact summary.
+2. For such work, if TODO.md is missing, unreadable, or has no clear active task, stop and ask; never guess from conversation.
 3. Use this packet and compact summary only for durable constraints, decisions, validation evidence, changed files, and unresolved blockers.
 4. Read project AGENTS.md / CLAUDE.md only if present and needed.
-5. Continue the current TODO.md task.
+5. Continue the current tracked TODO.md task, or answer the current user request if it is a discussion, question, or small single-step edit; do not invent a tracked task.
 
 ## Recent user messages
 
@@ -598,7 +597,7 @@ ${mdList(state.commands)}
 - Project recovery mirror: \`${projectRecoveryPath(ctx) ?? "disabled"}\`
 - Context usage: ${tokens}/${window} tokens (${usagePercent.toFixed(1)}%)
 - Trigger reason: ${reason}
-- Summary path: one attempt with the current selected Pi model and deterministic validation; any failure immediately uses Pi built-in compaction. Contract \`${SUMMARY_CONTRACT_ID}\` comes from \`~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULTRA_INSTRUCTIONS\`.
+- Summary owner: context-fold renders the deterministic seed index without a model call. This packet is emergency recovery only.
 
 ## Do not reread by default
 
@@ -638,6 +637,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 		compactFn({
 			customInstructions: ULTRA_INSTRUCTIONS,
 			onComplete: () => {
+				if (!runtime.active) return;
 				const continuationMessage = runtime.continuationMessage;
 				runtime.continuationMessage = undefined;
 				runtime.compactInFlight = false;
@@ -651,6 +651,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 				if (continuationMessage) pi.sendUserMessage(continuationMessage, { deliverAs: "followUp" });
 			},
 			onError: (error: Error) => {
+				if (!runtime.active) return;
 				runtime.compactInFlight = false;
 				runtime.followupPending = false;
 				runtime.continuationMessage = undefined;
@@ -685,7 +686,7 @@ export function shouldSendContinuation(reason: "manual" | "threshold" | "overflo
 
 function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: number, cooldownTurns: number, followup: boolean): string {
 	const cooldownRemaining = Math.max(0, cooldownTurns - (runtime.turn - runtime.lastCompactTurn));
-	const summaryModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "unavailable";
+	const summaryModel = "none (deterministic context-fold)";
 	return [
 		"auto-ultra-compact status",
 		`enabled: true`,
@@ -710,10 +711,9 @@ function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: num
 		`lastHistoryTokens: ${runtime.lastHistoryTokens ?? "unknown"}`,
 		`lastHistoryMessages: ${runtime.lastHistoryMessages ?? "unknown"}`,
 		`lastError: ${runtime.lastError ?? "none"}`,
-		`summaryEngine: current-model-custom-with-pi-built-in-fallback`,
+		`summaryEngine: context-fold-deterministic`,
 		`summaryModel: ${summaryModel}`,
 		`summaryContract: ${SUMMARY_CONTRACT_ID}`,
-		`summaryMaxTokens: 10000`,
 		`untrustedCodeExecution: disabled`,
 	].join("\n");
 }
@@ -722,9 +722,28 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 	const threshold = envNumber("PI_AUTO_COMPACT_PERCENT", DEFAULT_THRESHOLD_PERCENT);
 	const followup = envBool("PI_AUTO_COMPACT_FOLLOWUP", true);
 	const cooldownTurns = envNumber("PI_AUTO_COMPACT_COOLDOWN_TURNS", DEFAULT_COOLDOWN_TURNS);
-	const runtime: RuntimeState = { compactInFlight: false, followupPending: false, postCompactCheckPending: false, lastCompactTurn: -Infinity, turn: 0 };
+	let runtime: RuntimeState = { active: true, compactInFlight: false, followupPending: false, postCompactCheckPending: false, lastCompactTurn: -Infinity, turn: 0 };
+	const stopSession = () => {
+		runtime.active = false;
+		runtime.compactInFlight = false;
+		runtime.followupPending = false;
+		runtime.continuationMessage = undefined;
+	};
+	pi.on("session_shutdown", stopSession);
+	pi.on("session_start", () => {
+		stopSession();
+		runtime = { active: true, compactInFlight: false, followupPending: false, postCompactCheckPending: false, lastCompactTurn: -Infinity, turn: 0 };
+	});
+	pi.on("session_compact_failed", (event) => {
+		runtime.compactInFlight = false;
+		runtime.followupPending = false;
+		runtime.postCompactCheckPending = false;
+		runtime.continuationMessage = undefined;
+		runtime.lastError = event.aborted ? "Compaction cancelled" : event.errorMessage;
+	});
 
 	function maybeCompact(ctx: ExtensionContext, reason: string): void {
+		if (!runtime.active) return;
 		if (runtime.compactInFlight) return;
 		const postCompactCheck = runtime.postCompactCheckPending;
 		if (!postCompactCheck && runtime.turn - runtime.lastCompactTurn < cooldownTurns) return;
@@ -791,39 +810,13 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		}
 	});
 
-	pi.on("session_before_compact", async (event, ctx) => {
-		try {
-			const prep = asRecord(asRecord(event)?.preparation);
-			const extensionTriggered = runtime.compactInFlight && (runtime.lastTrigger === "threshold" || runtime.lastTrigger === "post-compact");
-			const compactionReason = event.reason;
-			const shouldFollowUp = shouldSendContinuation(compactionReason, extensionTriggered);
-			const trigger = extensionTriggered ? runtime.lastTrigger! : compactionReason;
-			const usage = ctx.getContextUsage?.();
-			const tokensFromPrep = typeof prep?.tokensBefore === "number" ? prep.tokensBefore : undefined;
-			const tokens = usage?.tokens ?? tokensFromPrep ?? 0;
-			const window = effectiveWindow(ctx);
-			const percent = window > 0 ? (tokens / window) * 100 : 0;
-			runtime.lastTokens = tokens;
-			runtime.lastWindow = window;
-			runtime.lastPercent = percent;
-			runtime.lastTrigger = trigger;
-			runtime.compactInFlight = true;
-			runtime.lastCompactTurn = runtime.turn;
-			runtime.followupPending = shouldFollowUp;
-			runtime.continuationMessage = undefined;
-			writeRecoveryFiles(ctx, runtime, trigger, percent, tokens, window, event);
-		} catch (error) {
-			runtime.lastError = `recovery write failed: ${error instanceof Error ? error.message : String(error)}`;
-			notify(ctx, `auto-ultra-compact recovery write failed: ${runtime.lastError}`, "warning");
-		}
-	});
-
 	pi.on("session_compact", async (event, ctx) => {
-		const shouldFollowUp = runtime.followupPending;
+		const extensionTriggered = runtime.compactInFlight && runtime.followupPending;
+		const shouldFollowUp = shouldSendContinuation(event.reason, extensionTriggered);
 		runtime.followupPending = false;
 		runtime.compactInFlight = false;
 		runtime.lastCompletedAt = new Date().toISOString();
-		const automatic = event.reason !== "manual" || runtime.lastTrigger === "threshold" || runtime.lastTrigger === "post-compact";
+		const automatic = event.reason !== "manual" || extensionTriggered;
 		if (automatic) runtime.postCompactCheckPending = true;
 		if (!followup || !shouldFollowUp) return;
 		const message = recoveryFollowupMessage(event, runtime.lastRecoveryPath);

@@ -48,10 +48,22 @@ try {
   const sources = [a.getSessionId(), b.getSessionId()];
   const evidence = sources.map((source, i) => ({ source, text: quotes[i] }));
   const edit = { id: 'e1', kind: 'add', title: 'Verify results', replace: '- Verify changes before reporting success.', transcripts: 2, evidence };
+  let synthesisEdits = [edit];
   const index = new Map(sources.map((s, i) => [s, [quotes[i]]]));
   const tokens = (s) => Math.ceil(Buffer.byteLength(s) / 4);
   const gate = (e) => ext.validateProposal([e], original, tokens(original), cfg, index);
   assert.equal(gate(edit).ok, true);
+  const longFind = original.split('\n').find((line) => line.startsWith('- Avoid'));
+  const noOp = { ...edit, kind: 'rewrite', find: longFind, replace: longFind };
+  const noOpGate = gate(noOp);
+  assert.equal(noOpGate.ok, false, 'Identical find/replace must fail validation');
+  assert.ok(noOpGate.violations.some((v) => v.includes('no text change')));
+  const cancelled = ext.validateProposal([
+    { ...edit, kind: 'rewrite', find: 'aX', replace: 'a' },
+    { ...edit, id: 'e2', kind: 'rewrite', find: 'b', replace: 'Xb' },
+  ], 'aXb', tokens('aXb'), cfg, index);
+  assert.equal(cancelled.ok, false);
+  assert.ok(cancelled.violations.includes('proposal: no text change'), 'Mutually cancelling edits must not trigger a write');
   assert.equal(gate({ ...edit, evidence: [evidence[0], { source: sources[1], text: 'Completely fabricated evidence.' }] }).ok, false);
   assert.equal(gate({ ...edit, evidence: [evidence[0], { source: sources[1], text: quotes[0] }] }).ok, false);
   assert.equal(gate({ ...edit, evidence: [evidence[0], evidence[0]] }).ok, false);
@@ -80,7 +92,7 @@ try {
         } else {
           for (const source of sources) assert.ok(prompt.includes(source));
           for (const project of [projectA, projectB]) assert.ok(prompt.includes(project));
-          result = { edits: [edit] };
+          result = { edits: synthesisEdits };
         }
         return { stopReason: 'stop', content: [{ type: 'text', text: JSON.stringify(result) }] };
       },
@@ -109,6 +121,24 @@ try {
   const proposal = JSON.parse(readFileSync(proposalPath));
   assert.equal(proposal.memoryFile, target); assert.equal(proposal.sessionScope, 'all');
   assert.deepEqual(proposal.edits[0].evidence.map((e) => e.project), [projectA, projectB]);
+  const addText = (text) => text + '\n' + edit.replace + '\n';
+  assert.equal(proposal.budget.current, tokens(original));
+  assert.equal(proposal.budget.projected, tokens(addText(original)));
+  const tailEdit = { ...edit, id: 'tail', kind: 'rewrite', find: longFind, replace: longFind.slice(0, 100) + ' visible replacement tail.' };
+  assert.equal(tailEdit.find.slice(0, 100), tailEdit.replace.slice(0, 100), 'Fixture reproduces hidden difference');
+  synthesisEdits = [tailEdit, edit];
+  await run('propose');
+  const tailProposal = JSON.parse(readFileSync(proposalPath));
+  const preview = messages.at(-1);
+  assert.ok(preview.includes(tailEdit.find), 'Proposal must show full find text');
+  assert.ok(preview.includes(tailEdit.replace), 'Proposal must show full replacement text');
+  const rewritten = original.replace(longFind, tailEdit.replace);
+  assert.equal(tailProposal.budget.projected, tokens(addText(rewritten)), 'Budget uses actual resulting text');
+  assert.equal(tailProposal.edits[0].deltaTokens, tokens(rewritten) - tokens(original));
+  assert.equal(tailProposal.edits[1].deltaTokens, tokens(addText(rewritten)) - tokens(rewritten), 'Per-edit delta follows application order');
+  assert.equal(tailProposal.edits.reduce((sum, e) => sum + e.deltaTokens, 0), tailProposal.budget.delta);
+  synthesisEdits = [edit];
+  writeFileSync(proposalPath, JSON.stringify(proposal));
   const rejectionPath = proposalPath.replace('.proposal.json', '.rejections.json');
   function reset() {
     configure(); writeFileSync(target, original);
@@ -139,22 +169,32 @@ try {
   await run('review');
   assert.equal(readFileSync(target, 'utf8'), original, 'Accepted subset must still fit budget');
   reset(); ctx.ui.confirm = async () => true;
+  writeFileSync(proposalPath, JSON.stringify({ ...proposal, edits: [noOp, edit] }));
+  await run('review');
+  assert.equal(readFileSync(target, 'utf8'), original, 'Saved no-op proposal cannot write or count fake edits');
+  assert.equal(readdirSync(data).filter((p) => p.includes('.backup-')).length, 0);
+  reset();
+  const wroteBefore = messages.filter((m) => /^Wrote /.test(m)).length;
   const mode = statSync(target).mode & 0o777;
   await run('review', { ...ctx, cwd: projectB });
-  assert.ok(readFileSync(target, 'utf8').includes(edit.replace));
+  assert.equal(readFileSync(target, 'utf8'), addText(original));
+  assert.equal(tokens(readFileSync(target, 'utf8')), proposal.budget.projected);
+  assert.equal(messages.filter((m) => /^Wrote /.test(m)).length, wroteBefore + 1);
+  assert.match(messages.at(-1), /^Wrote 1 edits to /);
+  assert.ok(!notices.some((n) => /^Wrote /.test(n.text)), 'Success must not duplicate notification and persistent message');
   assert.equal(statSync(target).mode & 0o777, mode);
   assert.ok(!readdirSync(data).includes(proposalPath.split('/').pop()));
   const backups = readdirSync(data).filter((p) => p.includes('.backup-'));
   assert.equal(backups.length, 1); assert.equal(readFileSync(join(data, backups[0]), 'utf8'), original);
   assert.ok(!readdirSync(agent).some((p) => p.endsWith('.tmp')));
-  assert.equal(calls.length, 3, 'Review/status make no model calls');
+  assert.equal(calls.length, 4, 'Review/status make no model calls');
   await run('status');
   assert.ok(messages.at(-1).includes('Session scope: all'));
   writeFileSync(join(projectA, 'AGENTS.md'), original);
   configure({ targetFile: null, sessionScope: 'project', memoryFiles: ['AGENTS.md'] });
   await run('analyze');
-  assert.equal(projectCalls, 1); assert.equal(calls.length, 4, 'Project scope remains supported');
-  console.log('PASS: source-bound quotes; all-project discovery/cache; active/copy exclusion; project fallback; propose/headless/reject guards; target/freshness/budget guards; approved atomic write/backup/mode. No real provider calls.');
+  assert.equal(projectCalls, 1); assert.equal(calls.length, 5, 'Project scope remains supported');
+  console.log('PASS: source-bound quotes; all-project discovery/cache; active/copy exclusion; project fallback; propose/headless/reject guards; full preview; no-op guards; sequential actual-text budget; single success message/count; target/freshness/budget guards; approved atomic write/backup/mode. No real provider calls.');
 } finally {
   if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldAgentDir;
   if (oldOffline === undefined) delete process.env.PI_OFFLINE; else process.env.PI_OFFLINE = oldOffline;

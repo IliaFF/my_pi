@@ -90,7 +90,34 @@
    budgetTokens: 5000,
    skillsDir: ".agents/skills",
    maxEditsPerRun: null as number | null, // null = adaptive
-@@ -533,18 +535,17 @@
+@@ -503,10 +505,11 @@
+ }
+ 
+ /** 应用 edits（函数替换防 $& 展开；anchor 插入；find/anchor 唯一校验） */
+-function applyEdits(text: string, edits: any[]): { text: string; errors: string[] } {
+-  let cur = text;
++function applyEdits(text: string, edits: any[]): { text: string; errors: string[]; applied: number } {
++  let cur = text, applied = 0;
+   const errors: string[] = [];
+   for (const e of edits) {
++    const before = cur;
+     if (e.find) {
+       const n = occurrences(cur, e.find);
+       if (n === 0) { errors.push(`edit ${e.id}: find not found`); continue; }
+@@ -522,8 +525,10 @@
+       const sep = cur.endsWith("\n") ? "\n" : "\n\n";
+       cur = `${cur}${sep}${e.replace ?? ""}\n`;
+     }
+-  }
+-  return { text: cur, errors };
++    if (cur === before) errors.push(`edit ${e.id}: no text change`);
++    else applied++;
++  }
++  return { text: cur, errors, applied };
+ }
+ 
+ function budgetStatus(currentText: string, projectedText: string, cap: number) {
+@@ -533,18 +538,17 @@
  }
  
  /** 机械闸门：max-edits / kind/title / evidence 溯源(F2) / add 真实来源(F3) / find/anchor 唯一 / 预算 fit */
@@ -115,7 +142,7 @@
    };
    for (const e of edits) {
      const id = e.id || e.title || "?";
-@@ -552,13 +553,13 @@
+@@ -552,13 +556,13 @@
      if (!String(e.title || "").trim()) v.push(t("vTitle", id));
      if (!Array.isArray(e.evidence) || e.evidence.length === 0 || !e.evidence.some((x: any) => x && String(x.text || "").trim())) {
        v.push(t("vNoQuote", id));
@@ -132,7 +159,15 @@
        if (srcs.size < cfg.minGapEvidence) v.push(t("vAddSources", id, cfg.minGapEvidence, srcs.size));
      }
      if (e.find) {
-@@ -703,14 +704,15 @@
+@@ -574,6 +578,7 @@
+   }
+   const { text: projected, errors } = applyEdits(memText, edits);
+   if (errors.length) v.push(...errors);
++  if (edits.length > 0 && projected === memText && errors.length === 0) v.push("proposal: no text change");
+   const bs = budgetStatus(memText, projected, cfg.budgetTokens);
+   if (!bs.withinBudget && bs.delta >= 0) v.push(t("vShrink", bs.delta));
+   return { ok: v.length === 0, violations: v };
+@@ -703,14 +708,15 @@
  };
  
  function buildSynthesisPrompt(fold: any, memoryText: string, budgetTokens: number, realSources: string[] = [], minGapEvidence: number, lang: Lang): string {
@@ -152,7 +187,7 @@
      });
      return head + "\n" + lines.join("\n");
    }).join("\n");
-@@ -771,22 +773,27 @@
+@@ -771,22 +777,27 @@
   */
  
  import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -186,7 +221,7 @@
  
  function loadConfig() {
    ensureDir();
-@@ -828,7 +835,14 @@
+@@ -828,7 +839,14 @@
  function saveRejections(cwd: string, r: any[]) { ensureDir(); writeFileSync(rejPath(cwd), JSON.stringify(r, null, 2)); }
  
  // ── 记忆文件解析 ──────────────────────────────────────────────────────────────
@@ -202,7 +237,7 @@
    for (const name of cfg.memoryFiles) {
      const p = join(cwd, name);
      if (existsSync(p)) {
-@@ -839,6 +853,16 @@
+@@ -839,6 +857,16 @@
      }
    }
    return { primary: null };
@@ -219,7 +254,7 @@
  }
  
  // ── 模型调用 ──────────────────────────────────────────────────────────────────
-@@ -853,6 +877,7 @@
+@@ -853,6 +881,7 @@
  
  async function callModel(ctx: ExtensionCommandContext, cfg: any, role: "analysis" | "synthesis", prompt: string): Promise<string> {
    const rc = cfg[role];
@@ -227,7 +262,7 @@
    let model = ctx.model;
    if (rc.model) { const [p, ...r] = rc.model.split("/"); model = ctx.modelRegistry.find(p, r.join("/")); }
    if (!model) { ctx.ui.notify(t("modelNotFound", role), "error"); throw new Error("model not found"); }
-@@ -925,7 +950,7 @@
+@@ -925,7 +954,7 @@
                  const budgetColor = pct > 90 ? tm.fg("warning", String(pct) + "%") : tm.fg("dim", String(pct) + "%");
          return [
            tm.fg("accent", "∇ train-agents") + tm.fg("dim", ` · ${s.repo} · ${t("footerSince")} ${s.since}`),
@@ -236,7 +271,7 @@
            stepStr || tm.fg("dim", "○ " + t("footerReady")),
            (s.transcripts ? `  ${spin()} ${s.transcripts}` : "") + tm.fg("dim", `  · ${t("footerElapsed", elapsed)}`),
            `  ${tm.fg("success", "✓ " + s.evidence.helped + " " + t("footerFollowed"))}   ${tm.fg("error", "✗ " + s.evidence.violated + " " + t("footerViolated"))}   ${tm.fg("warning", "◆ " + s.evidence.gaps + " " + t("footerBuckets"))}`,
-@@ -945,7 +970,7 @@
+@@ -945,7 +974,7 @@
          const tm = theme;
                  return [
            tm.fg("accent", "∇ train-agents") + tm.fg("dim", ` · ${s.repo} · ${t("footerDone", elapsed)}`),
@@ -245,7 +280,7 @@
            `  ${tm.fg("success", "✓ " + s.evidence.helped + " " + t("footerFollowed"))}   ${tm.fg("error", "✗ " + s.evidence.violated + " " + t("footerViolated"))}   ${tm.fg("warning", "◆ " + s.evidence.gaps + " " + t("footerBuckets"))}`,
          ].filter(Boolean).map((l) => (l.length > width ? l.slice(0, width - 1) + "…" : l));
        }, invalidate: () => {},
-@@ -970,7 +995,7 @@
+@@ -970,7 +999,7 @@
        const tm = theme;
              return [
          tm.fg("accent", "∇ train-agents") + tm.fg("dim", ` · ${o.repo}`),
@@ -254,7 +289,7 @@
          `  ${tm.fg("success", "✓ " + o.pos + " " + t("footerFollowed"))}   ${tm.fg("error", "✗ " + o.neg + " " + t("footerViolated"))}   ${tm.fg("warning", "◆ " + o.gaps + " " + t("footerBuckets"))}`,
          tm.fg("accent", "  " + spin() + " " + t("proposeWorking")),
        ].map((l) => (l.length > width ? l.slice(0, width - 1) + "…" : l));
-@@ -993,10 +1018,12 @@
+@@ -993,10 +1022,12 @@
    const st = loadState(ctx.cwd);
    const memHash = fingerprint(memText);
    const curSession = ctx.sessionManager.getSessionFile();
@@ -268,7 +303,7 @@
      return !units.some((u: any) => similarity(u.text, g.proposedInstruction) >= 0.6);
    });
    saveState(ctx.cwd, st);
-@@ -1007,9 +1034,12 @@
+@@ -1007,9 +1038,12 @@
    const sinceMs = parseSince(cfg.since);
    const cutoff = sinceMs == null ? 0 : Date.now() - sinceMs;
    let sessions: any[] = [];
@@ -283,7 +318,7 @@
      if (cutoff && new Date(s.modified).getTime() < cutoff) return false;
      return true;
    });
-@@ -1036,11 +1066,12 @@
+@@ -1036,11 +1070,12 @@
      const label = `${idx}/${worklist.length} ● ${s.path.split("/").pop()}`;
      footer.setTranscript(label);
      const distilled = await distillSession(s.path);
@@ -297,7 +332,7 @@
          positive: (res.units || []).filter((u: any) => u.status === "followed").map((u: any) => ({ instruction: u.id, quote: u.quote || "", verbatim: !!u.verbatim, effect: u.note || "" })),
          negative: (res.units || []).filter((u: any) => u.status === "violated").map((u: any) => ({ instruction: u.id, quote: u.quote || "", verbatim: !!u.verbatim, effect: u.note || "" })),
          gaps: (res.gaps || []).map((g: any) => ({ topic: g.topic || "other", proposedInstruction: g.proposedInstruction, mistake: g.mistake, quote: g.quote || "", verbatim: !!g.verbatim, recurrenceRisk: g.recurrenceRisk })),
-@@ -1068,9 +1099,9 @@
+@@ -1068,9 +1103,9 @@
  
    for (const rec of st.evidence) {
      for (const g of rec.gaps) {
@@ -309,7 +344,7 @@
        }
      }
    }
-@@ -1128,13 +1159,10 @@
+@@ -1128,13 +1163,10 @@
  
    ctx.ui.notify(t("proposeStart"), "info");
    const fold = foldEvidence(st.evidence, { minGapEvidence: cfg.minGapEvidence, memoryUnits: units, gapObservations: st.gapLedger });
@@ -327,7 +362,7 @@
    // 生成提案中：保留 analyze 摘要（预算条+计数），下方加【转圈】状态，避免误判卡死
    const stopPropose = startProposeFooter(ctx, { repo: ctx.cwd.split("/").pop() || ctx.cwd, tokens, cap: cfg.budgetTokens, units: units.length, pos: fold.totals.positive, neg: fold.totals.negative, gaps: fold.totals.gapClusters });
    let json: any = null, lastViolations: string[] = [];
-@@ -1144,7 +1172,7 @@
+@@ -1144,7 +1176,7 @@
      const out = await callModel(ctx, cfg, "synthesis", p);
      json = extractJson(out);
      if (!json) { stopPropose(); ctx.ui.notify(t("synthParseFail"), "error"); return; }
@@ -336,25 +371,34 @@
      if (v.ok) break;
      lastViolations = v.violations;
      if (attempt === 0) { ctx.ui.notify(t("gateRetry"), "warning"); continue; }
-@@ -1155,7 +1183,7 @@
+@@ -1152,10 +1184,13 @@
+   }
+   stopPropose();
+ 
++  let projectedText = memText;
    const edits = (json.edits || []).map((e: any, i: number) => {
      const id = e.id || `e${i + 1}`;
-     const delta = estimateTokens(applyEdits(memText, [{ ...e, id }]).text) - tokens;
+-    const delta = estimateTokens(applyEdits(memText, [{ ...e, id }]).text) - tokens;
 -    return { ...e, id, deltaTokens: delta };
++    const nextText = applyEdits(projectedText, [{ ...e, id }]).text;
++    const delta = estimateTokens(nextText) - estimateTokens(projectedText);
++    projectedText = nextText;
 +    return { ...e, id, deltaTokens: delta, evidence: (e.evidence || []).map((ev: any) => ({ ...ev, project: st.evidence.find((r: any) => r.source === ev.source)?.project })) };
    });
    // 真跑暴露的修复：edits 为空时【不写】proposal.json（否则 status 误报“待审核提案”，review 却空）；提示语区分两种空提案
    if (edits.length === 0) {
-@@ -1175,7 +1203,7 @@
+@@ -1175,8 +1210,8 @@
      return;
    }
    const proposal = {
 -    repo: ctx.cwd.split("/").pop(), memoryFile: primary, memoryHash: memHash,
+-    budget: { ...budgetStatus(memText, applyEdits(memText, edits).text, cfg.budgetTokens), capTokens: cfg.budgetTokens },
 +    repo: cfg.sessionScope === "all" ? "all projects" : ctx.cwd.split("/").pop(), memoryFile: primary, memoryHash: memHash, sessionScope: cfg.sessionScope,
-     budget: { ...budgetStatus(memText, applyEdits(memText, edits).text, cfg.budgetTokens), capTokens: cfg.budgetTokens },
++    budget: { ...budgetStatus(memText, projectedText, cfg.budgetTokens), capTokens: cfg.budgetTokens },
      edits,
      stats: { transcripts: fold.analyzedSessions }, generatedAt: new Date().toISOString(),
-@@ -1196,6 +1224,7 @@
+   };
+@@ -1196,15 +1231,17 @@
  function printProposal(ctx: ExtensionCommandContext, proposal: any) {
    const out: string[] = [
      t("propTitle"),
@@ -362,16 +406,20 @@
      t("propBudget", proposal.budget.current, proposal.budget.projected, proposal.budget.capTokens),
      "",
    ];
-@@ -1204,7 +1233,7 @@
+   for (const e of proposal.edits) {
+     const delta = e.deltaTokens || 0;
      out.push(`- [${e.id}] ${String(e.kind || "").toUpperCase()} ${e.title} (${delta >= 0 ? "+" : ""}${delta} tok, ${e.transcripts} ${e.transcripts === 1 ? "session" : "sessions"})`);
-     if (e.find) out.push(`    find: ${String(e.find).slice(0, 100)}`);
-     if (e.replace) out.push(`    replace: ${String(e.replace).slice(0, 100)}`);
+-    if (e.find) out.push(`    find: ${String(e.find).slice(0, 100)}`);
+-    if (e.replace) out.push(`    replace: ${String(e.replace).slice(0, 100)}`);
 -    for (const ev of (e.evidence || []).slice(0, 2)) out.push(`    ${t("propEvidence", ev.source, String(ev.text).slice(0, 120))}`);
++    if (e.find) out.push(`    find:\n${e.find}`);
++    if (e.anchor) out.push(`    anchor:\n${e.anchor}`);
++    if (typeof e.replace === "string") out.push(`    replace:\n${e.replace || '""'}`);
 +    for (const ev of (e.evidence || []).slice(0, 2)) out.push(`    ${t("propEvidence", `${ev.source}${ev.project ? ` | ${ev.project}` : ""}`, String(ev.text).slice(0, 120))}`);
    }
    ctx.ui.notify(`${t("proposalDone", proposal.edits.length)} · ${t("reviewHint")}`, "info");
    emit(ctx, out.join("\n"));
-@@ -1222,7 +1251,7 @@
+@@ -1222,7 +1259,7 @@
    const rej = loadRejections(ctx.cwd);
  
    const currentHash = fingerprint(memText);
@@ -380,7 +428,7 @@
      ctx.ui.notify(t("externalModified"), "warning");
      return;
    }
-@@ -1233,11 +1262,12 @@
+@@ -1233,11 +1270,12 @@
      const alreadyRejected = rej.find((r: any) => r.fingerprint === fp);
      if (alreadyRejected) { ctx.ui.notify(t("skipRejected", e.id), "info"); continue; }
      const preview = [
@@ -394,7 +442,7 @@
      ].filter(Boolean).join("\n");
      const ok = await ctx.ui.confirm(`[${e.id}] ${String(e.kind || "").toUpperCase()} — ${e.title}?`, preview);
      if (ok) accepted.push(e);
-@@ -1249,20 +1279,30 @@
+@@ -1249,27 +1287,36 @@
    saveRejections(ctx.cwd, rej);
    if (accepted.length === 0) { ctx.ui.notify(t("noneAccepted"), "info"); emit(ctx, t("noneAccepted")); return; }
  
@@ -422,7 +470,7 @@
 +    const quotesBySource = evidenceQuotes((st.evidence || []).filter((r: any) => r.memoryHash === proposal.memoryHash));
 +    const gate = validateProposal(accepted, freshText, estimateTokens(freshText), cfg, quotesBySource);
 +    if (!gate.ok) { ctx.ui.notify(t("gateFailTwice", gate.violations.join("; ")), "error"); return false; }
-+    const { text: newText, errors } = applyEdits(freshText, accepted);
++    const { text: newText, errors, applied } = applyEdits(freshText, accepted);
 +    if (errors.length) { ctx.ui.notify(errors.join("; "), "error"); return false; }
 +    writeFileSync(backupPath, freshText, { encoding: "utf8", flag: "wx", mode: 0o600 });
 +    const tempPath = `${primary}.train-agents-${randomUUID()}.tmp`;
@@ -433,13 +481,21 @@
 +      }
 +      renameSync(tempPath, primary);
 +    } finally { if (existsSync(tempPath)) unlinkSync(tempPath); }
-+    return true;
++    return applied;
 +  });
 +  if (!written) return;
    try { unlinkSync(propPath(ctx.cwd)); } catch { }
    try {
      const backups = readdirSync(DATA_DIR).filter((f) => f.startsWith(`${cwdHash(ctx.cwd)}.backup-`)).sort();
-@@ -1299,6 +1339,7 @@
+     while (backups.length > 5) { try { unlinkSync(join(DATA_DIR, backups.shift()!)); } catch { } }
+   } catch { }
+-  ctx.ui.notify(t("wroteEdits", accepted.length, primary, backupPath), "info");
+-  emit(ctx, t("wroteEdits", accepted.length, primary, backupPath));
++  emit(ctx, t("wroteEdits", written, primary, backupPath));
+   const st = loadState(ctx.cwd); st.analyzed = {}; st.evidence = []; saveState(ctx.cwd, st);
+ }
+ 
+@@ -1299,6 +1346,7 @@
    const lines = [
      t("stTitle"),
      t("stMemory", primary || "(none)", tokens, cfg.budgetTokens, pct),
@@ -447,7 +503,16 @@
      t("stAnalyzed", Object.keys(st.analyzed || {}).length, (st.evidence || []).length, (st.gapLedger || []).length),
      t("stProposal", existsSync(propPath(ctx.cwd)) ? `yes (/train-agents review)` : `no`),
      "",
-@@ -1364,7 +1405,7 @@
+@@ -1350,7 +1398,7 @@
+ 
+ // ── 扩展入口 ──────────────────────────────────────────────────────────────────
+ export default function (pi: ExtensionAPI) {
+-  const wrap = (fn: (ctx: ExtensionCommandContext, args: string) => Promise<void>) =>
++  const wrap = (fn: (ctx: ExtensionCommandContext, args: string) => Promise<unknown>) =>
+     async (args: string, ctx: ExtensionCommandContext) => {
+       (ctx as any).pi = pi;
+       try { await fn(ctx, args); } catch (e: any) { ctx.ui.notify(t("cmdError", e.message), "error"); }
+@@ -1364,7 +1412,7 @@
    pi.registerCommand("train-agents", {
      description: getLang() === "zh"
        ? "AGENTS.md 训练系统：无参=一键全流程 / analyze / propose / review / status"

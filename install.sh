@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_VERSION="1.0.4"
+PI_VERSION="1.2.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -47,7 +47,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.6.0 and @spences10/pi-context@0.1.16"
   echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + seven local extensions + OpenAlex skill"
-  echo "DRY-RUN patches: 3 exact-version patches"
+  echo "DRY-RUN patches: manifest exact-version patches"
   exit 0
 fi
 if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
@@ -157,15 +157,14 @@ cp "$ROOT/local-extensions/reader-pane.ts" "$AGENT_DIR/extensions/reader-pane.ts
 cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
-mkdir -p "$AGENT_DIR/extensions/jev-review"
-cp "$ROOT/local-extensions/jev-review/index.ts" "$AGENT_DIR/extensions/jev-review/index.ts"
+rm -rf "$AGENT_DIR/extensions/jev-review"
 cp "$ROOT/local-extensions/herdr-agent-state.ts" "$AGENT_DIR/extensions/herdr-agent-state.ts"
 rm -rf "$AGENT_DIR/skills/openalex"
 cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"
 
 rm -rf "$AGENT_DIR/maintenance"
 mkdir -p "$AGENT_DIR/maintenance"
-tar -C "$ROOT" --exclude=.git --exclude=backups --exclude=npm/node_modules --exclude='*/__pycache__' -cf - . | tar -C "$AGENT_DIR/maintenance" -xf -
+tar -C "$ROOT" --exclude=.git --exclude=backups --exclude=node_modules --exclude=test-results --exclude='*/__pycache__' -cf - . | tar -C "$AGENT_DIR/maintenance" -xf -
 
 if [[ "$current_version" != "$PI_VERSION" ]]; then
   core_changed=1
@@ -176,8 +175,8 @@ fi
 PI_CODING_AGENT_DIR="$AGENT_DIR" python3 "$AGENT_DIR/maintenance/scripts/maintenance.py" apply
 PI_CODING_AGENT_DIR="$AGENT_DIR" python3 "$AGENT_DIR/maintenance/scripts/maintenance.py" verify
 node "$ROOT/scripts/test-stack-surface.mjs" "$AGENT_DIR"
-node "$ROOT/local-extensions/jev-review/check.mjs"
 node "$ROOT/scripts/test-train-agents.mjs" "$AGENT_DIR"
+python3 "$ROOT/scripts/test-build.py" --agent "$AGENT_DIR"
 # Pre-create the sidecar privately: upstream otherwise creates it as 0644 under a common umask.
 touch "$AGENT_DIR/context.db"
 chmod 600 "$AGENT_DIR/context.db" "$AGENT_DIR"/context.db-wal "$AGENT_DIR"/context.db-shm 2>/dev/null || chmod 600 "$AGENT_DIR/context.db"
