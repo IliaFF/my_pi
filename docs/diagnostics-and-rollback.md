@@ -38,4 +38,4 @@ npm test -- --agent "$HOME/.pi/agent"
 - Mandatory gate проверяет real SDK + faux provider, real CLI startup, local patched packages, temporary filesystem. MCP transports отключены; API keys не передаются.
 - Smoke guard блокирует Node fetch/http/net, но не является OS sandbox для native code/подпроцессов.
 - Registry archive replay остаётся в отдельном `python3 scripts/test-release.py`; `npm test` проверяет fresh lock installation + application/reverse verification установленных патчей без повторного скачивания архивов.
-- CI workflow готов для push/pull_request. Удалённый CI не подтверждён до публикации этого Git-репозитория и реального job. Remote не создаётся автоматически.
+- CI для IliaFF/my_pi подтверждён реальным passing job: https://github.com/IliaFF/my_pi/actions/runs/38652731907 (main SHA 1b9b4b3). Проверяйте conclusion именно для нужного SHA; прежний passing run не подтверждает последующие изменения.
