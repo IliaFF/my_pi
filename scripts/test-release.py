@@ -115,10 +115,8 @@ def main() -> int:
         result = subprocess.run(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if result.returncode:
             fail(f"OpenAlex helper check failed: {result.stdout.strip()}")
-    reader_source = (ROOT / "local-extensions/reader-pane.ts").read_text()
-    for required in ["export function adaptWideTables", "adaptWideTables(text, WIDTH)", 'registerCommand("reader-pane-on"', 'registerCommand("reader-pane-off"']:
-        if required not in reader_source:
-            fail(f"reader pane wiring missing: {required}")
+    if (ROOT / "local-extensions/reader-pane.ts").exists() or (ROOT / "scripts/test-reader-pane.mjs").exists():
+        fail("removed reader pane files still present")
 
     removed_paths = [ROOT / "local-extensions/project-loop.ts", ROOT / "configs/project-loop.schema.json", ROOT / "configs/project-loop.example.json"]
     if any(path.exists() for path in removed_paths):
@@ -300,17 +298,6 @@ def main() -> int:
     if todo_test.returncode:
         fail(f"todo-queue test failed: {todo_test.stdout.strip()}")
     print(todo_test.stdout.strip())
-
-    reader_test = subprocess.run(
-        ["node", str(ROOT / "scripts/test-reader-pane.mjs")],
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if reader_test.returncode:
-        fail(f"reader pane test failed: {reader_test.stdout.strip()}")
-    print(reader_test.stdout.strip())
 
     print(f"PASS exact extension lock: {len(package_json['dependencies'])} direct, {len(package_lock['packages']) - 1} total entries")
     print("PASS native codemode configuration, tool routing, observability selection, and searchable context policy")

@@ -213,10 +213,9 @@ def restore_backup(path_string: str | None) -> int:
     manifest = load_manifest()
     for item in manifest["managedConfigs"]:
         allowed.add(AGENT_DIR / item["source"])
-    # One-way migration rollback: backups made before pi-fabric may contain the
-    # removed local project-loop extension. Keep this exact legacy destination
-    # restorable; no other retired paths are accepted.
+    # Keep exact retired extension destinations restorable from verified backups.
     allowed.add(AGENT_DIR / "extensions/project-loop.ts")
+    allowed.add(AGENT_DIR / "extensions/reader-pane.ts")
     for item in manifest["patchedPackages"]:
         root = package_root(item)
         allowed.add(root / "package.json")

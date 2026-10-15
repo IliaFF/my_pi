@@ -14,14 +14,11 @@
     "npm:@monotykamary/pi-retry",
     "npm:@spences10/pi-context",
     "npm:pi-web-access",
-    "npm:@llblab/pi-telegram",
     "npm:pi-caveman",
     "npm:@dietrichgebert/ponytail",
     "npm:@juicesharp/rpiv-ask-user-question",
-    "npm:@tunnckocore/pi-gpt-fast-mode",
     "npm:pi-token-speed",
     "npm:pi-fast-resume",
-    "npm:pi-diff-review",
     "npm:@beyona/pi-zai-usage",
     {
       "source": "npm:pine-of-glass",
@@ -31,7 +28,6 @@
         "extensions/pi-cachemire/**"
       ]
     },
-    "npm:pi-my-setup",
     "npm:pi-markdown-preview",
     "npm:context-fold",
     "npm:pi-train-agents@0.2.7",

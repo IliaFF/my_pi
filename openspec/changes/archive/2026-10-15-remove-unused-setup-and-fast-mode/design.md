@@ -1,0 +1,3 @@
+# Design
+
+Use existing Pi remove, not handwritten package-tree deletion. Before runtime changes create existing maintenance-format full npm-tree/config backup with hashes. Source dependency uninstall uses ignore-scripts/legacy-peer-deps to keep host peers stable. Compare remaining direct versions and all personal settings against pre-state except four package declarations. Preserve all user data, including inactive package-specific settings. Run mandatory source and host gates; if failure, restore existing verified backup and report rollback outcome. Archive/commit locally; no remote publication. Do not treat disk uninstall as unloading current process.

@@ -103,12 +103,6 @@
       "reason": "Persistent bounded direct-tool loop baseline with externalized-output metrics and /loop-report; raw trace remains opt-in."
     },
     {
-      "source": "extensions/reader-pane.ts",
-      "snapshot": "local-extensions/reader-pane.ts",
-      "restore": true,
-      "reason": "Safe opt-in Windows Terminal reader with bounded tool images and wide-table card layout."
-    },
-    {
       "source": "extensions/todo-queue/README.md",
       "snapshot": "local-extensions/todo-queue/README.md",
       "restore": true,

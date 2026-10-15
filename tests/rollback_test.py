@@ -77,3 +77,14 @@ class RollbackTests(unittest.TestCase):
         (self.backup / "npm-tree.tar.gz").write_bytes(b"bad archive")
         self.assertEqual(self.restore(), 1)
         self.assertEqual(self.target.read_text(), "current")
+
+    def test_retired_reader_backup_restorable(self):
+        destination = self.agent / "extensions/reader-pane.ts"
+        payload = self.backup / "extensions/reader-pane.ts"
+        payload.write_text("known-good-reader")
+        data = json.loads(self.metadata.read_text())
+        data["files"].append({"path": str(destination), "sha256": maintenance.sha256(payload)})
+        self.metadata.write_text(json.dumps(data))
+        destination.write_text("current-reader")
+        self.assertEqual(self.restore(), 0, self.last_restore_output)
+        self.assertEqual(destination.read_text(), "known-good-reader")

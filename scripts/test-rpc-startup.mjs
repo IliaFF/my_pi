@@ -22,8 +22,11 @@ try {
   const state = await client.getState();
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
-  for (const name of ["queue", "auto-ultra-compact-status", "reader-pane-on", "caveman"]) {
+  for (const name of ["queue", "auto-ultra-compact-status", "caveman"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
+  }
+  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast"]) {
+    assert.ok(!commands.some((command) => command.name === name), `removed command still registered: ${name}`);
   }
   assert.deepEqual(errors, [], "startup must not emit extension errors or start a model run");
   assert.doesNotMatch(client.getStderr(), /Failed to load extension|Error loading extension|NETWORK_BLOCKED|Extension conflicts/i);
