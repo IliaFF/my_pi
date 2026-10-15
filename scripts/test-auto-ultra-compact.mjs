@@ -22,8 +22,8 @@ for (const details of [undefined, { contract: SUMMARY_CONTRACT_ID, validator: "p
   assert.ok(reminder.includes("не требуют отдельной записи"));
 }
 const taskPolicy = readFileSync(resolve(root, "configs/APPEND_SYSTEM.md"), "utf8");
-assert.ok(taskPolicy.includes("Discussions, answers to questions, and small single-step edits do not need a separate entry."));
-assert.ok(taskPolicy.includes("not every technical change to the list"));
+assert.ok(taskPolicy.includes("Discussions, answers and small single-step edits need no separate entry."));
+assert.ok(taskPolicy.includes("report starts, blockers and outcomes, not bookkeeping"));
 
 assert.equal(estimateCompactionTokens({ role: "user", content: text(4001) }), 1001);
 assert.equal(analyze([

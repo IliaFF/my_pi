@@ -41,6 +41,14 @@ test("claim moves first pending task and assigns id", () => {
   assert.equal(state.pending.length, 0);
 });
 
+test("claim selects an explicit pending id without reorder and rejects absent ids", () => {
+  const seeded = addTask(base, "Second", "second").text;
+  const changed = claimNext(seeded, undefined, "second");
+  assert.equal(changed.task.id, "second");
+  assert.deepEqual(inspectTodo(changed.text).pending.map(task => task.text), ["Existing task"]);
+  for (const id of ["missing", ""]) assert.throws(() => claimNext(seeded, undefined, id), /Pending task id not found/);
+});
+
 test("claim refuses a second in-progress task", () => {
   const first = claimNext(base, "claim1").text;
   assert.throws(() => claimNext(first, "claim2"), /already in progress/);

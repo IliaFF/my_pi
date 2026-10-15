@@ -10,7 +10,7 @@ const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "complete", "
 
 const TaskQueueParams = Type.Object({
   action: StringEnum(ACTIONS),
-  id: Type.Optional(Type.String({ description: "Stable pi-task id" })),
+  id: Type.Optional(Type.String({ description: "Stable pi-task id; claim selects this pending task, omitted means FIFO" })),
   text: Type.Optional(Type.String({ description: "Task text for add" })),
   summary: Type.Optional(Type.String({ description: "Completion summary" })),
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Passing checks or direct evidence" })),
@@ -242,87 +242,83 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "task_queue",
     label: "TODO Queue",
-    description: "Manage project TODO.md queue. Complete only current matching id after passing checks; block on concrete external impediments.",
+    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Complete only current matching id after passing checks; block on concrete external impediments.",
     parameters: TaskQueueParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      try {
-        const path = await todoPath(ctx);
-        if (params.action === "list") {
-          const state = inspectTodo(await readFile(path, "utf8"));
-          return result(formatList(state, autoRun, completedThisRun), state as unknown as Record<string, unknown>);
-        }
-        if (params.action === "add") {
-          const changed = await mutateTodo(path, (content) => {
-            const update = addTask(content, requireText(params.text, "text"));
-            return { text: update.text, value: update.task };
-          });
-          return result(`Queued ${formatTask(changed)}`, { task: changed });
-        }
-        if (params.action === "edit") {
-          const changed = await mutateTodo(path, (content) => {
-            const update = editTask(content, requireText(params.id, "id"), requireText(params.text, "text"));
-            return { text: update.text, value: update.task };
-          });
-          return result(`Edited ${formatTask(changed)}`, { task: changed });
-        }
-        if (params.action === "delete") {
-          const changed = await mutateTodo(path, (content) => {
-            const update = deleteTask(content, requireText(params.id, "id"));
-            return { text: update.text, value: update.task };
-          });
-          return result(`Deleted ${formatTask(changed)}`, { task: changed });
-        }
-        if (params.action === "move") {
-          const position = params.position as MoveDirection | undefined;
-          if (!position) throw new Error("position is required for move");
-          const moved = await mutateTodo(path, (content) => {
-            const update = movePendingTask(content, requireText(params.id, "id"), position);
-            return { text: update.text, value: update };
-          });
-          return result(moved.changed ? `Moved ${formatTask(moved.task)} ${position}` : "Task is already at that position", { task: moved.task, changed: moved.changed });
-        }
-        if (params.action === "claim") {
-          const changed = await mutateTodo(path, (content) => {
-            const update = claimNext(content);
-            return { text: update.text, value: update.task };
-          });
-          return changed ? result(`Claimed ${formatTask(changed)}`, { task: changed }) : result("Queue is empty");
-        }
-        const id = requireText(params.id, "id");
-        if (params.action === "complete") {
-          requireText(params.summary, "summary");
-          const evidence = params.evidence?.map((item) => item.trim()).filter(Boolean) ?? [];
-          if (evidence.length === 0) throw new Error("At least one concrete validation evidence item is required");
-          const changed = await mutateTodo(path, (content) => {
-            const update = completeCurrent(content, id);
-            return { text: update.text, value: update.task };
-          });
-          terminalHandled = activeTaskId === id;
-          pendingAdvance = autoRun;
-          if (terminalHandled) completedThisRun += 1;
-          return result(`Completed ${formatTask(changed)}\nEvidence: ${evidence.join("; ")}`, { task: changed, summary: params.summary, evidence });
-        }
-        if (params.action === "block") {
-          const changed = await mutateTodo(path, (content) => {
-            const update = blockCurrent(content, id, requireText(params.reason, "reason"));
-            return { text: update.text, value: update.task };
-          });
-          terminalHandled = activeTaskId === id;
-          autoRun = false;
-          pendingAdvance = false;
-          return result(`Blocked ${formatTask(changed)}; queue paused`, { task: changed, reason: params.reason });
-        }
+      const path = await todoPath(ctx);
+      if (params.action === "list") {
+        const state = inspectTodo(await readFile(path, "utf8"));
+        return result(formatList(state, autoRun, completedThisRun), state as unknown as Record<string, unknown>);
+      }
+      if (params.action === "add") {
         const changed = await mutateTodo(path, (content) => {
-          const update = releaseCurrent(content, id);
+          const update = addTask(content, requireText(params.text, "text"));
+          return { text: update.text, value: update.task };
+        });
+        return result(`Queued ${formatTask(changed)}`, { task: changed });
+      }
+      if (params.action === "edit") {
+        const changed = await mutateTodo(path, (content) => {
+          const update = editTask(content, requireText(params.id, "id"), requireText(params.text, "text"));
+          return { text: update.text, value: update.task };
+        });
+        return result(`Edited ${formatTask(changed)}`, { task: changed });
+      }
+      if (params.action === "delete") {
+        const changed = await mutateTodo(path, (content) => {
+          const update = deleteTask(content, requireText(params.id, "id"));
+          return { text: update.text, value: update.task };
+        });
+        return result(`Deleted ${formatTask(changed)}`, { task: changed });
+      }
+      if (params.action === "move") {
+        const position = params.position as MoveDirection | undefined;
+        if (!position) throw new Error("position is required for move");
+        const moved = await mutateTodo(path, (content) => {
+          const update = movePendingTask(content, requireText(params.id, "id"), position);
+          return { text: update.text, value: update };
+        });
+        return result(moved.changed ? `Moved ${formatTask(moved.task)} ${position}` : "Task is already at that position", { task: moved.task, changed: moved.changed });
+      }
+      if (params.action === "claim") {
+        const changed = await mutateTodo(path, (content) => {
+          const update = claimNext(content, undefined, params.id === undefined ? undefined : requireText(params.id, "id"));
+          return { text: update.text, value: update.task };
+        });
+        return changed ? result(`Claimed ${formatTask(changed)}`, { task: changed }) : result("Queue is empty");
+      }
+      const id = requireText(params.id, "id");
+      if (params.action === "complete") {
+        requireText(params.summary, "summary");
+        const evidence = params.evidence?.map((item) => item.trim()).filter(Boolean) ?? [];
+        if (evidence.length === 0) throw new Error("At least one concrete validation evidence item is required");
+        const changed = await mutateTodo(path, (content) => {
+          const update = completeCurrent(content, id);
+          return { text: update.text, value: update.task };
+        });
+        terminalHandled = activeTaskId === id;
+        pendingAdvance = autoRun;
+        if (terminalHandled) completedThisRun += 1;
+        return result(`Completed ${formatTask(changed)}\nEvidence: ${evidence.join("; ")}`, { task: changed, summary: params.summary, evidence });
+      }
+      if (params.action === "block") {
+        const changed = await mutateTodo(path, (content) => {
+          const update = blockCurrent(content, id, requireText(params.reason, "reason"));
           return { text: update.text, value: update.task };
         });
         terminalHandled = activeTaskId === id;
         autoRun = false;
         pendingAdvance = false;
-        return result(`Released ${formatTask(changed)}; queue paused`, { task: changed });
-      } catch (error) {
-        return result(`Error: ${error instanceof Error ? error.message : String(error)}`, { error: true });
+        return result(`Blocked ${formatTask(changed)}; queue paused`, { task: changed, reason: params.reason });
       }
+      const changed = await mutateTodo(path, (content) => {
+        const update = releaseCurrent(content, id);
+        return { text: update.text, value: update.task };
+      });
+      terminalHandled = activeTaskId === id;
+      autoRun = false;
+      pendingAdvance = false;
+      return result(`Released ${formatTask(changed)}; queue paused`, { task: changed });
     },
   });
 

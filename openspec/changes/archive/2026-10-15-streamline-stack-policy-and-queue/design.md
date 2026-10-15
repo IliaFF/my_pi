@@ -1,0 +1,9 @@
+# Design
+
+Extend existing claimNext with optional targetId as its third argument: the second argument already controls generated ids for deterministic legacy fixtures. Search Pending by exact existing id when supplied; throw before mutation if absent. No targetId preserves FIFO; current task protection remains. The tool passes its id explicitly and native execute throws on errors instead of returning a successful-looking Error string. No new wrapper/store or queue reordering required. Locking/atomic file writes stay in the existing shared store.
+
+General APPEND retains Russian default, clear explanations, critical feedback/no flattery, safety, ambiguity, task-conditional TODO ownership and compact recovery markers. Remove project/package prescriptions and duplicate wording; add bounded justified batching and outcome-based evidence. Tool-specific syntax and background mechanics remain owned by native schemas/core rules. A prompt is a tested candidate, not a proven optimum; offline checks cannot establish language adherence, causal speedup or quality.
+
+Audit all configured direct packages, local extensions, effective project override, deferred MCP schemas and unconfigured installed direct dependencies separately. Use offline CLI startup for the effective configured registry and actual SDK regressions for risky recent paths. Metadata/static checks are not functional coverage of external services. Mandatory background shell tests have immutable scope; inspect completion logs once, no polling loops or agent jobs.
+
+After full source tests/review/archive/commit, back up changed runtime files, APPEND and maintenance source before activating only checked diffs. Preserve settings/locks and unrelated tasks. Verify deployed byte parity and host gate, with targeted rollback available. Keep the five-task profiler comparison task pending: no frozen comparable dataset yet.

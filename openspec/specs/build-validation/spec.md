@@ -80,3 +80,10 @@ The mandatory gate MUST verify Ponytail request-local discovery and explicit com
 #### Scenario: Offline mode and command regression
 - **WHEN** the full gate runs
 - **THEN** active modes, off restoration, standalone discovery, independent review and explicit base/review/audit commands are checked against real provider context and errors fail the gate
+
+### Requirement: Queue selection and general policy are regression checked
+The mandatory offline gate MUST exercise explicit selection, FIFO, rejection and native tool errors with actual SDK tool execution, and assert the general APPEND preserves task-conditional recovery/communication/safety requirements.
+
+#### Scenario: Offline regression
+- **WHEN** the gate runs
+- **THEN** real queue SDK errors/state changes and policy contracts are checked without credentials, paid requests or production task mutation

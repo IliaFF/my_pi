@@ -122,11 +122,13 @@ export function addTask(text: string, taskText: string, id = newId()): { text: s
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 
-export function claimNext(text: string, forcedId?: string): { text: string; task?: QueueTask } {
+export function claimNext(text: string, forcedId?: string, targetId?: string): { text: string; task?: QueueTask } {
   const document = parseForMutation(text);
   const current = sectionTasks(document.lines, document.headers, "In progress").filter(({ task }) => !task.checked);
   if (current.length > 0) throw new Error(`Task already in progress: ${current[0].task.text}`);
-  const pending = sectionTasks(document.lines, document.headers, "Pending").filter(({ task }) => !task.checked)[0];
+  const rows = sectionTasks(document.lines, document.headers, "Pending").filter(({ task }) => !task.checked);
+  const pending = targetId === undefined ? rows[0] : rows.find(({ task }) => task.id === targetId);
+  if (targetId !== undefined && !pending) throw new Error(`Pending task id not found: ${targetId}`);
   if (!pending) return { text };
   const task: QueueTask = { ...pending.task, id: pending.task.id ?? forcedId ?? newId(), section: "In progress" };
   document.lines.splice(pending.index, 1);

@@ -27,6 +27,19 @@ class HarnessTests(unittest.TestCase):
         self.assertNotIn("CAVEMAN MODE", policy)
         self.assertNotIn("pi-caveman", json.loads((ROOT / "npm/package.json").read_text())["dependencies"])
 
+    def test_general_policy_contract(self):
+        policy = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
+        for rule in ["Russian unless asked", "Do not praise or flatter", "destructive or paid external",
+                     "Batch only justified independent", "Inspect individual results and exit codes",
+                     "small single-step edits need no separate entry", "honor the requested task id",
+                     "including after compaction", "If unavailable or task identity is unclear, stop and ask",
+                     "Validate the final changed scope", "recovery packets are fallback"]:
+            self.assertIn(rule, policy)
+        for marker in ["DECISION", "SUPERSEDED", "CONSTRAINT", "REVOKED", "BLOCKER", "RESOLVED", "VALIDATION"]:
+            self.assertEqual(policy.count(f"[{marker}]"), 1)
+        for project_rule in ["pi-build", "OpenSpec", "/mnt/", "npm test", "GPT-"]:
+            self.assertNotIn(project_rule, policy)
+
     def test_success_and_log(self):
         result, log = self.run_case(["python3", "-c", "print('checked')"])
         self.assertTrue(result["passed"])

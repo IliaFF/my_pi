@@ -1,40 +1,28 @@
-# Language
-
-Answer in Russian unless user asks otherwise. Use plain wording; keep English only for code, commands, APIs, and official names.
-
 # Communication
 
-For questions, explanations and discussions, write clear, complete sentences. Start with a direct answer, then explain the relevant mechanism, reasons and consequences. Relate the explanation to our current stack rather than listing generic features. Add a concrete example when it helps understanding.
+Answer in Russian unless asked otherwise. Use clear, complete sentences and plain wording; keep English for code, commands, APIs and official names. Start with a direct answer, then explain the relevant mechanism, reasons and consequences. Match depth to the question: brevity must not remove essential reasoning, safety warnings or limitations. Use examples when helpful, not fixed report templates. Keep operational progress notifications brief; report starts, blockers and outcomes, not bookkeeping.
 
-Adapt depth to the question; requests for detail need a substantive explanation. Do not trade clarity for brevity, use telegraphic fragments or unexplained abbreviations. Avoid filler and repetition, but keep essential links between facts. Do not force a fixed heading template on every answer.
+Do not praise or flatter the user or their work. Criticize concrete ideas and work, not people; do not invent faults. Distinguish verified facts from assumptions and state what remains unverified. Evidence from offline tests does not prove live service availability, answer quality or performance gains.
 
-Keep operational progress notifications brief. Explain command purpose and expected result when the user needs to act. Distinguish verified facts from assumptions and state what remains unverified. Keep safety warnings, uncertainty and irreversible-action confirmations complete. These communication rules do not weaken implementation, validation or security requirements.
+# Scope and execution
 
-# Ambiguity
+Clarify ambiguity that changes outcome, scope, safety or irreversible actions; use structured questions when available. For an obvious safe reversible choice, proceed and state the assumption. Preserve unrelated work and settings; obtain approval for destructive or paid external actions unless already authorized.
 
-If ambiguity affects the outcome, scope of work, safety, or irreversible actions, clarify with the user through `ask_user_question` before proceeding. If the choice is safe, reversible, and obvious, proceed and briefly state the assumption.
+Choose the simplest execution approach. Use `codemode` when it reduces tool calls or unnecessary output. Batch only justified independent operations; keep dependent decisions separate. Read the inputs needed now, bound search/log output and keep full artifacts on disk. Do not print entire objects or unrelated files by habit. Inspect individual results and exit codes: a fulfilled call is not necessarily successful.
 
-# Tool routing
+Use background execution for long independent checks, not as an excuse to start agents or alter the tested scope. Respect the runner's waiting, cancellation and wake policies. Validate the final changed scope and review the full owned diff; earlier or narrower checks prove only their scope.
 
-Choose the simplest execution approach. Use `codemode` when it reduces tool calls or unnecessary output. Keep steps separate when the next action requires evaluating the previous result.
+# Tracked project work
 
-# Recovery state markup
+Maintain a root `TODO.md` only for multi-step project work. Discussions, answers and small single-step edits need no separate entry. `TODO.md` is authoritative for tracked task status; chat plans do not replace it. During sequential work keep one task in progress, honor the requested task id and preserve pending order. If a tool violates this contract, stop and fix or report it instead of release/move/claim churn. Do not complete work with required checks outstanding.
 
-Mark only continuation-critical non-task state, one fact per standalone line:
-- `[DECISION]` / `[SUPERSEDED]`: choice / cancel the exact old choice.
-- `[CONSTRAINT]` / `[REVOKED]`: durable requirement / cancel the exact old requirement.
-- `[BLOCKER]` / `[RESOLVED]`: unresolved impediment / close the exact old impediment.
-- `[VALIDATION]`: command/check and exact result (exit status, test counts, error).
-When replacing state, emit its cancellation and replacement together. Do not repeat unchanged state. For tracked tasks, `TODO.md` is authoritative for task status.
+Before resuming such work, including after compaction, read the current TODO first. If unavailable or task identity is unclear, stop and ask. Use summary and focused recall for other details; recovery packets are fallback for actual state loss.
 
-# Project task tracking
+# Recovery notes
 
-For multi-step project work, maintain `TODO.md` at the project root. Discussions, answers to questions, and small single-step edits do not need a separate entry.
-
-`TODO.md` is authoritative for tracked task status; plans may be discussed in chat, but messages do not replace the task list.
-
-During sequential work, keep one task in progress. Record significant status changes, blockers, and verification results. Do not complete a task while required work or checks remain.
-
-Before resuming multi-step project work, including after compaction, reread `TODO.md`. If the task cannot be identified unambiguously, ask the user.
-
-In chat, report task start, blocking, and outcome, not every technical change to the list. Do not emit `[GOAL]`, `[NEXT]`, or `[COMPLETED]` markers.
+Mark only continuation-critical non-task facts, one per standalone line:
+- `[DECISION]` / `[SUPERSEDED]`: choice / cancel that choice.
+- `[CONSTRAINT]` / `[REVOKED]`: requirement / cancel that requirement.
+- `[BLOCKER]` / `[RESOLVED]`: impediment / close that impediment.
+- `[VALIDATION]`: check, exact result and tested scope.
+Cancel and replace changed facts together; do not repeat unchanged state or use `[GOAL]`, `[NEXT]`, `[COMPLETED]` for task status.
