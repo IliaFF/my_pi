@@ -38,6 +38,18 @@
         "dist/src/core/reload-shell-owner.js"
       ],
       "reason": "Local process-only pilot: reject agent/wake at shared admission, disable other features/update checks, finite deadline and strict per-job output cap, truthful notification-only tool schema/prompt."
+    },
+    {
+      "package": "@dietrichgebert/ponytail",
+      "version": "5.2.0",
+      "pinRequired": false,
+      "patch": "patches/@dietrichgebert+ponytail+5.2.0.patch",
+      "files": [
+        "pi-extension/index.js",
+        "skills/ponytail-review/SKILL.md",
+        "skills/ponytail-audit/SKILL.md"
+      ],
+      "reason": "Avoid repeat automatic base-skill reads while lite/full/ultra rules are injected; preserve off/standalone/manual commands and follow session language in review/audit."
     }
   ],
   "managedConfigs": [

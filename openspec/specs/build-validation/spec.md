@@ -73,3 +73,10 @@ The mandatory gate MUST exercise actual current Pi SDK and package shell lifecyc
 #### Scenario: Full offline regression
 - **WHEN** process-only package pin/patch changes
 - **THEN** success/error/timeout/cancel/log-limit/reload/shutdown checks and unsafe-request rejection run before runtime acceptance
+
+### Requirement: Ponytail context changes have real SDK coverage
+The mandatory gate MUST verify Ponytail request-local discovery and explicit commands using actual Pi SDK and faux provider contexts in an isolated agent with no credentials or external requests.
+
+#### Scenario: Offline mode and command regression
+- **WHEN** the full gate runs
+- **THEN** active modes, off restoration, standalone discovery, independent review and explicit base/review/audit commands are checked against real provider context and errors fail the gate

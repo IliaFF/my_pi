@@ -36,6 +36,8 @@ npm run verify:host                  # только patches/snapshots integrity
 
 Новый source закрепляет Pi core/pi-tui **1.2.0**, совпадающий с фактически активным ядром. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
 
+Ponytail 5.2.0 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
+
 Диагностика и откат: [docs/diagnostics-and-rollback.md](docs/diagnostics-and-rollback.md). Git rollback не равен runtime rollback. Не коммитить секреты, пользовательские настройки, npm trees, базы, logs или backups.
 
 ---
