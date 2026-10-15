@@ -4,16 +4,6 @@
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
-      "package": "pi-caveman",
-      "version": "1.0.8",
-      "pinRequired": false,
-      "patch": "patches/pi-caveman+1.0.8.patch",
-      "files": [
-        "extensions/caveman.ts"
-      ],
-      "reason": "Retain current concise-response prompt and UI integration fixes."
-    },
-    {
       "package": "@juicesharp/rpiv-ask-user-question",
       "version": "2.13.8",
       "pinRequired": false,

@@ -19,6 +19,14 @@ class HarnessTests(unittest.TestCase):
             result = gate.run_check("probe", "unit", args, env=dict(os.environ), output=output, timeout=timeout)
             return result, (output / "probe.log").read_text()
 
+    def test_clear_communication_policy_without_caveman(self):
+        policy = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
+        self.assertEqual(policy.count("# Communication"), 1)
+        for rule in ["clear, complete sentences", "direct answer", "mechanism, reasons and consequences", "operational progress notifications brief", "verified facts from assumptions"]:
+            self.assertIn(rule, policy)
+        self.assertNotIn("CAVEMAN MODE", policy)
+        self.assertNotIn("pi-caveman", json.loads((ROOT / "npm/package.json").read_text())["dependencies"])
+
     def test_success_and_log(self):
         result, log = self.run_case(["python3", "-c", "print('checked')"])
         self.assertTrue(result["passed"])

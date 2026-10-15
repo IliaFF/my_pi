@@ -22,10 +22,10 @@ try {
   const state = await client.getState();
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
-  for (const name of ["queue", "auto-ultra-compact-status", "caveman"]) {
+  for (const name of ["queue", "auto-ultra-compact-status", "ponytail"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
   }
-  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast"]) {
+  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast", "caveman"]) {
     assert.ok(!commands.some((command) => command.name === name), `removed command still registered: ${name}`);
   }
   assert.deepEqual(errors, [], "startup must not emit extension errors or start a model run");

@@ -88,3 +88,15 @@ class RollbackTests(unittest.TestCase):
         destination.write_text("current-reader")
         self.assertEqual(self.restore(), 0, self.last_restore_output)
         self.assertEqual(destination.read_text(), "known-good-reader")
+
+    def test_retired_caveman_patch_restorable(self):
+        data = json.loads(self.metadata.read_text())
+        for relative in ["npm/node_modules/pi-caveman/package.json", "npm/node_modules/pi-caveman/extensions/caveman.ts"]:
+            payload = self.backup / relative
+            payload.parent.mkdir(parents=True, exist_ok=True)
+            payload.write_text("known-good-caveman")
+            data["files"].append({"path": str(self.agent / relative), "sha256": maintenance.sha256(payload)})
+        self.metadata.write_text(json.dumps(data))
+        self.assertEqual(self.restore(), 0, self.last_restore_output)
+        for entry in data["files"][-2:]:
+            self.assertEqual(Path(entry["path"]).read_text(), "known-good-caveman")

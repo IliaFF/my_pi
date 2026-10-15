@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix="pi-preserve-") as temp:
     assert json.loads((agent / "settings.json").read_text()) == defaults
     original = {"defaultProvider": "private-provider", "defaultModel": "private-model", "custom": {"keep": True}, "packages": [
         "npm:pi-ssh-remote@0.0.1", {"source": "npm:@amaster.ai/pi-browser-use@0.0.1", "extensions": []},
-        "npm:pi-caveman", "npm:custom-plugin@2.0.0", "./private-plugin"]}
+        "npm:pi-workspace-history", "npm:custom-plugin@2.0.0", "./private-plugin"]}
     (agent / "settings.json").write_text(json.dumps(original))
     (agent / "APPEND_SYSTEM.md").write_bytes(b"PRIVATE INSTRUCTIONS\n")
     context.write_bytes(b'{"private":"policy"}\n')

@@ -36,34 +36,9 @@ try {
   assert.ok(!existsSync(join(modules, "pi-canary")), "Canary must be uninstalled");
   assert.ok(!existsSync(join(agent, "extensions/tools.ts")), "legacy tools owner must be removed");
 
-  const caveman = host();
-  (await jiti.import(join(modules, "pi-caveman/extensions/caveman.ts"), { default: true }))(caveman.pi);
-  let stale = false, frame;
-  const ctx = { sessionManager: { getEntries: () => caveman.entries }, ui: {
-    theme: { fg: (_color, text) => text }, notify() {},
-    setStatus() { if (stale) throw new Error("stale UI"); },
-  } };
-  await caveman.emit("session_start", ctx);
-  assert.ok((await caveman.emit("before_agent_start", ctx, { systemPrompt: "base" })).systemPrompt.includes("CAVEMAN MODE"));
-  await caveman.commands.get("caveman").handler("off", ctx);
-  assert.equal(await caveman.emit("before_agent_start", ctx, { systemPrompt: "base" }), undefined);
-  await caveman.commands.get("caveman").handler("lite", ctx);
-  assert.ok((await caveman.emit("before_agent_start", ctx, { systemPrompt: "base" })).systemPrompt.includes("Professional but tight"));
-  const setIntervalOriginal = globalThis.setInterval, clearIntervalOriginal = globalThis.clearInterval;
-  try {
-    globalThis.setInterval = fn => { frame = fn; return 1; };
-    globalThis.clearInterval = () => {};
-    await caveman.emit("agent_start", ctx);
-    assert.equal(typeof frame, "function");
-    stale = true;
-    assert.doesNotThrow(() => frame(), "Caveman patch must guard stale animation UI");
-    assert.doesNotThrow(() => caveman.commands.get("caveman").getArgumentCompletions("config"));
-    await caveman.emit("session_shutdown", ctx);
-  } finally {
-    globalThis.setInterval = setIntervalOriginal;
-    globalThis.clearInterval = clearIntervalOriginal;
-  }
-  console.log("PASS Caveman commands, persisted level, prompt toggle, and stale-UI patch");
+  assert.ok(!existsSync(join(modules, "pi-caveman")), "Caveman must be uninstalled");
+  assert.ok(existsSync(join(modules, "@dietrichgebert/ponytail")), "Ponytail must remain installed");
+  console.log("PASS Caveman absent and Ponytail preserved");
 
   const rpiv = host();
   const { registerAskUserQuestionReconciler } = await jiti.import(join(modules, "@juicesharp/rpiv-ask-user-question/reconcile.ts"));

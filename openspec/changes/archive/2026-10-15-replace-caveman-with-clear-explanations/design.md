@@ -1,0 +1,5 @@
+# Design
+
+Use existing maintenance full backup, Pi remove and isolated Linux npm prefix for source dependency change (mounted filesystem reify is slow). Remove only pi-caveman; preserve Ponytail/current versions and all user data. Communication block inserted before Ambiguity in source/personal policy; it states what good explanations contain rather than enforcing verbosity or a rigid form. Check exact before/after transformation of private APPEND and personal settings.
+
+Fresh offline RPC MUST have no caveman command, while Ponytail and queue remain. Package absence prevents new Caveman injection; startup probe makes no user prompt/model call and does not inspect a generated before_agent_start prompt. Existing verification cannot measure explanation quality; compare real answers later. Package removal must not be described as removing historical Caveman text from current conversation; new session required to eliminate that history. No session edits, cache deletion, config resets or unrelated cleanup.

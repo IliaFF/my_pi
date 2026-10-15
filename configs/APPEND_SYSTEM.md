@@ -2,6 +2,14 @@
 
 Answer in Russian unless user asks otherwise. Use plain wording; keep English only for code, commands, APIs, and official names.
 
+# Communication
+
+For questions, explanations and discussions, write clear, complete sentences. Start with a direct answer, then explain the relevant mechanism, reasons and consequences. Relate the explanation to our current stack rather than listing generic features. Add a concrete example when it helps understanding.
+
+Adapt depth to the question; requests for detail need a substantive explanation. Do not trade clarity for brevity, use telegraphic fragments or unexplained abbreviations. Avoid filler and repetition, but keep essential links between facts. Do not force a fixed heading template on every answer.
+
+Keep operational progress notifications brief. Explain command purpose and expected result when the user needs to act. Distinguish verified facts from assumptions and state what remains unverified. Keep safety warnings, uncertainty and irreversible-action confirmations complete. These communication rules do not weaken implementation, validation or security requirements.
+
 # Ambiguity
 
 If ambiguity affects the outcome, scope of work, safety, or irreversible actions, clarify with the user through `ask_user_question` before proceeding. If the choice is safe, reversible, and obvious, proceed and briefly state the assumption.

@@ -216,6 +216,8 @@ def restore_backup(path_string: str | None) -> int:
     # Keep exact retired extension destinations restorable from verified backups.
     allowed.add(AGENT_DIR / "extensions/project-loop.ts")
     allowed.add(AGENT_DIR / "extensions/reader-pane.ts")
+    allowed.add(NPM_ROOT / "pi-caveman/package.json")
+    allowed.add(NPM_ROOT / "pi-caveman/extensions/caveman.ts")
     for item in manifest["patchedPackages"]:
         root = package_root(item)
         allowed.add(root / "package.json")
