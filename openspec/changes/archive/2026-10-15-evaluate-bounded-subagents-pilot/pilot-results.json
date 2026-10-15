@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "sourceBaseline": "2352562",
+  "package": "pi-subagents@0.78.0",
+  "npmTarballIntegrity": "sha512-AsOvPL1xaVFV4bqIlheQKNI2LmAoiAKTPXXxi39/BsWJTdMJIqAkZJ3iLi6bTsh2PZHG7Ur08b7VJOtgAMIAig==",
+  "sdk": "1.2.0",
+  "node": "24.18.0",
+  "model": "openai-codex/gpt-6.1-sol",
+  "thinking": "low",
+  "fixtureSha256": "10b8ccb97f71a11fe4834d8a24c6b20708cb6440de9e6cc54aff2f7c03bc7ec5",
+  "launches": 4,
+  "originalAuthUnchanged": true,
+  "publicDefaultChildTools": [
+    "read",
+    "contact_supervisor"
+  ],
+  "publicQuietChildTools": [
+    "read"
+  ],
+  "quietChildToolCalls": 0,
+  "rows": [
+    {
+      "path": "direct-sdk",
+      "input": 581,
+      "output": 85,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reportedTurns": null,
+      "elapsedMs": 3844,
+      "foundBothCharacterizedBugs": true
+    },
+    {
+      "path": "native-foreground-child",
+      "input": 581,
+      "output": 86,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reportedTurns": null,
+      "elapsedMs": 3196,
+      "foundBothCharacterizedBugs": true
+    },
+    {
+      "path": "public-subagent-tool",
+      "input": 1731,
+      "output": 206,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reportedTurns": 2,
+      "elapsedMs": 11168,
+      "foundBothCharacterizedBugs": true
+    },
+    {
+      "path": "public-subagent-quiet",
+      "input": 442,
+      "output": 85,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "reportedTurns": 1,
+      "elapsedMs": 3800,
+      "foundBothCharacterizedBugs": true
+    }
+  ],
+  "limits": [
+    "One synthetic fixture, one sample per variant; no general quality/performance/price conclusion.",
+    "Fresh context only, no fork cache or detached wake coverage.",
+    "Plain SDK/native-factory variants have no tools; public variants use a replacement read-only role prompt.",
+    "Model parent was faux for public calls; root LLM dispatch overhead not measured.",
+    "Reported turns are not independently observed HTTP request counts."
+  ]
+}
