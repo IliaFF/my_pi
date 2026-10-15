@@ -33,7 +33,10 @@ try {
   ({ session } = await createAgentSession({ cwd: root, agentDir: process.env.PI_CODING_AGENT_DIR, modelRuntime,
     model: provider.getModel(), thinkingLevel: "off", resourceLoader, settingsManager, sessionManager: SessionManager.inMemory(root), tools: ["task_queue"] }));
   const errors = [];
-  await session.bindExtensions({ onError: error => errors.push(error) });
+  const notifications = [];
+  await session.bindExtensions({ onError: error => errors.push(error), uiContext: {
+    notify: (text, level) => notifications.push({ text, level }),
+  } });
   const template = "# TODO\n\n## In progress\n\n## Pending\n- [ ] First <!-- pi-task:first -->\n- [ ] Second <!-- pi-task:second -->\n\n## Blocked\n- [ ] Blocked <!-- pi-task:blocked -->\n\n## Completed\n- [x] Done <!-- pi-task:done -->\n";
   const todo = join(root, "TODO.md");
   const results = [];
@@ -47,6 +50,38 @@ try {
     assert.equal(results.length, 1);
     return results[0];
   }
+  const mixed = template.replace("## In progress\n\n", "## In progress\n- [ ] Current <!-- pi-task:current -->\n\n");
+  const historyOnly = "# TODO\n\n## Completed\n- [x] Done <!-- pi-task:done -->\n";
+  for (const fixture of [mixed, historyOnly]) {
+    writeFileSync(todo, fixture);
+    for (const command of ["/queue", "/queue list"]) {
+      notifications.length = 0;
+      const beforeMessages = session.messages.length;
+      await session.prompt(command);
+      assert.equal(session.messages.length, beforeMessages, "Slash list must not launch an agent run");
+      assert.equal(notifications.length, 1);
+      const { text, level } = notifications[0];
+      assert.equal(level, "info");
+      assert.doesNotMatch(text, /Completed|#done|Done/, "Slash list must hide completed history");
+      for (const section of ["In progress:", "Pending:", "Blocked:"]) assert.ok(text.includes(section));
+      if (fixture === mixed) {
+        for (const task of ["#current Current", "#first First", "#second Second", "#blocked Blocked"]) assert.ok(text.includes(task), task);
+        assert.ok(text.indexOf("#first First") < text.indexOf("#second Second"), "Pending order must remain unchanged");
+      } else {
+        assert.match(text, /Current: none/);
+        assert.match(text, /Pending: 0/);
+        assert.match(text, /Blocked: 0/);
+      }
+      assert.equal(readFileSync(todo, "utf8"), fixture, "Slash list must not mutate TODO");
+    }
+  }
+  writeFileSync(todo, mixed);
+  const listed = await invoke({ action: "list" });
+  assert.equal(listed.isError, false);
+  assert.match(listed.result.content[0].text, /Completed \(queue-managed\)/);
+  assert.match(listed.result.content[0].text, /#done Done/);
+  assert.equal(listed.result.details.completed[0].id, "done");
+  assert.equal(readFileSync(todo, "utf8"), mixed, "Tool list must not mutate TODO");
   writeFileSync(todo, template);
   const selected = await invoke({ action: "claim", id: "second" });
   assert.equal(selected.isError, false, JSON.stringify(selected.result));
@@ -67,7 +102,7 @@ try {
   assert.equal(second.isError, true);
   assert.equal(readFileSync(todo, "utf8"), active);
   assert.deepEqual(errors, []);
-  console.log("PASS actual queue SDK: explicit second id, FIFO, unknown/blocked/completed/blank rejection, current-task guard, native errors, no production TODO mutation");
+  console.log("PASS actual queue SDK: unfinished-only slash lists, empty queue, full tool history, read-only listing, explicit second id, FIFO, rejected ids, current-task guard, native errors, no production TODO mutation");
 } finally {
   session?.dispose();
   if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;

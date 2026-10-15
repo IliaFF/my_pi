@@ -43,7 +43,7 @@ function formatStatus(snapshot: ReturnType<typeof inspectTodo>, autoRun: boolean
   ].join("\n");
 }
 
-function formatList(snapshot: ReturnType<typeof inspectTodo>, autoRun: boolean, completed: number): string {
+function formatList(snapshot: ReturnType<typeof inspectTodo>, autoRun: boolean, completed: number, includeCompleted = true): string {
   const lines = [formatStatus(snapshot, autoRun, completed), ""];
   const addSection = (title: string, tasks: QueueTask[]) => {
     lines.push(`${title}:`);
@@ -54,7 +54,7 @@ function formatList(snapshot: ReturnType<typeof inspectTodo>, autoRun: boolean, 
   addSection("In progress", snapshot.current ? [snapshot.current] : []);
   addSection("Pending", snapshot.pending);
   addSection("Blocked", snapshot.blocked);
-  addSection("Completed (queue-managed)", snapshot.completed.filter((task) => task.id));
+  if (includeCompleted) addSection("Completed (queue-managed)", snapshot.completed.filter((task) => task.id));
   return lines.join("\n").trimEnd();
 }
 
@@ -158,7 +158,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
           return;
         }
         if (command === "list") {
-          ctx.ui.notify(formatList(await snapshot(ctx), autoRun, completedThisRun), "info");
+          ctx.ui.notify(formatList(await snapshot(ctx), autoRun, completedThisRun, false), "info");
           return;
         }
         if (command === "edit") {
