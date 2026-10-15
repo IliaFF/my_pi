@@ -53,6 +53,19 @@ try {
   assert.equal(repeated.before.length, 5, "Duplicate receipt cannot double-count a task");
   const late = { ...base[0], runId: "late", endedAt: "2026-10-01T00:03:00Z", durationMs: 99999, modelCalls: 999 };
   assert.equal(analyzeLoopPilot(pilot, [...base, late]).modelBefore, 10, "Completed baseline task cannot be rewritten by a later continuation");
+  const frozen = { ...pilot, frozenBaseline: base };
+  const rewritten = base.map(r => ({ ...r, modelCalls: 999, durationMs: 999999, checkSignatures: [] }));
+  const backfill = { ...base[0], runId: 'backfill', trackedTaskIds: ['backfill'], completedTaskIds: ['backfill'], timestamp: pilot.startedAt, endedAt: '2026-10-01T00:00:01Z', modelCalls: 888 };
+  const frozenResult = analyzeLoopPilot(frozen, [...rewritten, backfill, ...group(5, 5000)]);
+  assert.equal(frozenResult.modelBefore, 10, 'Frozen baseline must ignore rewritten or backfilled receipts');
+  assert.equal(frozenResult.timeBefore, 10000);
+  assert.equal(frozenResult.checksBefore, 2);
+  assert.equal(analyzeLoopPilot(frozen, group(5, 5000)).modelBefore, 10, 'Frozen copy survives raw receipt pruning');
+  assert.match(formatLoopPilot(frozen, [...base, ...group(5, 5000)]), /baseline snapshot frozen/);
+  assert.match(formatLoopPilot(frozen, group(5, 5000), base), /missing receipts 0/, 'Snapshot is sufficient when original baseline receipts are pruned');
+  assert.equal(frozenResult.ignoredBaseline, 1);
+  const mixedBaseline = { ...backfill, runId: 'mixed', trackedTaskIds: ['ambiguous', 'other'] };
+  assert.equal(analyzeLoopPilot(frozen, [...group(5, 5000), mixedBaseline]).untracked, 1, 'Freezing cannot hide ambiguous new receipts');
   assert.match(formatLoopPilot(pilot, [...base, ...group(5, 5000)]), /no causal or answer-quality claim/i);
   assert.match(formatLoopPilot(pilot, [], [base[0]]), /missing receipts 1/);
   assert.match(formatLoopPilot(pilot, Array(100).fill(base[0])), /sample limit reached/);
@@ -101,6 +114,16 @@ try {
     assert.equal(latest().checksCoverFinalWrites, true);
     assert.equal(latest().checkPasses, 2);
   }
+  const directory = join(root, `observability/loop-pilot-${scope.projectHash}-${state.id}`);
+  const snapshotPath = join(directory, 'baseline.json');
+  const snapshot = readFileSync(snapshotPath, 'utf8');
+  assert.equal(JSON.parse(snapshot).length, 6, 'Five tasks include the split task first run');
+  assert.equal(statSync(snapshotPath).mode & 0o777, 0o600);
+  assert.ok(!snapshot.includes('PRIVATE_'));
+  for (const file of readdirSync(directory).filter(f => f.endsWith('.run.json'))) {
+    const path = join(directory, file), row = JSON.parse(readFileSync(path));
+    writeFileSync(path, JSON.stringify({ ...row, modelCalls: 999, durationMs: 999999 }));
+  }
   for (let i = 0; i < 5; i++) {
     const id = `grouped${i}`, guidance = await begin(id);
     assert.match(guidance.message.content, /bounded output/);
@@ -111,7 +134,7 @@ try {
     await finish();
     assert.equal(latest().pilotPhase, "grouped");
   }
-  const directory = join(root, `observability/loop-pilot-${scope.projectHash}-${state.id}`);
+  assert.equal(readFileSync(snapshotPath, 'utf8'), snapshot, 'Grouped capture never overwrites the frozen baseline');
   const receipts = () => readdirSync(directory).filter((f) => f.endsWith(".run.json"));
   assert.equal(receipts().length, 11);
   assert.equal(statSync(statePath).mode & 0o777, 0o600);
@@ -119,6 +142,7 @@ try {
   await commands.get("loop-report").handler("pilot", ctx);
   assert.match(notices.at(-1).message, /baseline 5\/5 tasks · grouped 5\/5 tasks · complete/);
   assert.match(notices.at(-1).message, /missing receipts 0/);
+  assert.match(notices.at(-1).message, /per-task model calls median 2 → 2/, 'Command must use frozen metrics, not edited receipts');
   assert.equal(await begin("later"), undefined);
   await call("edit", { path: "later.ts" }); await finish();
   assert.equal(receipts().length, 11, "Collection must stop after 5+5 tasks");
@@ -141,6 +165,14 @@ try {
   assert.equal(latest().checksCoverFinalWrites, false);
   await begin("report"); await call("edit", { path: "changed.ts" }); await call("bash", { command: "npm test" }); await call("write", { path: "report.md" }); await finish();
   assert.equal(latest().checksCoverFinalWrites, true);
+  for (const bad of [{}, [...JSON.parse(snapshot), JSON.parse(snapshot)[0]], JSON.parse(snapshot).map(r => ({ ...r, pilotId: 'wrong' }))]) {
+    writeFileSync(snapshotPath, JSON.stringify(bad));
+    await commands.get('loop-report').handler('pilot', ctx);
+    assert.equal(notices.at(-1).kind, 'warning');
+    assert.match(notices.at(-1).message, /Invalid frozen baseline/);
+    assert.equal(readFileSync(snapshotPath, 'utf8'), JSON.stringify(bad), 'Corrupt snapshot must not silently reset');
+  }
+  writeFileSync(snapshotPath, snapshot);
   // Corrupt receipts fail visibly rather than producing an optimistic summary.
   writeFileSync(join(directory, "corrupt.run.json"), "{}");
   await commands.get("loop-report").handler("pilot", ctx);

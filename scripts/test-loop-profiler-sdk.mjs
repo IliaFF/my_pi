@@ -2,7 +2,7 @@
 // Offline integration: real Pi lifecycle and native codemode, faux provider, temporary files only.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { findPackageJSON } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -97,6 +97,14 @@ try {
   const grouped = readRuns().at(-1);
   assert.equal(grouped.pilotPhase, "grouped");
   assert.equal(grouped.pilotGuidanceApplied, true);
+  const snapshotPath = join(pilotDir, 'baseline.json'), snapshot = readFileSync(snapshotPath, 'utf8');
+  assert.equal(JSON.parse(snapshot).length, 5);
+  assert.equal(statSync(snapshotPath).mode & 0o777, 0o600);
+  assert.ok(!snapshot.includes(secret));
+  const callsBeforeCommand = provider.state.callCount;
+  await session.prompt('/loop-report pilot');
+  assert.equal(provider.state.callCount, callsBeforeCommand, 'Pilot commands must not call a provider');
+  assert.equal(readFileSync(snapshotPath, 'utf8'), snapshot, 'Repeated native commands cannot replace the baseline');
   assert.deepEqual(errors, []);
   assert.equal(networkAttempts, 0);
   console.log(`PASS Pi ${JSON.parse(readFileSync(join(sdkDir, "package.json"))).version}: real user/custom runs, native codemode nesting, phase-specific pilot injection, timings, privacy; 0 network attempts`);

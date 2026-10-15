@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, chmodSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, linkSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import type { BeforeAgentStartEvent, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
@@ -459,7 +459,7 @@ type PilotScope = Pick<LoopRun, "projectHash" | "provider" | "model" | "thinking
 type PilotPhase = "baseline" | "grouped";
 type LoopPilot = {
   version: 1; id: string; startedAt: string; active: boolean; targetTasks: number;
-  scope: PilotScope; excludedTaskIds: string[];
+  scope: PilotScope; excludedTaskIds: string[]; frozenBaseline?: LoopRun[];
 };
 const MAX_PILOT_RUNS = 100;
 function samePilotScope(a: PilotScope, b: PilotScope): boolean {
@@ -481,6 +481,7 @@ function readLoopPilot(projectHash: string): LoopPilot | undefined {
     const value = JSON.parse(readFileSync(pilotPath(projectHash), "utf8")) as LoopPilot;
     if (value.version !== 1 || value.scope?.projectHash !== projectHash || !Array.isArray(value.excludedTaskIds) || value.targetTasks !== 5 || !Number.isFinite(Date.parse(value.startedAt))) throw new Error("Invalid pilot state");
     pilotDirectory(value);
+    value.frozenBaseline = readFrozenBaseline(value);
     return value;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
@@ -495,8 +496,43 @@ function writePilotJson(path: string, value: unknown): void {
   renameSync(temporary, path);
 }
 export function saveLoopPilot(pilot: LoopPilot): void {
-  writePilotJson(join(pilotDirectory(pilot), "manifest.json"), pilot);
-  writePilotJson(pilotPath(pilot.scope.projectHash), pilot);
+  const { frozenBaseline, ...state } = pilot;
+  writePilotJson(join(pilotDirectory(pilot), "manifest.json"), state);
+  writePilotJson(pilotPath(pilot.scope.projectHash), state);
+}
+function readFrozenBaseline(pilot: LoopPilot): LoopRun[] | undefined {
+  try {
+    const rows = JSON.parse(readFileSync(join(pilotDirectory(pilot), "baseline.json"), "utf8"));
+    if (!Array.isArray(rows) || rows.length > MAX_PILOT_RUNS || !rows.every((r) =>
+      r && r.pilotId === pilot.id && samePilotScope(r, pilot.scope) && r.pilotPhase === "baseline" && r.measurementVersion === 1 &&
+      typeof r.runId === "string" && /^[a-zA-Z0-9_-]+$/.test(r.runId) &&
+      Number.isFinite(r.durationMs) && r.durationMs >= 0 && Number.isFinite(r.modelCalls) && r.modelCalls >= 0 &&
+      Array.isArray(r.trackedTaskIds) && r.trackedTaskIds.length === 1 &&
+      typeof r.trackedTaskIds[0] === "string" && /^[a-zA-Z0-9_-]+$/.test(r.trackedTaskIds[0]) &&
+      Array.isArray(r.completedTaskIds))) throw new Error("Invalid frozen baseline");
+    const summary = analyzeLoopPilot({ ...pilot, frozenBaseline: undefined }, rows);
+    if (summary.before.length !== pilot.targetTasks || new Set(summary.before.flatMap(t => t.runIds)).size !== rows.length) throw new Error("Invalid frozen baseline");
+    return rows;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+function freezeBaseline(pilot: LoopPilot, samples: LoopRun[]): void {
+  if (pilot.frozenBaseline) return;
+  const summary = analyzeLoopPilot(pilot, samples);
+  if (summary.before.length !== pilot.targetTasks) return;
+  const ids = new Set(summary.before.flatMap(t => t.runIds));
+  const rows = summary.runs.filter(r => ids.has(r.runId));
+  ensurePrivateDir(pilotDirectory(pilot));
+  const temporary = join(pilotDirectory(pilot), `baseline-${randomUUID()}.tmp`);
+  try {
+    writeFileSync(temporary, `${JSON.stringify(rows)}\n`, { mode: 0o600, flag: "wx" });
+    // Publish complete bytes atomically; first baseline wins across concurrent sessions.
+    try { linkSync(temporary, join(pilotDirectory(pilot), "baseline.json")); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+  } finally { rmSync(temporary, { force: true }); }
+  pilot.frozenBaseline = readFrozenBaseline(pilot);
 }
 function pilotSamples(pilot: LoopPilot): LoopRun[] {
   try {
@@ -520,7 +556,12 @@ function activeTaskId(cwd: string): string | undefined {
   } catch { return undefined; }
 }
 export function analyzeLoopPilot(pilot: LoopPilot, records: LoopRun[]) {
-  const runs = [...new Map(records.map((r) => [r.runId, r])).values()]
+  const frozenIds = new Set(pilot.frozenBaseline?.flatMap(r => r.trackedTaskIds ?? []));
+  const isBaselineReceipt = (r: LoopRun) => r.pilotId === pilot.id && r.pilotPhase === "baseline" && r.trackedTaskIds?.length === 1 && samePilotScope(r, pilot.scope) && r.measurementVersion === 1;
+  const ignoredBaseline = pilot.frozenBaseline ? records.filter(r => isBaselineReceipt(r) && !frozenIds.has(r.trackedTaskIds![0]!)).length : 0;
+  const source = pilot.frozenBaseline ? [...pilot.frozenBaseline, ...records.filter(r =>
+    !isBaselineReceipt(r) && !(r.trackedTaskIds?.length === 1 && frozenIds.has(r.trackedTaskIds[0]!)))] : records;
+  const runs = [...new Map(source.map((r) => [r.runId, r])).values()]
     .filter((r) => r.pilotId === pilot.id && r.projectHash === pilot.scope.projectHash && r.timestamp >= pilot.startedAt && !r.trackedTaskIds?.some((id) => pilot.excludedTaskIds.includes(id)))
     .sort((a, b) => (a.endedAt ?? a.timestamp).localeCompare(b.endedAt ?? b.timestamp));
   const groups = new Map<string, LoopRun[]>();
@@ -544,6 +585,7 @@ export function analyzeLoopPilot(pilot: LoopPilot, records: LoopRun[]) {
       phase: included[0]!.pilotPhase,
       comparable: included.every((r) => samePilotScope(r, pilot.scope) && r.pilotPhase === included[0]!.pilotPhase && r.measurementVersion === 1),
       checked: observedCheck && !dirty && included.every((r) => !r.timingIncomplete) && included.at(-1)!.stopReason === "stop",
+      runIds: included.map(r => r.runId),
       runs: included.length, modelCalls: included.reduce((n, r) => n + r.modelCalls, 0), durationMs: included.reduce((n, r) => n + r.durationMs, 0),
       checks: new Set(included.flatMap((r) => r.checkSignatures ?? [])).size,
       finishedAt: included.at(-1)!.endedAt ?? included.at(-1)!.timestamp,
@@ -571,7 +613,7 @@ export function analyzeLoopPilot(pilot: LoopPilot, records: LoopRun[]) {
   const fewerChecks = before.length > 0 && after.length > 0 && median(after, "checks") < median(before, "checks");
   const guardrails = before.length === 5 && after.length === 5 && incomplete === 0 && untracked === 0 && pending === 0 && excluded === 0 && guidanceMissing === 0 && !fewerChecks && [...before, ...after].every((t) => t.checked);
   return {
-    runs, tasks, before, after, signal, modelChange, timeChange, incomplete, untracked, pending, excluded, guidanceMissing, fewerChecks,
+    runs, tasks, before, after, signal, modelChange, timeChange, incomplete, untracked, pending, excluded, guidanceMissing, fewerChecks, ignoredBaseline,
     completed: before.length + after.length,
     phase: (before.length < pilot.targetTasks ? "baseline" : "grouped") as PilotPhase,
     guardrails,
@@ -587,10 +629,11 @@ function capturePilotRun(run: LoopRun): void {
   if (samples.length >= MAX_PILOT_RUNS || analyzeLoopPilot(pilot, samples).completed >= pilot.targetTasks * 2) return;
   if (!/^[a-zA-Z0-9_-]+$/.test(run.runId)) throw new Error("Invalid pilot run id");
   writePilotJson(join(pilotDirectory(pilot), `${run.runId}.run.json`), run);
+  freezeBaseline(pilot, [...samples, run]);
 }
 export function formatLoopPilot(pilot: LoopPilot, samples: LoopRun[], observed: LoopRun[] = []): string {
   const s = analyzeLoopPilot(pilot, samples);
-  const ids = new Set(samples.map((r) => r.runId));
+  const ids = new Set([...samples, ...(pilot.frozenBaseline ?? [])].map((r) => r.runId));
   const finished = s.completed === pilot.targetTasks * 2 || !pilot.active || samples.length >= MAX_PILOT_RUNS;
   const lastEnd = samples.reduce((at, r) => at > (r.endedAt ?? r.timestamp) ? at : r.endedAt ?? r.timestamp, pilot.startedAt);
   const missing = observed.filter((r) => r.projectHash === pilot.scope.projectHash && r.timestamp >= pilot.startedAt && (!finished || (r.endedAt ?? r.timestamp) <= lastEnd) && !r.trackedTaskIds?.some((id) => pilot.excludedTaskIds.includes(id)) && !ids.has(r.runId)).length;
@@ -601,9 +644,9 @@ export function formatLoopPilot(pilot: LoopPilot, samples: LoopRun[], observed: 
   };
   return [
     `Loop grouping pilot · baseline ${s.before.length}/5 tasks · grouped ${s.after.length}/5 tasks · ${s.completed === 10 ? "complete" : pilot.active ? s.phase : "stopped"}${samples.length >= MAX_PILOT_RUNS ? " · sample limit reached" : ""}`,
-    `scope ${pilot.scope.provider}/${pilot.scope.model}/${pilot.scope.thinking}; tracked code tasks only, all their runs included`,
+    `scope ${pilot.scope.provider}/${pilot.scope.model}/${pilot.scope.thinking}; tracked code tasks only, all their runs included; baseline snapshot ${pilot.frozenBaseline ? "frozen" : "collecting"}`,
     `per-task model calls median ${s.modelBefore} → ${s.modelAfter} (${delta(s.modelChange)}) · summed run time ${formatDuration(s.timeBefore)} → ${formatDuration(s.timeAfter)} (${delta(s.timeChange)})`,
-    `distinct observed check signatures/task ${s.checksBefore} → ${s.checksAfter} · fewer checks ${s.fewerChecks}`,
+    `distinct observed check signatures/task ${s.checksBefore} → ${s.checksAfter} · fewer checks ${s.fewerChecks} · late baseline receipts ignored ${s.ignoredBaseline}`,
     `baseline: ${phaseTotals("baseline")}`,
     `grouped: ${phaseTotals("grouped")}`,
     `performance signal: ${s.signal} (descriptive ±10% band, not statistical significance)`,
@@ -708,8 +751,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
           if (!pilot) throw new Error("No pilot. Use /loop-report pilot-start");
           if (requested === "pilot-stop") {
             pilot.active = false;
-            writePilotJson(pilotPath(projectHash), pilot);
+            saveLoopPilot(pilot);
           }
+          freezeBaseline(pilot, pilotSamples(pilot));
           ctx.ui.notify(formatLoopPilot(pilot, pilotSamples(pilot), readRuns(projectHash)), "info");
         } catch (error) { ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning"); }
         return;
@@ -756,7 +800,9 @@ export default function loopProfiler(pi: ExtensionAPI): void {
       try {
         const candidate = readLoopPilot(projectHash);
         if (candidate?.active) {
-          const samples = pilotSamples(candidate), summary = analyzeLoopPilot(candidate, samples);
+          const samples = pilotSamples(candidate);
+          freezeBaseline(candidate, samples);
+          const summary = analyzeLoopPilot(candidate, samples);
           if (summary.completed < candidate.targetTasks * 2 && samples.length < MAX_PILOT_RUNS) {
             pilot = candidate;
             pilotPhase = (taskId ? samples.find((r) => r.trackedTaskIds?.includes(taskId))?.pilotPhase : undefined) ?? summary.phase;

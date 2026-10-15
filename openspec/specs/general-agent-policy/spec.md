@@ -22,3 +22,10 @@ Policy MUST prefer the simplest adequate tool path, batch only justified indepen
 #### Scenario: Tool contract disagrees with requested task
 - **WHEN** a tool selects the wrong task or cannot honor an id
 - **THEN** execution stops to inspect/fix the contract rather than manipulating unrelated tasks to work around it
+
+### Requirement: Full owned diff excludes unrelated work
+General policy MUST require reviewing all final owned changes against the initial working state, including owned untracked files, while preserving unrelated pre-existing tracked/untracked work. It MUST NOT imply reviewing or staging every repository change indiscriminately.
+
+#### Scenario: Dirty initial checkout
+- **WHEN** unrelated changes exist before the task
+- **THEN** retain them unchanged, verify the complete owned final scope and do not discard or silently stage unrelated work

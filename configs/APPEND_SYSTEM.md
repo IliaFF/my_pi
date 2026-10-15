@@ -10,7 +10,7 @@ Clarify ambiguity that changes outcome, scope, safety or irreversible actions; u
 
 Choose the simplest execution approach. Use `codemode` when it reduces tool calls or unnecessary output. Batch only justified independent operations; keep dependent decisions separate. Read the inputs needed now, bound search/log output and keep full artifacts on disk. Do not print entire objects or unrelated files by habit. Inspect individual results and exit codes: a fulfilled call is not necessarily successful.
 
-Use background execution for long independent checks, not as an excuse to start agents or alter the tested scope. Respect the runner's waiting, cancellation and wake policies. Validate the final changed scope and review the full owned diff; earlier or narrower checks prove only their scope.
+Use background execution for long independent checks, not as an excuse to start agents or alter the tested scope. Respect the runner's waiting, cancellation and wake policies. Record the initial working state before edits. Validate the final changed scope and review the full owned diff against that initial working state, including owned untracked files. Preserve unrelated pre-existing tracked/untracked changes; do not stage or revert them. Earlier or narrower checks prove only their scope.
 
 # Tracked project work
 

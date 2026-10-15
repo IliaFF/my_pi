@@ -230,13 +230,22 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 
 Default-конфигурация включает `pi-contextimate`, `pi-cachemire`, `pi-traceline` и `pi-meantime` из `pine-of-glass@0.15.3`. Meantime включён через `pi-meantime.json`; `/pace` показывает локальный timing ledger, live widget — текущую фазу. Дополнительного model call нет. Это session-local наблюдения, не persistent loop baseline и не доказанная причина задержки. Нужен reload/restart. Upstream ищет user config в `HOME/.pi/agent` (или project `.pi`); нестандартный `PI_CODING_AGENT_DIR` сам по себе этот путь не перенаправляет.
 
-`loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl`: каталог создаётся с правами `0700`, файл — `0600`. Prompt, messages, tool arguments, tool results, call IDs и секреты туда не записываются; сохраняются только числовые counters/histograms. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
+`loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl`: каталог создаётся с правами `0700`, файл — `0600`. Prompt, messages, tool arguments, tool results, tool-call IDs и секреты туда не записываются; сохраняются counters/histograms и metadata запуска, модели, task/run IDs. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
 
 ```text
 /loop-report last
 /loop-report baseline
 /loop-report batching
+/loop-report pilot-start
+/loop-report pilot
+/loop-report pilot-stop
 ```
+
+Grouping pilot собирает пять завершённых baseline code tasks, затем пять grouped tasks с локальным напоминанием о независимых bounded проверках. Task, активная при `pilot-start`, исключается. Несколько запусков одной задачи суммируются до первого завершения; не дробите задачи ради метрики. Scope фиксирует project/provider/model/thinking; ошибки, проверки и неполнота наблюдения остаются в отчёте. Команды не обращаются к модели.
+
+После пяти baseline tasks исходные receipts копируются в отдельный private `baseline.json` (`0600`, каталог `0700`). Полностью записанный snapshot публикуется атомарно без перезаписи; последующие исправления receipts, поздние baseline tasks и очистка общего ring log не меняют базовые значения. Повреждение snapshot даёт warning, а не тихий reset. Не удаляйте active pilot для «улучшения» результата; используйте явный `pilot-stop`.
+
+Разные задачи не образуют контролируемый benchmark. Результат descriptive, не доказательство ускорения/качества; неизвестные проверки через shell/background не считаются отсутствовавшими. Пока нет валидных пяти baseline и пяти grouped tasks, вывод — `insufficient data`. После обновления extension нужен restart; замена файла не обновляет уже загруженный модуль.
 
 Report фильтруется по текущему project path и показывает duration, TTFT, provider response-header latency, model/tool rounds, validation rounds и cache usage. Duration/TTFT по-прежнему считаются от начала запуска, чтобы не менять смысл старых метрик. Время от принятого `input` до начала запуска показано отдельно как `input preparation`, если оба события наблюдались. Поддерживаются Pi 1.2 `user` и `custom` starts без `prompt`; повторные starts до `agent_settled` не обрезают текущую операцию.
 
@@ -251,7 +260,7 @@ node scripts/test-loop-profiler-sdk.mjs /path/to/node_modules/@earendil-works/pi
 ```
 SDK-проверка использует настоящие user/custom sessions и native codemode, faux provider и временные файлы; сетевые запросы запрещены. Идеи сверены с `@jy02414216/pi-task-timer@1.1.3` (объединение интервалов и failed time), `pi-metrics@0.8.0` (агрегация до settled) и `pi-trace-extension@0.1.16` (stop reason/стоимость); их код и зависимости не подключаются, содержимое запросов/результатов не сохраняется.
 
-`configs/APPEND_SYSTEM.md` задаёт direct-only policy. Одиночные операции и обычный `search → read → edit → test` идут direct; 2–4 статически известных независимых операции можно запускать параллельными direct calls. Для больших результатов сначала используются `context_search` и bounded `context_get`; для полного анализа redacted source — `context_export` и затем `rg`/`jq`/Python.
+`configs/APPEND_SYSTEM.md` разрешает группировку, только когда она уменьшает модельные раунды или лишний вывод: независимые операции с уже известными входами можно объединять, зависимые решения остаются последовательными. Выбор direct calls или `codemode` зависит от доступного runtime API, не от фиксированного числа операций. Не объединяйте полные большие документы ради счётчика вызовов: это может потребовать дополнительных чтений sidecar. Для больших результатов сначала используются `context_search` и bounded `context_get`; для полного анализа redacted source — `context_export` и затем `rg`/`jq`/Python.
 
 ## Windows Terminal visual
 

@@ -40,6 +40,12 @@ class HarnessTests(unittest.TestCase):
         for project_rule in ["pi-build", "OpenSpec", "/mnt/", "npm test", "GPT-"]:
             self.assertNotIn(project_rule, policy)
 
+    def test_owned_diff_not_entire_dirty_checkout(self):
+        policy = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
+        for rule in ["initial working state", "owned untracked files",
+                     "unrelated pre-existing tracked/untracked", "do not stage or revert them"]:
+            self.assertIn(rule, policy)
+
     def test_success_and_log(self):
         result, log = self.run_case(["python3", "-c", "print('checked')"])
         self.assertTrue(result["passed"])
