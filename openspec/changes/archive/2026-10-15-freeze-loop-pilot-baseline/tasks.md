@@ -8,6 +8,8 @@
 
 ## 3. Acceptance and runtime
 - [x] 3.1 Full offline gate, complete owned diff review, evidence, archive and final gate.
-- [ ] 3.2 Commit source; backup and apply only approved profiler/policy/maintenance paths; installed verification.
-- [ ] 3.3 Start actual SDK command pilot with current Codex model/thinking scope and setup task excluded, without provider calls. Verify state and report0/5 honestly; request restart for current process.
-- [ ] 3.4 Complete root task only after source/runtime checks pass; future task samples remain pending observation, not fabricated results.
+- [x] 3.2 Commit source; backup and apply only approved profiler/policy/maintenance paths; installed verification.
+- [x] 3.3 Start actual SDK command pilot with current Codex model/thinking scope and setup task excluded, without provider calls. Verify state and report0/5 honestly; request restart for current process.
+- [x] 3.4 Record verified source/runtime acceptance and future observation limits.
+
+Root task closes only after final source validation, committed-source parity and protected-file checks; future task samples remain pending observation, not fabricated results.
