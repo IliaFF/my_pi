@@ -185,6 +185,9 @@ fi
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/APPEND_SYSTEM.md" ]]; then
   cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 fi
+if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/pi-meantime.json" ]]; then
+  cp "$ROOT/configs/pi-meantime.json" "$AGENT_DIR/pi-meantime.json"
+fi
 # Personal configuration end
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"

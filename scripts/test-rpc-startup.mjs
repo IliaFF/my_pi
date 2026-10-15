@@ -22,7 +22,7 @@ try {
   const state = await client.getState();
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
-  for (const name of ["queue", "auto-ultra-compact-status", "ponytail"]) {
+  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
   }
   for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast", "caveman"]) {

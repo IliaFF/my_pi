@@ -24,7 +24,8 @@
       "extensions": [
         "extensions/pi-contextimate/**",
         "extensions/pi-traceline/**",
-        "extensions/pi-cachemire/**"
+        "extensions/pi-cachemire/**",
+        "extensions/pi-meantime/**"
       ]
     },
     "npm:pi-markdown-preview",

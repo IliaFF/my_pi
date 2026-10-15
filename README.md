@@ -58,6 +58,7 @@ npm run verify:host                  # только patches/snapshots integrity
 - precise tool restoration после compaction добавляет `recall_folded` при наличии folded pointers
 - Contextimate для оценки статического context footprint
 - Cachemire для cache/turn cost diagnostics
+- Meantime для фаз ожидания/генерации/tools/harness; `/pace` — локальный timing ledger без дополнительного запроса модели. Включён allowlist и `pi-meantime.json`; состояние в памяти, не persistent profiler.
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
 - глобальный OpenAlex skill с dependency-free Node helper для поиска научных публикаций и OA-ссылок
 
@@ -79,7 +80,7 @@ npm run verify:host                  # только patches/snapshots integrity
 | `pi-token-speed` | `0.11.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-fast-resume` | `1.4.16` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
-| `pine-of-glass` | `0.15.3` | загружены только 3 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`. |
+| `pine-of-glass` | `0.15.3` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
 | `pi-markdown-preview` | `0.22.2` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
 | `@amaster.ai/pi-browser-use` | `0.1.26` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
@@ -224,7 +225,7 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 
 ## Observability
 
-Default-конфигурация включает `pi-contextimate`, `pi-cachemire` и `pi-traceline` из `pine-of-glass@0.15.3`.
+Default-конфигурация включает `pi-contextimate`, `pi-cachemire`, `pi-traceline` и `pi-meantime` из `pine-of-glass@0.15.3`. Meantime включён через `pi-meantime.json`; `/pace` показывает локальный timing ledger, live widget — текущую фазу. Дополнительного model call нет. Это session-local наблюдения, не persistent loop baseline и не доказанная причина задержки. Нужен reload/restart. Upstream ищет user config в `HOME/.pi/agent` (или project `.pi`); нестандартный `PI_CODING_AGENT_DIR` сам по себе этот путь не перенаправляет.
 
 `loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl`: каталог создаётся с правами `0700`, файл — `0600`. Prompt, messages, tool arguments, tool results, call IDs и секреты туда не записываются; сохраняются только числовые counters/histograms. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
 

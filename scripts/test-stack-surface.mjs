@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -39,6 +39,50 @@ try {
   assert.ok(!existsSync(join(modules, "pi-caveman")), "Caveman must be uninstalled");
   assert.ok(existsSync(join(modules, "@dietrichgebert/ponytail")), "Ponytail must remain installed");
   console.log("PASS Caveman absent and Ponytail preserved");
+
+  const meantime = host();
+  const oldHome = process.env.HOME, oldCwd = process.cwd();
+  const oldInterval = globalThis.setInterval, oldClear = globalThis.clearInterval;
+  const timers = new Map(), cleared = new Set(), widgets = new Map();
+  let nextTimer = 0;
+  const tui = { requestRender() {} };
+  const ui = { theme: { fg: (_color, text) => text }, notify() {},
+    setWidget(key, builder) { if (builder) widgets.set(key, builder(tui)); else widgets.delete(key); } };
+  try {
+    process.env.HOME = state;
+    process.chdir(state);
+    mkdirSync(join(state, ".pi/agent"), { recursive: true });
+    writeFileSync(join(state, ".pi/agent/pi-meantime.json"), '{"enabled":true}');
+    globalThis.setInterval = (fn, ms) => { assert.equal(ms, 1000); timers.set(++nextTimer, fn); return nextTimer; };
+    globalThis.clearInterval = id => { cleared.add(id); };
+    (await jiti.import(join(modules, "pine-of-glass/extensions/pi-meantime/index.ts"), { default: true }))(meantime.pi);
+    assert.ok(meantime.commands.has("pace"));
+    await meantime.emit("session_start", { hasUI: false }, { reason: "startup" });
+    assert.equal(timers.size, 0, "headless startup must not start a UI timer");
+    await meantime.commands.get("pace").handler("", { hasUI: false });
+    await meantime.emit("session_start", { hasUI: true, ui }, { reason: "startup" });
+    assert.ok(widgets.has("pi-meantime"));
+    assert.equal(timers.size, 1);
+    await meantime.emit("agent_start", {});
+    assert.doesNotThrow(() => timers.get(1)());
+    await meantime.emit("session_start", { hasUI: true, ui }, { reason: "reload" });
+    assert.ok(cleared.has(1), "reload must clear the previous timer");
+    assert.equal(timers.size, 2);
+    await meantime.emit("agent_end", {});
+    await meantime.emit("session_shutdown", { hasUI: true, ui });
+    assert.ok(cleared.has(2), "shutdown must clear the final timer");
+    assert.ok(!widgets.has("pi-meantime"));
+    assert.equal(globalThis.__piMeantimeTimer, undefined);
+    assert.doesNotThrow(() => timers.get(2)());
+    console.log("PASS Meantime command, headless guard, UI timer reload/shutdown cleanup (fake UI, no provider calls)");
+  } finally {
+    globalThis.setInterval = oldInterval;
+    globalThis.clearInterval = oldClear;
+    if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;
+    process.chdir(oldCwd);
+    delete globalThis.__piMeantime;
+    delete globalThis.__piMeantimeTimer;
+  }
 
   const rpiv = host();
   const { registerAskUserQuestionReconciler } = await jiti.import(join(modules, "@juicesharp/rpiv-ask-user-question/reconcile.ts"));

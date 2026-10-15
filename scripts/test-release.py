@@ -133,9 +133,11 @@ def main() -> int:
             if package not in package_json["dependencies"]:
                 fail(f"settings package absent from exact lock: {source} in {settings_file.relative_to(ROOT)}")
         pine = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pine-of-glass"), None)
-        required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**"}
+        required_pine = {"extensions/pi-contextimate/**", "extensions/pi-traceline/**", "extensions/pi-cachemire/**", "extensions/pi-meantime/**"}
         if pine is None or set(pine.get("extensions", [])) != required_pine:
             fail("pine-of-glass observability extension selection mismatch")
+        if json.loads((ROOT / "configs/pi-meantime.json").read_text()).get("enabled") is not True:
+            fail("Meantime must be explicitly enabled")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
             fail("pi-canary must not be configured")

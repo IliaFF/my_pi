@@ -97,6 +97,9 @@ def main():
             "context": json.loads((ROOT / "configs/pi-context.json").read_text())}}))
         home = temp / "home"
         home.mkdir(mode=0o700)
+        # pine-of-glass reads user config via HOME/.pi/agent, not PI_CODING_AGENT_DIR.
+        (home / ".pi").mkdir(mode=0o700)
+        (home / ".pi/agent").symlink_to(agent, target_is_directory=True)
         env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TERM", "SYSTEMROOT") if key in os.environ}
         env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"), PI_CODING_AGENT_DIR=str(agent),
                    PI_CODING_AGENT_CORE_DIR=str(core), PI_OFFLINE="1", OPENSPEC_TELEMETRY="0", PI_TEST_OFFLINE="1",

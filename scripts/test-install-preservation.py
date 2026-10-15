@@ -21,6 +21,8 @@ with tempfile.TemporaryDirectory(prefix="pi-preserve-") as temp:
     deploy(1)
     defaults = json.loads((root / "configs/settings.json").read_text())
     assert json.loads((agent / "settings.json").read_text()) == defaults
+    assert json.loads((agent / "pi-meantime.json").read_text()) == {"enabled": True}
+    (agent / "pi-meantime.json").write_bytes(b'{"enabled":false,"widget":false}\n')
     original = {"defaultProvider": "private-provider", "defaultModel": "private-model", "custom": {"keep": True}, "packages": [
         "npm:pi-ssh-remote@0.0.1", {"source": "npm:@amaster.ai/pi-browser-use@0.0.1", "extensions": []},
         "npm:pi-workspace-history", "npm:custom-plugin@2.0.0", "./private-plugin"]}
@@ -35,9 +37,11 @@ with tempfile.TemporaryDirectory(prefix="pi-preserve-") as temp:
     expected["packages"][0] = "npm:pi-ssh-remote@" + deps["pi-ssh-remote"]
     expected["packages"][1]["source"] = "npm:@amaster.ai/pi-browser-use@" + deps["@amaster.ai/pi-browser-use"]
     assert after == expected
+    assert (agent / "pi-meantime.json").read_bytes() == b'{"enabled":false,"widget":false}\n'
     assert (agent / "APPEND_SYSTEM.md").read_bytes() == b"PRIVATE INSTRUCTIONS\n"
     assert context.read_bytes() == b'{"private":"policy"}\n'
     deploy(0)
     assert json.loads((agent / "settings.json").read_text()) == defaults
     assert (agent / "APPEND_SYSTEM.md").read_bytes() == (root / "configs/APPEND_SYSTEM.md").read_bytes()
+    assert json.loads((agent / "pi-meantime.json").read_text()) == {"enabled": True}
 print("PASS fresh bootstrap, personal settings/instructions/policy preservation, pin-only alignment, default installation")

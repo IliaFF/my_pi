@@ -115,6 +115,12 @@
       "snapshot": "local-extensions/todo-queue/store.ts",
       "restore": true,
       "reason": "Preserve locked atomic TODO.md writes."
+    },
+    {
+      "source": "pi-meantime.json",
+      "snapshot": "configs/pi-meantime.json",
+      "restore": false,
+      "reason": "Explicitly enable passive Meantime; audit only, preserve later user tuning during maintenance."
     }
   ]
 }
