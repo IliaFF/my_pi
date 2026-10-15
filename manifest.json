@@ -23,6 +23,21 @@
         "dist/train-agents.ts"
       ],
       "reason": "Separate global APPEND_SYSTEM.md target from all-project session discovery; bind every quote to its session; keep manual review with freshness, subset validation, atomic writes and backups."
+    },
+    {
+      "package": "pi-background-tasks",
+      "version": "2.6.10",
+      "pinRequired": true,
+      "settingsSpec": "npm:pi-background-tasks@2.6.10",
+      "patch": "patches/pi-background-tasks+2.6.10.patch",
+      "files": [
+        "dist/src/core/config.js",
+        "dist/src/core/registry.js",
+        "dist/src/core/extension-api.js",
+        "dist/src/extension.js",
+        "dist/src/core/reload-shell-owner.js"
+      ],
+      "reason": "Local process-only pilot: reject agent/wake at shared admission, disable other features/update checks, finite deadline and strict per-job output cap, truthful notification-only tool schema/prompt."
     }
   ],
   "managedConfigs": [

@@ -50,7 +50,7 @@ npm run verify:host                  # только patches/snapshots integrity
 
 - Pi core `@earendil-works/pi-coding-agent@1.2.0`
 - Node.js `>=24.0.0`
-- 18 прямых npm dependencies с точными версиями: 15 settings entries и exact runtime peers; полный `package-lock.json`
+- 19 прямых npm dependencies с точными версиями: 16 settings entries и exact runtime peers; полный `package-lock.json`
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
 - детерминированное сжатие `context-fold@0.7.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
@@ -62,11 +62,11 @@ npm run verify:host                  # только patches/snapshots integrity
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
 - глобальный OpenAlex skill с dependency-free Node helper для поиска научных публикаций и OA-ссылок
 
-Репозиторий содержит два version-gated patch: `pi-train-agents@0.2.7` для глобального `APPEND_SYSTEM.md` и истории всех проектов, `@juicesharp/rpiv-ask-user-question@2.13.8` для первого хода без UI. Caveman и его patch удалены по запросу пользователя; правила понятных объяснений находятся в `configs/APPEND_SYSTEM.md`, Ponytail сохранён. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает обработку optional Codex quota windows.
+Репозиторий содержит три version-gated patch: `pi-train-agents@0.2.7` для глобального `APPEND_SYSTEM.md` и истории всех проектов, `@juicesharp/rpiv-ask-user-question@2.13.8` для первого хода без UI. `pi-background-tasks@2.6.10` ограничен process-only политикой в общей точке запуска. Caveman и его patch удалены по запросу пользователя; правила понятных объяснений находятся в `configs/APPEND_SYSTEM.md`, Ponytail сохранён. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает обработку optional Codex quota windows.
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 18 прямых dependency. В `configs/settings.json` перечислены 15 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.37`/`1.2.0`/`1.2.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 19 прямых dependency. В `configs/settings.json` перечислены 16 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.37`/`1.2.0`/`1.2.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
@@ -78,6 +78,7 @@ npm run verify:host                  # только patches/snapshots integrity
 | `@dietrichgebert/ponytail` | `5.2.0` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
 | `@juicesharp/rpiv-ask-user-question` | `2.13.8` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `pi-token-speed` | `0.11.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
+| `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; без agent telemetry, delegates, Fusion, attribution и auto-wake. |
 | `pi-fast-resume` | `1.4.16` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
 | `pine-of-glass` | `0.15.3` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
@@ -326,3 +327,11 @@ Update script создаёт backup npm tree, обновляет расшире�
 - `scripts/update-safe.sh` — контролируемое обновление
 - `scripts/test-release.py` — release/security/patch replay
 - `manifest.json` — машинно-читаемая topology сборки
+
+## Background shell pilot
+
+`/bg [--survive-reload] [--name "Task name"] <command>` запускает локальный shell job; `/jobs`, `/logs <id>`, `/kill <id>`, `/tasks` — управление. `bg_run` требует `isAgent:false`; completion уведомляет, но не запускает model turn. Например: `/bg --name "Pi tests" cd /path/to/pi-build && npm test`. Работа над независимыми документами допустима; проверяемый код до завершения не менять. Exit evidence связывать с тем же revision/diff и authoritative TODO, не с новым состоянием файлов.
+
+Default deadline 600s; tool позволяет явный конечный timeout >=1s. Per-job output cap 1MiB; превышение останавливает job, причина есть в status/metadata. Запросы логов ограничены 50KiB или меньшим maxBytes. Полные bounded логи находятся в project `.pi/tasks`; явный shell имеет права пользователя и может сам запускать любые программы/сеть — это не sandbox. SSH routing инструментов Pi на этот Node spawn не распространяется.
+
+Без opt-in job прекращается при reload. `surviveReload:true`/`--survive-reload` сохраняет только тот же живой процесс при same-process reload; quit/restart останавливает, PID adoption/crash recovery не обещаны. Старые файлы остаются артефактами, а не активными jobs новой сессии. Общая квота всех сессий/автоочистка не реализованы: проверять размер `.pi/tasks`, удалять старые артефакты только явно после завершения jobs. `/bg-clear` убирает terminal records из памяти, не гарантирует очистку диска. Delegate/Fusion/attested/attribution, agent jobs и auto-wake запрещены patch; попытки feature override отклоняются. Attribution entry не загружается, update checks отключены. После установки нужен reload/restart.

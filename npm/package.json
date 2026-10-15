@@ -14,6 +14,7 @@
     "@monotykamary/pi-retry": "0.11.0",
     "@spences10/pi-context": "0.1.16",
     "context-fold": "0.7.0",
+    "pi-background-tasks": "2.6.10",
     "pi-fast-resume": "1.4.16",
     "pi-markdown-preview": "0.22.2",
     "pi-ssh-remote": "0.1.15",

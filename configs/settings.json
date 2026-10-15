@@ -35,7 +35,13 @@
       "source": "npm:@amaster.ai/pi-browser-use@0.1.26",
       "extensions": []
     },
-    "npm:pi-ssh-remote@0.1.15"
+    "npm:pi-ssh-remote@0.1.15",
+    {
+      "source": "npm:pi-background-tasks@2.6.10",
+      "extensions": [
+        "dist/extensions/background-tasks.js"
+      ]
+    }
   ],
   "readseek": {
     "replacedTools": [

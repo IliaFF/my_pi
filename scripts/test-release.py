@@ -138,6 +138,9 @@ def main() -> int:
             fail("pine-of-glass observability extension selection mismatch")
         if json.loads((ROOT / "configs/pi-meantime.json").read_text()).get("enabled") is not True:
             fail("Meantime must be explicitly enabled")
+        bg = next((spec for spec in settings.get("packages", []) if isinstance(spec, dict) and spec.get("source") == "npm:pi-background-tasks@2.6.10"), None)
+        if bg is None or bg.get("extensions") != ["dist/extensions/background-tasks.js"]:
+            fail("background shell pilot must load only pinned process entry, never attribution")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
             fail("pi-canary must not be configured")

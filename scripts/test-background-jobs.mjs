@@ -1,0 +1,108 @@
+#!/usr/bin/env node
+// Real SDK/package hooks and local child processes; no model prompts or credentials.
+import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { findPackageJSON } from "node:module";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+
+const modules = resolve(process.argv[2]);
+const root = mkdtempSync(join(tmpdir(), "pi-bg-sdk-"));
+const savedEnv = { ...process.env }, oldFetch = globalThis.fetch;
+const pids = new Set(), errors = [];
+let session, bus, network = 0, modelTurns = 0;
+const sdkDir = join(modules, "@earendil-works/pi-coding-agent");
+const pkg = join(modules, "pi-background-tasks");
+const url = path => pathToFileURL(path).href;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const until = async fn => { const end = Date.now() + 10000; while (Date.now() < end) { const v = await fn(); if (v) return v; await sleep(40); } throw new Error("Background test deadline exceeded"); };
+const alive = pid => { try { return readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1][0] !== "Z"; } catch { return false; } };
+const node = code => `${JSON.stringify(process.execPath)} -e ${JSON.stringify(code)}`;
+try {
+  process.env.HOME = root;
+  process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+  delete process.env.PI_BG_FEATURES;
+  process.env.PI_OFFLINE = "1";
+  globalThis.fetch = async () => { network++; throw new Error("Network forbidden in background pilot"); };
+  const { parseBackgroundTasksConfig } = await import(url(join(pkg, "dist/src/core/config.js")));
+  assert.deepEqual(parseBackgroundTasksConfig({}).features, { process: true, delegate: false, fusion: false, attested: false, attribution: false });
+  assert.throws(() => parseBackgroundTasksConfig({ PI_BG_FEATURES: "process,delegate" }));
+  const { default: subject } = await import(url(join(pkg, "dist/extensions/background-tasks.js")));
+  const { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } = await import(url(join(sdkDir, "dist/index.js")));
+  const { emitSessionShutdownEvent } = await import(url(join(sdkDir, "dist/core/extensions/runner.js")));
+  const ai = dirname(findPackageJSON("@earendil-works/pi-ai", url(join(sdkDir, "dist/index.js"))));
+  const { fauxProvider, InMemoryCredentialStore } = await import(url(join(ai, "dist/index.js")));
+  const cwd = join(root, "workspace"), agentDir = process.env.PI_CODING_AGENT_DIR;
+  mkdirSync(cwd); mkdirSync(agentDir);
+  const provider = fauxProvider({ provider: "background-offline", api: "faux", models: [{ id: "faux", name: "Offline", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 32000, maxTokens: 1024 }] });
+  const modelRuntime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false });
+  modelRuntime.registerNativeProvider(provider.provider);
+  const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false }, defaultTools: [] });
+  const manager = SessionManager.inMemory(cwd);
+  const create = async () => {
+    const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager, noSkills: true, noThemes: true, noPromptTemplates: true, systemPrompt: "Offline background pilot", extensionFactories: [subject, pi => { bus = pi.events; }] });
+    await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
+    ({ session } = await createAgentSession({ cwd, agentDir, modelRuntime, model: provider.getModel(), settingsManager, resourceLoader: loader, sessionManager: manager, noTools: true }));
+    await session.bindExtensions({ onError: e => errors.push(e) });
+    session.subscribe(e => { if (e.type === "agent_start") modelTurns++; });
+    session.setActiveToolsByName(["bg_run", "bg_status", "bg_logs", "bg_kill"]);
+    assert.deepEqual(session.getAllTools().filter(t => t.name.startsWith("bg_") || t.name.startsWith("fusion_")).map(t => t.name).sort(), ["bg_kill", "bg_logs", "bg_run", "bg_status"]);
+  };
+  await create();
+  const call = (name, args) => session.agent.state.tools.find(t => t.name === name).execute("pilot", args, new AbortController().signal);
+  const run = async (command, extra = {}) => { const r = await call("bg_run", { name: "Offline pilot job", command, isAgent: false, ...extra }); if (r.details.task.pid) pids.add(r.details.task.pid); return r.details.task; };
+  const status = async id => (await call("bg_status", { taskId: id })).details.tasks[0];
+  const terminal = id => until(async () => { const t = await status(id); return t.status !== "running" && t; });
+  const request = async (operation, payload) => {
+    const id = `pilot-${Math.random()}`;
+    let response;
+    const unsub = bus.on("pi-background-tasks:response:v1", r => { if (r.request_id === id) response = r; });
+    try { bus.emit("pi-background-tasks:request:v1", { schema_version: "pi-background-tasks.extension-request.v1", request_id: id, operation, payload }); return await until(() => response); } finally { unsub(); }
+  };
+  for (const forbidden of [{ isAgent: true }, { triggerOnCompletion: true }, ...[0, -1, NaN, Infinity].map(timeoutSeconds => ({ timeoutSeconds }))]) {
+    await assert.rejects(() => run("echo forbidden", forbidden));
+    const r = await request("run", { name: "Forbidden request", command: "echo forbidden", isAgent: false, notifyOnCompletion: true, triggerOnCompletion: false, ...forbidden });
+    assert.equal(r.ok, false);
+  }
+  const caps = await request("capabilities", {});
+  assert.equal(caps.ok, true); assert.match(JSON.stringify(caps), /"run_is_agent":false/); assert.match(JSON.stringify(caps), /"run_completion_trigger":false/);
+  const ok = await run("printf 'pilot-ok\\n'");
+  assert.equal(ok.triggerOnCompletion, false); assert.equal(ok.timeoutSeconds, 600);
+  const done = await terminal(ok.id); assert.equal(done.status, "completed"); assert.equal(done.exitCode, 0);
+  assert.match(JSON.stringify((await call("bg_logs", { taskId: ok.id, maxBytes: 256 })).content), /pilot-ok/);
+  const failed = await run("printf 'pilot-fail\\n'; exit 7"); assert.equal((await terminal(failed.id)).exitCode, 7);
+  const timed = await run("sleep 30", { timeoutSeconds: 1 }); assert.equal((await terminal(timed.id)).status, "failed"); await until(() => !alive(timed.pid));
+  const tree = await run(node("const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});console.log('CHILD='+c.pid);setInterval(()=>{},1000)"));
+  const child = await until(async () => { const m = JSON.stringify((await call("bg_logs", { taskId: tree.id })).content).match(/CHILD=(\d+)/); return m && Number(m[1]); }); pids.add(child);
+  await call("bg_kill", { taskId: tree.id }); assert.equal((await terminal(tree.id)).status, "killed"); await until(() => !alive(child) && !alive(tree.pid));
+  for (const surviveReload of [false, true]) {
+    const huge = await run(node("process.stdout.write('x'.repeat(2*1024*1024));setInterval(()=>{},1000)"), { surviveReload });
+    const capped = await terminal(huge.id); assert.equal(capped.status, "failed"); assert.match(capped.error, /cap/);
+    const full = join(cwd, huge.outputPath); assert.ok(statSync(full).size <= 1024 * 1024);
+    const window = await call("bg_logs", { taskId: huge.id, maxBytes: 256 }); assert.ok(window.details.bytesRead <= 256);
+    await until(() => !alive(huge.pid));
+  }
+  const keep = await run("sleep 30", { surviveReload: true });
+  const stop = await run("sleep 30");
+  assert.equal(keep.status, "running"); assert.equal(stop.status, "running");
+  await session.reload();
+  const rebound = await status(keep.id); assert.equal(rebound.pid, keep.pid); assert.equal(rebound.status, "running"); assert.ok(alive(keep.pid)); await until(() => !alive(stop.pid));
+  await call("bg_kill", { taskId: keep.id }); assert.equal((await terminal(keep.id)).status, "killed"); await until(() => !alive(keep.pid));
+  const restart = await run("sleep 30", { surviveReload: true });
+  // Same native shutdown dispatcher as CLI; dispose alone does not emit session_shutdown.
+  await emitSessionShutdownEvent(session._extensionRunner, { type: "session_shutdown", reason: "quit" });
+  session.dispose(); session = undefined; await until(() => !alive(restart.pid));
+  await create(); assert.ok(!alive(restart.pid)); assert.ok((await call("bg_status", {})).details.tasks.every(t => t.status !== "running"));
+  await emitSessionShutdownEvent(session._extensionRunner, { type: "session_shutdown", reason: "quit" });
+  assert.deepEqual(errors, []); assert.equal(modelTurns, 0); assert.equal(network, 0);
+  console.log("PASS real SDK: process-only surface; tool/EventBus guards; success/failure; timeout; Linux tree kill; 1MiB log cap/bounded read; native reload opt-in/default cancellation; quit/restart no adoption; 0 model turns/network attempts");
+} finally {
+  if (session) { try { await session._extensionRunner.emit({ type: "session_shutdown", reason: "quit" }); } catch {} session.dispose(); }
+  for (const pid of pids) if (alive(pid)) { try { process.kill(-pid, "SIGKILL"); } catch {} try { process.kill(pid, "SIGKILL"); } catch {} }
+  globalThis.fetch = oldFetch;
+  for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];
+  Object.assign(process.env, savedEnv);
+  // Flush referenced durable I/O before deleting the workspace, including terminal callbacks.
+  process.once("beforeExit", () => rmSync(root, { recursive: true, force: true }));
+}

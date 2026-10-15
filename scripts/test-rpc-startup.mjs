@@ -22,10 +22,13 @@ try {
   const state = await client.getState();
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
-  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace"]) {
+  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace", "bg", "jobs", "logs", "kill", "tasks"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
   }
-  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast", "caveman"]) {
+  for (const name of ["bg", "jobs", "logs", "kill", "tasks"]) {
+    assert.equal(commands.find(command => command.name === name).sourceInfo?.source, "npm:pi-background-tasks@2.6.10", `wrong background command owner: ${name}`);
+  }
+  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast", "caveman", "fusion", "fusion-model", "bg-update"]) {
     assert.ok(!commands.some((command) => command.name === name), `removed command still registered: ${name}`);
   }
   assert.deepEqual(errors, [], "startup must not emit extension errors or start a model run");

@@ -133,6 +133,7 @@ def main():
         if ready:
             check("stack-surface", "integration", ["node", "scripts/test-stack-surface.mjs", str(agent)])
             check("train-agents", "integration", ["node", "scripts/test-train-agents.mjs", str(agent)])
+            check("background-jobs", "integration", ["node", "scripts/test-background-jobs.mjs", str(modules)], timeout=60)
             check("loop-sdk", "integration", ["node", "scripts/test-loop-profiler-sdk.mjs", str(core)])
             check("context-runtime", "integration", ["node", "scripts/test-pi-context-runtime.mjs", str(modules / "@spences10/pi-context"), str(temp / "context-probe")])
             check("rpc-startup", "smoke", ["node", "scripts/test-rpc-startup.mjs", str(agent)], timeout=60)
