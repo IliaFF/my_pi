@@ -42,7 +42,9 @@ allowed = {
 }
 legacy = allowed.copy()
 allowed.update({"mcp.json", "train-agents/config.json", "extensions/jev-review", "extensions/herdr-agent-state.ts"})
-if set(s.get("agentManaged", [])) not in (legacy, allowed):
+previous = allowed.copy()
+allowed.add("extensions/deferred-tools.ts")
+if set(s.get("agentManaged", [])) not in (legacy, previous, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 PY
 mapfile -t managed < <(python3 -c 'import json,sys; sys.stdout.write("\n".join(json.load(open(sys.argv[1]))["agentManaged"]))' "$state")

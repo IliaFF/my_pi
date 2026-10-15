@@ -125,6 +125,7 @@ Ponytail 5.2.0 имеет versioned patch: в lite/full/ultra базовые п�
 | Файл | Статус | Назначение |
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
+| `deferred-tools.ts` | активен | Сохраняет ранее объявленный managed loadout при startup старой ветки; новые сессии используют native deferred/tool_search. |
 | `loop-profiler.ts` | активен | Последние 500 runs: model/tool timing без двойного счёта, медленные/ошибочные tools, native nested calls, context output, cache, стоимость из usage и stop reason. Pi 1.2 user/custom starts; legacy records читаются; raw trace только при `PI_PROFILE=1`. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
 | `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Сам Herdr устанавливается отдельно. |
@@ -225,6 +226,16 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 /context-fold
 /context-fold config
 ```
+
+## Native deferred tools и кэш
+
+В новой сессии `remote`, `preview_export`, `context_list`, `context_stats` и `context_purge` зарегистрированы как `deferred`: схемы не объявляются заранее, но инструменты остаются callable из `codemode`. Native `tool_search` включён в defaultTools рядом с codemode и находит/активирует нужное для следующего модельного вызова. Discovery может требовать дополнительного раунда; известные вызовы из codemode не требуют предварительной direct-активации. Частые coding/retrieval/question/queue tools и весь bg lifecycle не меняются. Browser MCP остаётся codemode.
+
+Подгрузка append-only: для поддерживаемого `openai-codex/gpt-6.1-sol` новые схемы попадают в историю как `additional_tools`, а прежние tools/instructions/cache key и input prefix сохраняются. Не выгружаем инструменты автоматически и не переопределяем schemas. Для адаптеров без нужных compat flags действует native fallback; это не обещание cache hit/TTL, скорости или качества.
+
+`deferred-tools.ts` на `session_start` восстанавливает только эти пять имён и tool_search из текущей записанной ветки: SDK defaults иначе заменяют старый active loadout. Старая сессия сохраняет ранее объявленные редкие tools; новый loader туда не вставляется. Guard не меняет остальные UI/background tools, executors или историю. Перезапуск нужен для нового кода; уменьшение стартового набора видно в **новой сессии**, не после простого resume старой. Не удаляйте историю ради цифры Tools.
+
+Обязательный offline SDK regression загружает реальные patched packages, вызывает только disconnected remote status и пустые context stats/list, проверяет discovery, partial/legacy resume и Codex request payload до транспорта. В этом package fixture initial schemas уменьшились с14770 до9252 JSON bytes (минус5518), уже с учётом native tool_search. Это bytes, не tokens и не измерение всего личного footer7.1k; preview renderer, destructive purge, SSH connect и live provider/cache не запускались.
 
 ## Observability
 

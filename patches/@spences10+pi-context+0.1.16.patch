@@ -1,0 +1,30 @@
+--- a/dist/tools/list.js
++++ b/dist/tools/list.js
+@@ -5,6 +5,7 @@
+ export function register_context_list_tool(pi) {
+     pi.registerTool({
+         name: 'context_list',
++        exposure: "deferred",
+         label: 'Context List',
+         description: 'List indexed sources in the local SQLite context sidecar.',
+         promptSnippet: 'List recent indexed context-sidecar sources without knowing a source id',
+--- a/dist/tools/stats.js
++++ b/dist/tools/stats.js
+@@ -5,6 +5,7 @@
+ export function register_context_stats_tool(pi) {
+     pi.registerTool({
+         name: 'context_stats',
++        exposure: "deferred",
+         label: 'Context Stats',
+         description: 'Show byte accounting for the local SQLite context sidecar.',
+         parameters: Type.Object({
+--- a/dist/tools/purge.js
++++ b/dist/tools/purge.js
+@@ -5,6 +5,7 @@
+ export function register_context_purge_tool(pi) {
+     pi.registerTool({
+         name: 'context_purge',
++        exposure: "deferred",
+         label: 'Context Purge',
+         description: 'Delete indexed context-sidecar output by age, source, project, session, or active retention policy.',
+         parameters: Type.Object({

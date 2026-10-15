@@ -132,6 +132,7 @@ def main():
             ready = check("patch-verify", "integration", [sys.executable, "scripts/maintenance.py", "verify"]) and ready
         if ready:
             check("stack-surface", "integration", ["node", "scripts/test-stack-surface.mjs", str(agent)])
+            check("deferred-tools-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-deferred-tools-sdk.mjs", str(modules)], timeout=60)
             check("train-agents", "integration", ["node", "scripts/test-train-agents.mjs", str(agent)])
             check("queue-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-todo-queue-sdk.mjs", str(modules)], timeout=60)
             check("ponytail-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-ponytail-sdk.mjs", str(modules)], timeout=60)

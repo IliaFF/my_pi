@@ -1,0 +1,10 @@
+--- a/index.ts
++++ b/index.ts
+@@ -1412,6 +1412,7 @@
+ 
+   pi.registerTool({
+     name: "remote",
++    exposure: "deferred",
+     label: "Remote",
+     description: "Connect, reconnect, annotate endpoints, locate server-specific memory, change the persistent remote working directory, inspect, forward ports, run remote SSH commands, or disconnect the configured SSH environment. Server memory is managed as JSON entries with Pi's read, write, and edit tools. Connections resolve ~/.ssh/config host aliases and per-hop keys, try SSH agent and private keys before passwords, and support an exclusive destination key with -i and jump hosts via -J or -o ProxyJump. Exec output is streamed to bounded buffers; model output defaults to the last 200 lines or 8KB, while complete oversized output is saved locally. Passwords and key passphrases are never accepted as arguments and are cached only in process memory.",
+     promptSnippet: "Control the configured remote SSH connection, endpoint note and memory location, working directory, and local port forwarding",

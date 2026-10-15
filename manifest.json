@@ -50,6 +50,38 @@
         "skills/ponytail-audit/SKILL.md"
       ],
       "reason": "Avoid repeat automatic base-skill reads while lite/full/ultra rules are injected; preserve off/standalone/manual commands and follow session language in review/audit."
+    },
+    {
+      "package": "pi-ssh-remote",
+      "version": "0.1.15",
+      "pinRequired": false,
+      "patch": "patches/pi-ssh-remote+0.1.15.patch",
+      "files": [
+        "index.ts"
+      ],
+      "reason": "Register rare tools as native deferred; keep executors/schemas/hooks and recorded-session declarations unchanged, no auto-unloading."
+    },
+    {
+      "package": "pi-markdown-preview",
+      "version": "0.22.2",
+      "pinRequired": false,
+      "patch": "patches/pi-markdown-preview+0.22.2.patch",
+      "files": [
+        "index.ts"
+      ],
+      "reason": "Register rare tools as native deferred; keep executors/schemas/hooks and recorded-session declarations unchanged, no auto-unloading."
+    },
+    {
+      "package": "@spences10/pi-context",
+      "version": "0.1.16",
+      "pinRequired": false,
+      "patch": "patches/@spences10+pi-context+0.1.16.patch",
+      "files": [
+        "dist/tools/list.js",
+        "dist/tools/stats.js",
+        "dist/tools/purge.js"
+      ],
+      "reason": "Register rare tools as native deferred; keep executors/schemas/hooks and recorded-session declarations unchanged, no auto-unloading."
     }
   ],
   "managedConfigs": [
@@ -148,6 +180,12 @@
       "snapshot": "configs/pi-meantime.json",
       "restore": false,
       "reason": "Explicitly enable passive Meantime; audit only, preserve later user tuning during maintenance."
+    },
+    {
+      "source": "extensions/deferred-tools.ts",
+      "snapshot": "local-extensions/deferred-tools.ts",
+      "restore": true,
+      "reason": "Preserve the rollout-managed tool loadout on recorded-session startup; fresh defaults use native deferred/tool_search."
     }
   ]
 }

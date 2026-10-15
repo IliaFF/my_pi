@@ -4,7 +4,8 @@
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "medium",
   "defaultTools": [
-    "+codemode"
+    "+codemode",
+    "+tool_search"
   ],
   "codemode": {
     "mode": "on"
