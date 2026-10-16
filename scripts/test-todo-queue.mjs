@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent } from "../local-extensions/todo-queue/core.ts";
+import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, formatQueuePanel } from "../local-extensions/todo-queue/core.ts";
 import { findTodoPath, mutateTodo } from "../local-extensions/todo-queue/store.ts";
 
 const base = `# TODO
@@ -19,6 +19,37 @@ const base = `# TODO
 ## Completed
 - [x] Old result
 `;
+
+test("panel is compact, FIFO, read-only and omits completed/deferred tasks", () => {
+  let text = claimNext(base, "active").text;
+  for (let i = 1; i <= 5; i++) text = addTask(text, `Next ${i}`, `n${i}`).text;
+  text += "\n## Deferred ideas\n- [ ] Not selected\n";
+  const state = inspectTodo(text);
+  const before = JSON.stringify(state);
+  const lines = formatQueuePanel(state, false);
+  assert.equal(lines.length, 6);
+  assert.match(lines[0], /Pending: 5.*Blocked: 0/);
+  assert.match(lines[1], /Existing task/);
+  assert.deepEqual(lines.slice(2, 5), ["○ Next 1", "○ Next 2", "○ Next 3"]);
+  assert.match(lines[5], /2/);
+  assert.doesNotMatch(lines.join("\n"), /Old result|Not selected|Next 4|Next 5/);
+  assert.equal(formatQueuePanel(state, true).length, 1);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test("panel hides completed-only queues and shows blocked count", () => {
+  assert.deepEqual(formatQueuePanel(inspectTodo("## Completed\n- [x] Finished\n"), false), []);
+  const text = blockCurrent(claimNext(base, "a").text, "a", "waiting").text;
+  assert.match(formatQueuePanel(inspectTodo(text), false)[0], /Pending: 0.*Blocked: 1/);
+});
+
+test("panel neutralizes terminal controls without breaking Unicode", () => {
+  const state = inspectTodo(base);
+  state.pending[0].text = "\x1b[31m红色\x1b[0m\n\x1b]8;;https://evil\x07link\x1b]8;;\x07\u202E e\u0301 👩‍💻";
+  const line = formatQueuePanel(state, false)[1];
+  assert.doesNotMatch(line, /[\x00-\x1f\x7f-\x9f\u202e]/);
+  assert.match(line, /红色.*link.*e\u0301.*👩‍💻/);
+});
 
 test("add appends a stable hidden id and preserves unrelated content", () => {
   const changed = addTask(base, "New small task", "abc123");

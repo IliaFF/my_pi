@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { readFile } from "node:fs/promises";
 import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, type MoveDirection, type QueueTask } from "./core.ts";
 import { findTodoPath, mutateTodo } from "./store.ts";
+import { createQueuePanel } from "./panel.ts";
 
 const MAX_RUN_TASKS = 5;
 const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "complete", "block", "release"] as const;
@@ -65,6 +66,8 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   let activeTaskId: string | undefined;
   let terminalHandled = false;
   let dispatching = false;
+  const panel = createQueuePanel();
+  pi.on("session_start", (_event, ctx) => panel.start(ctx));
 
   const trusted = (ctx: Context) => ctx.isProjectTrusted?.() !== false;
 
@@ -142,11 +145,15 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   });
 
   pi.registerCommand("queue", {
-    description: "Manage project TODO queue: list, add, edit, delete, move, next, run, pause, resume, skip, status",
+    description: "Manage project TODO queue: list, panel, add, edit, delete, move, next, run, pause, resume, skip, status",
     handler: async (args, ctx) => {
       const trimmed = args.trim();
       const [command = "list", ...rest] = trimmed ? trimmed.split(/\s+/) : [];
       try {
+        if (command === "panel") {
+          await panel.toggle(ctx);
+          return;
+        }
         if (command === "add") {
           const text = requireText(rest.join(" "), "task text");
           const path = await todoPath(ctx);
@@ -231,7 +238,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
           ctx.ui.notify("Current task returned to Pending; queue paused", "info");
           return;
         }
-        if (command !== "status") throw new Error("Usage: /queue [list|add|edit|delete|move|next|run|pause|resume|skip|status]");
+        if (command !== "status") throw new Error("Usage: /queue [list|panel|add|edit|delete|move|next|run|pause|resume|skip|status]");
         ctx.ui.notify(formatStatus(await snapshot(ctx), autoRun, completedThisRun), "info");
       } catch (error) {
         notifyError(ctx, error);
@@ -350,6 +357,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("session_shutdown", () => {
+    panel.stop();
     autoRun = false;
     pendingAdvance = false;
   });

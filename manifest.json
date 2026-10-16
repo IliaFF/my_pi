@@ -170,6 +170,12 @@
       "reason": "Preserve deterministic queue mutations."
     },
     {
+      "source": "extensions/todo-queue/panel.ts",
+      "snapshot": "local-extensions/todo-queue/panel.ts",
+      "restore": true,
+      "reason": "Preserve the read-only project queue panel and its UI lifecycle."
+    },
+    {
       "source": "extensions/todo-queue/store.ts",
       "snapshot": "local-extensions/todo-queue/store.ts",
       "restore": true,

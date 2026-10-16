@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { stripVTControlCharacters } from "node:util";
 
 export type SectionName = "In progress" | "Pending" | "Blocked" | "Completed";
 export type QueueTask = { id?: string; text: string; checked: boolean; section: SectionName };
@@ -113,6 +114,17 @@ export function inspectTodo(text: string): QueueSnapshot {
     blocked: sectionTasks(lines, headers, "Blocked").filter(({ task }) => !task.checked).map(({ task }) => task),
     completed: sectionTasks(lines, headers, "Completed").filter(({ task }) => task.checked).map(({ task }) => task),
   };
+}
+
+export function formatQueuePanel(state: QueueSnapshot, collapsed: boolean): string[] {
+  if (!state.current && !state.pending.length && !state.blocked.length) return [];
+  const lines = [`${collapsed ? "▸" : "▾"} TODO · Pending: ${state.pending.length} · Blocked: ${state.blocked.length}`];
+  if (collapsed) return lines;
+  const safe = (text: string) => stripVTControlCharacters(text).replace(/[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g, " ");
+  if (state.current) lines.push(`▶ ${safe(state.current.text)}`);
+  for (const task of state.pending.slice(0, 3)) lines.push(`○ ${safe(task.text)}`);
+  if (state.pending.length > 3) lines.push(`+ ${state.pending.length - 3} ещё · /queue`);
+  return lines;
 }
 
 export function addTask(text: string, taskText: string, id = newId()): { text: string; task: QueueTask } {

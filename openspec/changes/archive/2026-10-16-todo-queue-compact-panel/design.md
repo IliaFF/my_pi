@@ -1,0 +1,7 @@
+# Design
+
+Use ctx.ui.setWidget with the host TUI truncateToWidth utility and theme callback. Keep rendering stateless and sanitize terminal controls using node:util before styling. Limit expanded rows to six: heading, optional current, three pending, optional overflow. Blocked tasks contribute a count; completed/deferred tasks never render. Collapsed view keeps the heading/counts.
+
+A small panel lifecycle helper reads the same file through existing findTodoPath/inspectTodo. Poll file metadata via fs.watchFile (1 second, non-persistent) because queue mutations use atomic rename; no custom cache or second task store. External edits and own tool/slash mutations therefore share one refresh path. Watch callbacks read asynchronously; generation guards prevent late reads from repainting a replaced/disposed session. Clear watcher/widget on shutdown and before startup binds a replacement. Missing startup TODO hides the panel; `/queue panel` can bind a subsequently created file. Invalid/unreadable watched files replace stale tasks with a generic message, and recover on a later change. No parsing or polling from render().
+
+Only trusted TUI sessions bind a widget/watcher. Headless/RPC sessions retain existing queue behavior without a UI resource. No new hotkey or configuration; `/queue panel` is explicit and avoids keybinding conflicts. UI collapse state is ephemeral, not in TODO or session entries. Tests use temporary workspaces, real SDK with faux provider, actual host width utilities, and short bounded waits for metadata polling; no personal credentials.

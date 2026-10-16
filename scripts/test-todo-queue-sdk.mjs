@@ -2,7 +2,8 @@
 // Actual queue tool execution via Pi SDK; temporary TODO and faux provider only.
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { findPackageJSON } from "node:module";
+import { findPackageJSON, syncBuiltinESMExports } from "node:module";
+import fs from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,6 +16,8 @@ const previous = process.env.PI_CODING_AGENT_DIR;
 process.env.PI_CODING_AGENT_DIR = join(root, "agent");
 mkdirSync(process.env.PI_CODING_AGENT_DIR);
 let session;
+const originalWatchFile = fs.watchFile;
+const originalUnwatchFile = fs.unwatchFile;
 try {
   const { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } = await import(pathToFileURL(join(sdkDir, "dist/index.js")));
   const aiDir = dirname(findPackageJSON("@earendil-works/pi-ai", pathToFileURL(join(sdkDir, "dist/index.js"))));
@@ -102,9 +105,116 @@ try {
   assert.equal(second.isError, true);
   assert.equal(readFileSync(todo, "utf8"), active);
   assert.deepEqual(errors, []);
-  console.log("PASS actual queue SDK: unfinished-only slash lists, empty queue, full tool history, read-only listing, explicit second id, FIFO, rejected ids, current-task guard, native errors, no production TODO mutation");
+  // Observe real metadata watchers; still use the real filesystem and SDK event dispatch.
+  const watchers = new Set();
+  fs.watchFile = (path, options, listener) => {
+    if (String(path) === todo) watchers.add(listener);
+    return originalWatchFile(path, options, listener);
+  };
+  fs.unwatchFile = (path, listener) => {
+    if (String(path) === todo) watchers.delete(listener);
+    return originalUnwatchFile(path, listener);
+  };
+  syncBuiltinESMExports();
+  const widgets = new Map();
+  let paints = 0;
+  const uiContext = { notify: (text, level) => notifications.push({ text, level }), setWidget: (key, factory) => {
+    paints++;
+    if (factory) widgets.set(key, factory); else widgets.delete(key);
+  } };
+  const tuiDir = dirname(findPackageJSON("@earendil-works/pi-tui", pathToFileURL(join(sdkDir, "dist/index.js"))));
+  const { visibleWidth } = await import(pathToFileURL(join(tuiDir, "dist/index.js")));
+  const { theme, initTheme } = await import(pathToFileURL(join(sdkDir, "dist/modes/interactive/theme/theme.js")));
+  initTheme("dark", false);
+  const render = (width = 100) => widgets.get("todo-queue")?.(null, theme).render(width) ?? [];
+  const waitFor = async predicate => {
+    const deadline = Date.now() + 5000;
+    while (!predicate()) { assert.ok(Date.now() < deadline, "Panel update timed out"); await new Promise(r => setTimeout(r, 40)); }
+  };
+  for (const mode of ["headless", "rpc"]) {
+    await session.bindExtensions({ mode, uiContext });
+    assert.equal(watchers.size, 0);
+    assert.equal(widgets.size, 0);
+  }
+  settingsManager.setProjectTrusted(false);
+  await session.bindExtensions({ mode: "tui", uiContext });
+  await session.prompt("/queue panel");
+  assert.equal(watchers.size, 0, "Untrusted projects must not start a watcher");
+  assert.equal(widgets.size, 0);
+  settingsManager.setProjectTrusted(true);
+  writeFileSync(todo, mixed);
+  await session.bindExtensions({ mode: "tui", uiContext });
+  assert.equal(watchers.size, 1);
+  assert.match(render().join("\n"), /Current|First|Second/);
+  assert.doesNotMatch(render().join("\n"), /Done|#done/);
+  for (const width of [1, 2, 8, 25, 100]) for (const line of render(width)) assert.ok(visibleWidth(line) <= width);
+  const messageCount = session.messages.length;
+  await session.prompt("/queue panel");
+  assert.equal(render().length, 1);
+  await session.prompt("/queue panel");
+  assert.ok(render().length > 1);
+  assert.equal(session.messages.length, messageCount);
+  assert.equal(readFileSync(todo, "utf8"), mixed);
+  await session.prompt("+ Added through queue");
+  await waitFor(() => render().join("\n").includes("Added through queue"));
+  assert.equal(session.messages.length, messageCount);
+  const replacement = join(root, "replacement.md");
+  writeFileSync(replacement, mixed.replace("First", "外部 👩‍💻 e\u0301"));
+  fs.renameSync(replacement, todo);
+  await waitFor(() => render().join("\n").includes("外部"));
+  for (const width of [1, 2, 3, 8, 20]) for (const line of render(width)) assert.ok(visibleWidth(line) <= width);
+  writeFileSync(todo, mixed + "\n## Pending\n");
+  await waitFor(() => render().join("\n").includes("не удалось"));
+  assert.doesNotMatch(render().join("\n"), /Current|First/);
+  writeFileSync(todo, mixed);
+  await waitFor(() => render().join("\n").includes("Current"));
+  await session.reload();
+  assert.equal(watchers.size, 1, "Reload must replace, not accumulate, watchers");
+  assert.match(render().join("\n"), /Current/);
+  const staleChange = [...watchers][0];
+  await session.bindExtensions({ mode: "tui", uiContext });
+  writeFileSync(todo, mixed.replace("Current", "Fresh generation"));
+  await Promise.all([[...watchers][0](), staleChange()]);
+  assert.match(render().join("\n"), /Fresh generation/, "An old callback must not invalidate a fresh read");
+  await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+  assert.equal(watchers.size, 0);
+  assert.equal(widgets.size, 0);
+  const afterShutdown = paints;
+  writeFileSync(todo, template);
+  await new Promise(r => setTimeout(r, 1200));
+  assert.equal(paints, afterShutdown, "No disposed-session repaint");
+  await session.bindExtensions({ mode: "tui", uiContext });
+  const reading = [...watchers][0](); // Real watcher callback starts an asynchronous filesystem read.
+  await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+  const stoppedPaints = paints;
+  await reading;
+  assert.equal(paints, stoppedPaints, "Late read must not repaint a disposed UI");
+  assert.equal(watchers.size, 0);
+  await session.bindExtensions({ mode: "tui", uiContext });
+  fs.unlinkSync(todo);
+  await waitFor(() => widgets.size === 0);
+  writeFileSync(todo, mixed);
+  await waitFor(() => render().join("\n").includes("Current"));
+  writeFileSync(todo, historyOnly);
+  await waitFor(() => widgets.size === 0);
+  await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
+  fs.unlinkSync(todo);
+  await session.bindExtensions({ mode: "tui", uiContext });
+  assert.equal(watchers.size, 0, "No file at startup means no watcher");
+  writeFileSync(todo, mixed);
+  await session.prompt("/queue panel");
+  assert.equal(watchers.size, 1);
+  assert.equal(render().length, 1);
+  assert.equal(readFileSync(todo, "utf8"), mixed);
+  assert.equal(session.messages.length, messageCount, "Panel lifecycle must not call a model");
+  assert.deepEqual(errors, []);
+  console.log("PASS actual queue SDK: existing selection/errors/history plus native panel, real width handling, collapse, atomic external edit, parse recovery, reload, missing/empty files, non-TUI and shutdown cleanup; no production TODO mutation");
 } finally {
+  if (session) await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
   session?.dispose();
+  fs.watchFile = originalWatchFile;
+  fs.unwatchFile = originalUnwatchFile;
+  syncBuiltinESMExports();
   if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
   else process.env.PI_CODING_AGENT_DIR = previous;
   rmSync(root, { recursive: true, force: true });
