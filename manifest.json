@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "1.2.0",
+  "piCoreVersion": "1.3.0",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -63,9 +63,9 @@
     },
     {
       "package": "pi-markdown-preview",
-      "version": "0.22.2",
+      "version": "0.22.3",
       "pinRequired": false,
-      "patch": "patches/pi-markdown-preview+0.22.2.patch",
+      "patch": "patches/pi-markdown-preview+0.22.3.patch",
       "files": [
         "index.ts"
       ],

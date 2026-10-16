@@ -2,7 +2,7 @@ schema: spec-driven
 context: |
   Language: ru. Keep structural headings, SHALL/MUST, WHEN/THEN in English.
   This repo is the portable source of our Pi build, not personal runtime.
-  Core and pi-tui: 1.2.0; Node >=24; exact runtime lock in npm/.
+  Core and pi-tui: 1.3.0; Node >=24; exact runtime lock in npm/.
   Existing local extensions, patches and assert-based tests must be reused.
   npm test runs contracts, unit, real SDK integration, patch verification and RPC smoke.
   No provider credentials, paid requests or production writes in mandatory tests.

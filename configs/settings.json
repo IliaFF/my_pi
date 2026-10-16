@@ -33,7 +33,7 @@
     "npm:context-fold",
     "npm:pi-train-agents@0.2.7",
     {
-      "source": "npm:@amaster.ai/pi-browser-use@0.1.26",
+      "source": "npm:@amaster.ai/pi-browser-use@0.1.27",
       "extensions": []
     },
     "npm:pi-ssh-remote@0.1.15",
