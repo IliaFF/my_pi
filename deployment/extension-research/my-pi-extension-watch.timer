@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Pi extension research (06:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+RandomizedDelaySec=20m
+Persistent=true
+Unit=my-pi-extension-watch.service
+
+[Install]
+WantedBy=timers.target
