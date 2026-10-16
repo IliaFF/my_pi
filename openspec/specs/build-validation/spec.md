@@ -130,3 +130,10 @@ Mandatory offline checks MUST retain all queue storage/error/lifecycle checks an
 #### Scenario: Queue polish gate
 - **WHEN** npm test executes
 - **THEN** pure formatting and actual SDK widget/shortcut cases run with temporary TODO and faux/no provider, without production file mutation
+
+### Requirement: Queue check freshness has offline native coverage
+The mandatory gate MUST cover changed/added/deleted and untracked files, stable service TODO changes, failed/unknown/running results and actual nested SDK background execution in temporary projects. No credentials, paid requests, production files or automatic model wake may be used.
+
+#### Scenario: Full gate
+- **WHEN** npm test executes
+- **THEN** snapshot regressions and actual queue/background package integration run with finite deadlines and stale checks cannot mutate TODO

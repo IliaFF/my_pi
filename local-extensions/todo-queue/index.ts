@@ -2,12 +2,14 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+import { queueChecks } from "./checks.ts";
 import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, type MoveDirection, type QueueTask } from "./core.ts";
 import { findTodoPath, mutateTodo } from "./store.ts";
 import { createQueuePanel } from "./panel.ts";
 
 const MAX_RUN_TASKS = 5;
-const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "complete", "block", "release"] as const;
+const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "check", "checks", "complete", "block", "release"] as const;
 
 const TaskQueueParams = Type.Object({
   action: StringEnum(ACTIONS),
@@ -16,6 +18,9 @@ const TaskQueueParams = Type.Object({
   summary: Type.Optional(Type.String({ description: "Completion summary" })),
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Passing checks or direct evidence" })),
   reason: Type.Optional(Type.String({ description: "Concrete blocker reason" })),
+  command: Type.Optional(Type.String({ maxLength: 8192, description: "Explicit local shell check; launched through bg_run, no automatic wake" })),
+  cwd: Type.Optional(Type.String({ description: "Project/check working directory, defaults to session cwd; snapshot covers the whole Git worktree or directory" })),
+  timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86400, description: "Finite check deadline, default 600 seconds" })),
   position: Type.Optional(StringEnum(["up", "down", "top", "bottom"] as const, { description: "Pending reorder direction" })),
 });
 
@@ -67,6 +72,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   let terminalHandled = false;
   let dispatching = false;
   const panel = createQueuePanel();
+  const checks = queueChecks(pi);
   pi.on("session_start", (_event, ctx) => panel.start(ctx));
   pi.registerShortcut("ctrl+shift+t", {
     description: "Collapse/expand project TODO panel",
@@ -93,7 +99,8 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
     task.text,
     "",
     "Не перемещай этот пункт между разделами TODO.md вручную.",
-    "После успешных проверок вызови task_queue action=complete с этим id, кратким summary и непустым evidence.",
+    "Для проверок кода используй task_queue action=check с id, command и cwd проекта; это фоновая проверка со снимком файлов. Жди уведомления, не опрашивай статус циклически.",
+    "После успешных проверок вызови task_queue action=complete с этим id, кратким summary и непустым evidence. Устаревшие/неуспешные записанные проверки не засчитываются.",
     "Если есть устойчивое внешнее препятствие — вызови task_queue action=block с этим id и reason.",
     "Обычное окончание ответа не завершает задачу.",
   ].join("\n");
@@ -119,6 +126,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         ctx.ui.notify("TODO queue is empty", "info");
         return undefined;
       }
+      checks.invalidate(ctx, task.id!);
       activeTaskId = task.id;
       terminalHandled = false;
       pi.sendUserMessage(dispatchPrompt(task, resume));
@@ -236,6 +244,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
             const changed = releaseCurrent(content, current.id!);
             return { text: changed.text, value: changed.task };
           });
+          checks.invalidate(ctx, current.id);
           autoRun = false;
           pendingAdvance = false;
           activeTaskId = undefined;
@@ -253,7 +262,8 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "task_queue",
     label: "TODO Queue",
-    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Complete only current matching id after passing checks; block on concrete external impediments.",
+    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Use check (id, command, cwd) to launch a snapshot-bound local background check; wait for notification, never poll. checks inspects recorded jobs once. Complete only current matching id with current successful checks or direct evidence for tasks without recorded checks; block on concrete external impediments.",
+    reachesTools: () => ["bg_run", "bg_status"],
     parameters: TaskQueueParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const path = await todoPath(ctx);
@@ -296,15 +306,29 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
           const update = claimNext(content, undefined, params.id === undefined ? undefined : requireText(params.id, "id"));
           return { text: update.text, value: update.task };
         });
+        if (changed?.id) checks.invalidate(ctx, changed.id);
         return changed ? result(`Claimed ${formatTask(changed)}`, { task: changed }) : result("Queue is empty");
       }
       const id = requireText(params.id, "id");
+      if (params.action === "check" || params.action === "checks") {
+        return mutateTodo(path, async (content) => {
+          const task = inspectTodo(content).current;
+          if (!task?.id || task.id !== id) throw new Error("Check requires the current matching task id");
+          if (params.action === "check") {
+            const record = await checks.start(ctx, path, task, requireText(params.command, "command"), resolve(ctx.cwd, params.cwd ?? "."), params.timeoutSeconds ?? 600);
+            return { text: content, value: result(`Check ${record.id} started as background job ${record.jobId}; wait for its notification. Do not change the tested scope.`, { check: record }) };
+          }
+          const records = await checks.inspect(ctx, path, task);
+          return { text: content, value: result(records.map(r => `${r.id}: ${r.status}, exit=${r.exitCode ?? "unknown"}, job=${r.jobId ?? "unknown"}`).join("\n") || "No recorded checks; direct evidence only", { checks: records }) };
+        });
+      }
       if (params.action === "complete") {
         requireText(params.summary, "summary");
         const evidence = params.evidence?.map((item) => item.trim()).filter(Boolean) ?? [];
         if (evidence.length === 0) throw new Error("At least one concrete validation evidence item is required");
-        const changed = await mutateTodo(path, (content) => {
+        const changed = await mutateTodo(path, async (content) => {
           const update = completeCurrent(content, id);
+          await checks.validate(ctx, path, update.task);
           return { text: update.text, value: update.task };
         });
         terminalHandled = activeTaskId === id;
@@ -326,6 +350,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         const update = releaseCurrent(content, id);
         return { text: update.text, value: update.task };
       });
+      checks.invalidate(ctx, id);
       terminalHandled = activeTaskId === id;
       autoRun = false;
       pendingAdvance = false;

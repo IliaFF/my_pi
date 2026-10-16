@@ -182,6 +182,12 @@
       "reason": "Preserve locked atomic TODO.md writes."
     },
     {
+      "source": "extensions/todo-queue/checks.ts",
+      "snapshot": "local-extensions/todo-queue/checks.ts",
+      "restore": true,
+      "reason": "Preserve task-bound file snapshots and native background check records."
+    },
+    {
       "source": "pi-meantime.json",
       "snapshot": "configs/pi-meantime.json",
       "restore": false,

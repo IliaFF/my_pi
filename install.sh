@@ -198,7 +198,7 @@ cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profile
 cp "$ROOT/local-extensions/deferred-tools.ts" "$AGENT_DIR/extensions/deferred-tools.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
 rm -f "$AGENT_DIR/extensions/reader-pane.ts"
-cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts} "$AGENT_DIR/extensions/todo-queue/"
+cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
 rm -rf "$AGENT_DIR/extensions/jev-review"

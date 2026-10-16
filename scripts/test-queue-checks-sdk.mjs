@@ -1,0 +1,76 @@
+// Actual native SDK nested calls and patched background shell package; no external providers.
+import assert from 'node:assert/strict';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { findPackageJSON } from 'node:module';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const modules = resolve(process.argv[2]), root = mkdtempSync(join(tmpdir(), 'queue-check-sdk-'));
+const workspace = join(root, 'workspace'); mkdirSync(workspace);
+const saved = { ...process.env }, url = p => pathToFileURL(p).href;
+let session, unsub;
+try {
+  process.env.HOME = root; process.env.PI_CODING_AGENT_DIR = join(root, 'agent'); process.env.PI_OFFLINE = '1';
+  mkdirSync(process.env.PI_CODING_AGENT_DIR);
+  const sdk = join(modules, '@earendil-works/pi-coding-agent');
+  const { createAgentSession, DefaultResourceLoader, ModelRuntime, SessionManager, SettingsManager } = await import(url(join(sdk, 'dist/index.js')));
+  const ai = dirname(findPackageJSON('@earendil-works/pi-ai', url(join(sdk, 'dist/index.js'))));
+  const { fauxProvider, fauxAssistantMessage, InMemoryCredentialStore } = await import(url(join(ai, 'dist/index.js')));
+  const provider = fauxProvider({ provider: 'queue-check-offline', api: 'faux', models: [{ id: 'faux', name: 'Offline', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 64000, maxTokens: 512 }] });
+  const modelRuntime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false }); modelRuntime.registerNativeProvider(provider.provider);
+  const { default: bg } = await import(url(join(modules, 'pi-background-tasks/dist/extensions/background-tasks.js')));
+  const terminal = new Map(), waiters = new Map();
+  const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
+  const resourceLoader = new DefaultResourceLoader({ cwd: workspace, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager, noSkills: true, noThemes: true, noPromptTemplates: true,
+    additionalExtensionPaths: [resolve('local-extensions/todo-queue/index.ts')], extensionFactories: [bg, pi => {
+      unsub = pi.events.on('pi-background-tasks:terminal:v1', e => { terminal.set(e.task.id, e.task); waiters.get(e.task.id)?.(e.task); });
+    }] });
+  await resourceLoader.reload(); assert.deepEqual(resourceLoader.getExtensions().errors, []);
+  ({ session } = await createAgentSession({ cwd: workspace, agentDir: process.env.PI_CODING_AGENT_DIR, modelRuntime, model: provider.getModel(), resourceLoader, settingsManager, sessionManager: SessionManager.inMemory(workspace), tools: ['task_queue', 'bg_run', 'bg_status'] }));
+  const errors = []; await session.bindExtensions({ onError: e => errors.push(e) });
+  const todo = join(workspace, 'TODO.md'), src = join(workspace, 'source.txt');
+  writeFileSync(todo, '# TODO\n\n## In progress\n- [ ] Implement <!-- pi-task:task -->\n\n## Pending\n\n## Completed\n'); writeFileSync(src, 'v1');
+  let last;
+  session.subscribe(e => { if (e.type === 'tool_execution_end' && e.toolName === 'task_queue') last = e; });
+  const invoke = async args => {
+    last = undefined;
+    provider.setResponses([{ ...fauxAssistantMessage(''), content: [{ type: 'toolCall', id: `check-${Date.now()}`, name: 'task_queue', arguments: args }], stopReason: 'toolUse' }, fauxAssistantMessage('Finished')]);
+    await session.prompt('Offline check'); await session.waitForIdle(); assert.ok(last); return last;
+  };
+  const wait = async id => terminal.get(id) ?? await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error('Job deadline exceeded')), 10000); waiters.set(id, value => { clearTimeout(timer); waiters.delete(id); resolve(value); }); });
+  const complete = () => invoke({ action: 'complete', id: 'task', summary: 'Done', evidence: ['Recorded checks'] });
+  const start = async command => { const r = await invoke({ action: 'check', id: 'task', command, timeoutSeconds: 5 }); assert.equal(r.isError, false, JSON.stringify(r.result)); return r.result.details.check; };
+  const command = `${JSON.stringify(process.execPath)} -e 'setTimeout(() => process.exit(0), 1500)'`;
+  const first = await start(command), original = readFileSync(todo, 'utf8');
+  assert.equal((await complete()).isError, true, 'Running job must not complete task'); assert.equal(readFileSync(todo, 'utf8'), original);
+  writeFileSync(src, 'edited while running');
+  await wait(first.jobId);
+  const inspected = await invoke({ action: 'checks', id: 'task' }); assert.equal(inspected.result.details.checks[0].exitCode, 0);
+  assert.equal((await complete()).isError, true, 'Edit during check invalidates result');
+  const fresh = await start(command); await wait(fresh.jobId); await invoke({ action: 'checks', id: 'task' });
+  writeFileSync(src, 'v2'); assert.equal((await complete()).isError, true, 'Edit after completion invalidates check'); assert.equal(readFileSync(todo, 'utf8'), original);
+  const rerun = await start(command); await wait(rerun.jobId);
+  const failure = await start(`${JSON.stringify(process.execPath)} -e 'console.log("PASS"); process.exit(7)'`); await wait(failure.jobId);
+  assert.equal((await complete()).isError, true, 'Printed PASS cannot override exit 7');
+  // A different command cannot erase a required failed check; edit the script, not the check identity.
+  const failScript = join(workspace, 'check.cjs'); writeFileSync(failScript, 'process.exit(1)');
+  const scriptCommand = `${JSON.stringify(process.execPath)} check.cjs`;
+  const bad = await start(scriptCommand); await wait(bad.jobId); writeFileSync(failScript, 'process.exit(0)');
+  const good = await start(scriptCommand); await wait(good.jobId);
+  assert.equal((await complete()).isError, true, 'Other stale/failed commands still required');
+  // A fresh task exercises successful completion without importing prior lifecycle evidence.
+  writeFileSync(todo, original.replace('pi-task:task', 'pi-task:next'));
+  const next = await invoke({ action: 'check', id: 'next', command: scriptCommand, timeoutSeconds: 5 }); assert.equal(next.isError, false); await wait(next.result.details.check.jobId);
+  assert.equal((await invoke({ action: 'complete', id: 'task', summary: 'Done', evidence: ['wrong id'] })).isError, true);
+  assert.equal((await invoke({ action: 'release', id: 'next' })).isError, false);
+  assert.equal((await invoke({ action: 'claim', id: 'next' })).isError, false);
+  assert.equal((await invoke({ action: 'complete', id: 'next', summary: 'Done', evidence: ['old lifecycle'] })).isError, true);
+  const resumed = await invoke({ action: 'check', id: 'next', command: scriptCommand, timeoutSeconds: 5 }); assert.equal(resumed.isError, false); await wait(resumed.result.details.check.jobId);
+  const done = await invoke({ action: 'complete', id: 'next', summary: 'Done', evidence: ['Real native check'] }); assert.equal(done.isError, false, JSON.stringify(done.result));
+  assert.match(readFileSync(todo, 'utf8'), /- \[x\] Implement/); assert.deepEqual(errors, []);
+  console.log('PASS actual queue/background SDK: pending, stale, real exit codes, task ownership and successful completion');
+} finally {
+  unsub?.(); if (session) { try { await session._extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }); } catch {} session.dispose(); }
+  for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key]; Object.assign(process.env, saved);
+  process.once('beforeExit', () => rmSync(root, { recursive: true, force: true }));
+}

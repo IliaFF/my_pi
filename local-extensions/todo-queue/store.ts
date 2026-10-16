@@ -36,6 +36,12 @@ async function acquireLock(path: string) {
       try {
         const info = await stat(path);
         if (Date.now() - info.mtimeMs > STALE_LOCK_MS) {
+          const pid = Number((await readFile(path, "utf8")).split(/\s+/)[0]);
+          let alive = false;
+          if (Number.isSafeInteger(pid) && pid > 0) {
+            try { process.kill(pid, 0); alive = true; } catch (error: any) { if (error.code !== "ESRCH") alive = true; }
+          }
+          if (alive) throw new Error("TODO.md is locked by another Pi session");
           await unlink(path);
           continue;
         }
@@ -48,13 +54,13 @@ async function acquireLock(path: string) {
   throw new Error("TODO.md is locked by another Pi session");
 }
 
-export async function mutateTodo<T>(todoPath: string, mutation: (text: string) => { text: string; value: T }): Promise<T> {
+export async function mutateTodo<T>(todoPath: string, mutation: (text: string) => { text: string; value: T } | Promise<{ text: string; value: T }>): Promise<T> {
   const lockPath = `${todoPath}.pi-task.lock`;
   const lock = await acquireLock(lockPath);
   let temporary: string | undefined;
   try {
     const original = await readFile(todoPath, "utf8");
-    const result = mutation(original);
+    const result = await mutation(original);
     if (result.text === original) return result.value;
     const current = await readFile(todoPath, "utf8");
     if (current !== original) throw new Error("TODO.md changed during update; retry explicitly");
