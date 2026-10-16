@@ -4,7 +4,7 @@
 
 `pi-build/` — Git-источник: код, portable configs, exact locks, patches, OpenSpec, тесты. `~/.pi/agent/` — личный установленный runtime. `~/.pi/agent/maintenance` — установленная копия исходников. Source не устанавливается автоматически; в change align-latest-stable-runtime пользователь отдельно разрешил установку latest stable с backup и сохранением личных настроек.
 
-Baseline закрепляет фактически используемое ядро Pi **1.2.0** и pi-tui **1.2.0**. Версии остальных direct dependencies сверены с установленным runtime. SDK peers были1.0.0; после согласованной latest-stable установки они выровнены с core1.2.0 и в source, и на диске runtime. Stock RPIV 2.13.8 провалил проверку first-turn UI availability; однострочный patch перенесён на 2.13.8 и проверяется fresh replay. У старого maintenance было ядро 1.0.0; его инструкции/API-проверки частично отстали от рабочего окружения.
+Baseline закрепляет фактически используемое ядро Pi **1.3.0** и pi-tui **1.3.0**. Ponytail5.3.0/Preview0.23.0 имеют перенесённые патчи; retry0.11.1, fast-resume1.4.17 и web-access0.41.0 выровнены с обновлённым runtime. Остальные direct версии сохранены. SDK peers были1.2.0; после согласованного исправления они выровнены с core1.3.0 и в source, и на диске runtime. Stock RPIV 2.13.8 провалил проверку first-turn UI availability; однострочный patch перенесён на 2.13.8 и проверяется fresh replay. У старого maintenance было ядро 1.0.0; его инструкции/API-проверки частично отстали от рабочего окружения.
 
 ## При поломке
 
@@ -41,3 +41,7 @@ npm test -- --agent "$HOME/.pi/agent"
 - Smoke guard блокирует Node fetch/http/net, но не является OS sandbox для native code/подпроцессов.
 - Registry archive replay остаётся в отдельном `python3 scripts/test-release.py`; `npm test` проверяет fresh lock installation + application/reverse verification установленных патчей без повторного скачивания архивов.
 - CI для IliaFF/my_pi подтверждён реальным passing job: https://github.com/IliaFF/my_pi/actions/runs/38652731907 (main SHA 1b9b4b3). Проверяйте conclusion именно для нужного SHA; прежний passing run не подтверждает последующие изменения.
+
+## Штатное обновление не сохраняет патчи
+
+`pi update --extensions` заменяет package files, но не запускает наш patch/gate/rollback. После такого обновления сначала read-only диагностика; не запускать apply на неизвестную версию. Ponytail может отдельно загружаться из project `.pi/npm`: исправление только user package недостаточно. Project patch требует отдельного backup, сверки version и actual SDK gate. Safe updater проверяет user runtime, поэтому запускайте его из HOME, а не из проекта с собственными npm packages; успешный user gate не подтверждает project override. Историческая оценка subagents на SDK1.2.0 не переносится на новую baseline автоматически.

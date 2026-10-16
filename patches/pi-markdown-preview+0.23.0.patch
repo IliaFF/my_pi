@@ -1,6 +1,6 @@
 --- a/index.ts
 +++ b/index.ts
-@@ -5976,6 +5976,7 @@
+@@ -6023,6 +6023,7 @@
  	if (shouldRegisterPreviewExportTool()) {
  		pi.registerTool<typeof previewExportSchema, PreviewExportToolDetails | undefined>({
  			name: "preview_export",
