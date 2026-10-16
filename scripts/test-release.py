@@ -42,8 +42,11 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "1.3.0":
-        fail("unexpected Pi core version")
+    core_version = manifest.get("piCoreVersion", "")
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", core_version):
+        fail("Pi core must be a stable exact version")
+    if re.findall(r'^PI_VERSION="([^"]+)"$', (ROOT / "install.sh").read_text(), re.M) != [core_version]:
+        fail("installer and manifest Pi core versions differ")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
     package_json = json.loads((ROOT / "npm/package.json").read_text())
@@ -70,9 +73,11 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.7.0", "typebox": "1.3.37", "@earendil-works/pi-coding-agent": manifest["piCoreVersion"], "@earendil-works/pi-tui": manifest["piCoreVersion"]}
-    if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
-        fail("pi-context or its runtime peers are not exactly pinned")
+    required_context_deps = {"@spences10/pi-context", "context-fold", "typebox"}
+    expected_core_deps = {"@earendil-works/pi-coding-agent": core_version, "@earendil-works/pi-tui": core_version}
+    if not required_context_deps.issubset(package_json["dependencies"]) or any(package_json["dependencies"].get(name) != version for name, version in expected_core_deps.items()):
+        fail("pi-context peers missing or core/TUI pins differ")
+    context_version = package_json["dependencies"]["@spences10/pi-context"]
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
     if any(path.exists() for path in retired_compactor):
         fail("retired local output-compactor remains in release")
@@ -228,10 +233,10 @@ def main() -> int:
             temp_path = Path(temp)
             context_destination = temp_path / "pi-context"
             context_destination.mkdir()
-            extract_package(tarball("@spences10/pi-context", "0.1.16"), context_destination)
+            extract_package(tarball("@spences10/pi-context", context_version), context_destination)
             context_root = context_destination / "package"
             published = json.loads((context_root / "package.json").read_text())
-            if published.get("version") != "0.1.16" or published.get("peerDependencies", {}).get("typebox") != "*":
+            if published.get("version") != context_version or published.get("peerDependencies", {}).get("typebox") != "*":
                 fail("published pi-context package/peer contract changed")
             for relative, marker in {
                 "dist/text.js": "[context-sidecar] Large",
@@ -244,7 +249,7 @@ def main() -> int:
             expected_tools = {"search.js", "get.js", "export.js", "list.js", "stats.js", "purge.js"}
             if not expected_tools.issubset({path.name for path in (context_root / "dist/tools").glob("*.js")}):
                 fail("published pi-context retrieval tool set changed")
-            print("PASS published @spences10/pi-context@0.1.16 capture/retrieval/policy surface")
+            print(f"PASS published @spences10/pi-context@{context_version} capture/retrieval/policy surface")
 
             for item in manifest["patchedPackages"]:
                 destination = temp_path / re.sub(r"[^A-Za-z0-9_.-]", "_", item["package"])
