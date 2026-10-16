@@ -2,7 +2,7 @@ import type { ExtensionContext, ExtensionUIContext } from "@earendil-works/pi-co
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { watchFile, unwatchFile } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { formatQueuePanel, inspectTodo } from "./core.ts";
+import { formatQueuePanel, inspectTodo, type QueueSnapshot } from "./core.ts";
 import { findTodoPath } from "./store.ts";
 
 const WIDGET = "todo-queue";
@@ -38,16 +38,31 @@ export function createQueuePanel() {
     refresh = async () => {
       if (version !== generation) return;
       const readRevision = ++revision;
-      let lines: string[];
+      let state: QueueSnapshot | undefined;
+      let issue = "";
       try {
-        lines = formatQueuePanel(inspectTodo(await readFile(path, "utf8")), collapsed);
+        state = inspectTodo(await readFile(path, "utf8"));
       } catch (error: any) {
-        lines = error?.code === "ENOENT" ? [] : ["TODO: не удалось прочитать очередь"];
+        issue = error?.code === "ENOENT" ? "" : "TODO: не удалось прочитать очередь";
       }
       if (version !== generation || readRevision !== revision) return;
-      const text = lines;
-      targetUI.setWidget(WIDGET, text.length ? (_tui, theme) => ({
-        render: (width) => text.map((line, index) => truncateToWidth(index === 0 ? theme.fg("accent", line) : line, width)),
+      const visible = state && (state.current || state.pending.length || state.blocked.length);
+      targetUI.setWidget(WIDGET, visible || issue ? (tui, theme) => ({
+        render(width) {
+          if (!state) return [truncateToWidth(theme.fg("error", issue), width, "…")];
+          const halfHeight = Math.max(1, Math.floor((tui?.terminal.rows ?? 24) / 2));
+          const budget = targetUI.getToolsExpanded?.() ? halfHeight : Math.min(6, halfHeight);
+          return formatQueuePanel(state, collapsed, budget).map((line, index) => {
+            if (index === 0) return truncateToWidth(theme.fg(state.current ? "accent" : "dim", line), width, "…");
+            const glyph = line[3];
+            const prefix = theme.fg("dim", line.slice(0, 3));
+            const body = glyph === "◐" ? theme.fg("warning", glyph) + theme.fg("accent", theme.bold(line.slice(4)))
+              : glyph === "!" ? theme.fg("warning", line.slice(3))
+              : glyph === "+" ? theme.fg("dim", line.slice(3))
+              : theme.fg("dim", glyph) + line.slice(4);
+            return truncateToWidth(prefix + body, width, "…");
+          });
+        },
         invalidate() {},
       }) : undefined);
     };

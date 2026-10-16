@@ -68,6 +68,10 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   let dispatching = false;
   const panel = createQueuePanel();
   pi.on("session_start", (_event, ctx) => panel.start(ctx));
+  pi.registerShortcut("ctrl+shift+t", {
+    description: "Collapse/expand project TODO panel",
+    handler: (ctx) => panel.toggle(ctx),
+  });
 
   const trusted = (ctx: Context) => ctx.isProjectTrusted?.() !== false;
 

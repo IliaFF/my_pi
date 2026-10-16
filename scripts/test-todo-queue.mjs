@@ -30,10 +30,33 @@ test("panel is compact, FIFO, read-only and omits completed/deferred tasks", () 
   assert.equal(lines.length, 6);
   assert.match(lines[0], /Pending: 5.*Blocked: 0/);
   assert.match(lines[1], /Existing task/);
-  assert.deepEqual(lines.slice(2, 5), ["○ Next 1", "○ Next 2", "○ Next 3"]);
+  assert.deepEqual(lines.slice(2, 5), ["├─ ○ Next 1", "├─ ○ Next 2", "├─ ○ Next 3"]);
   assert.match(lines[5], /2/);
   assert.doesNotMatch(lines.join("\n"), /Old result|Not selected|Next 4|Next 5/);
   assert.equal(formatQueuePanel(state, true).length, 1);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test("panel tree honors viewport budgets, overflow and current/FIFO/blocked order", () => {
+  let text = claimNext(base, "active").text;
+  for (let i = 1; i <= 7; i++) text = addTask(text, `Next ${i}`, `n${i}`).text;
+  text = text.replace("## Blocked\n", "## Blocked\n- [ ] Waiting A\n- [ ] Waiting B\n");
+  const state = inspectTodo(text);
+  const before = JSON.stringify(state);
+  for (const budget of [1, 2, 3, 6, 12]) {
+    const lines = formatQueuePanel(state, false, budget);
+    assert.ok(lines.length <= budget);
+    if (budget > 1 && budget < 11) {
+      assert.match(lines.at(-1), new RegExp(`^└─ \\+ ${10 - (budget - 2)} ещё`));
+    }
+    assert.equal(formatQueuePanel(state, true, budget).length, 1);
+  }
+  const all = formatQueuePanel(state, false, 12);
+  assert.match(all[1], /^├─ ◐ Existing task$/);
+  assert.match(all[8], /^├─ ○ Next 7$/);
+  assert.match(all[9], /^├─ ! Waiting A$/);
+  assert.match(all[10], /^└─ ! Waiting B$/);
+  assert.doesNotMatch(all.join("\n"), /Old result/);
   assert.equal(JSON.stringify(state), before);
 });
 

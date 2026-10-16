@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Actual queue tool execution via Pi SDK; temporary TODO and faux provider only.
 import assert from "node:assert/strict";
+import { stripVTControlCharacters } from "node:util";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { findPackageJSON, syncBuiltinESMExports } from "node:module";
 import fs from "node:fs";
@@ -118,7 +119,8 @@ try {
   syncBuiltinESMExports();
   const widgets = new Map();
   let paints = 0;
-  const uiContext = { notify: (text, level) => notifications.push({ text, level }), setWidget: (key, factory) => {
+  let toolsExpanded = false;
+  const uiContext = { getToolsExpanded: () => toolsExpanded, notify: (text, level) => notifications.push({ text, level }), setWidget: (key, factory) => {
     paints++;
     if (factory) widgets.set(key, factory); else widgets.delete(key);
   } };
@@ -126,7 +128,7 @@ try {
   const { visibleWidth } = await import(pathToFileURL(join(tuiDir, "dist/index.js")));
   const { theme, initTheme } = await import(pathToFileURL(join(sdkDir, "dist/modes/interactive/theme/theme.js")));
   initTheme("dark", false);
-  const render = (width = 100) => widgets.get("todo-queue")?.(null, theme).render(width) ?? [];
+  const render = (width = 100, rows = 30) => widgets.get("todo-queue")?.({ terminal: { rows } }, theme).render(width) ?? [];
   const waitFor = async predicate => {
     const deadline = Date.now() + 5000;
     while (!predicate()) { assert.ok(Date.now() < deadline, "Panel update timed out"); await new Promise(r => setTimeout(r, 40)); }
@@ -149,6 +151,48 @@ try {
   assert.doesNotMatch(render().join("\n"), /Done|#done/);
   for (const width of [1, 2, 8, 25, 100]) for (const line of render(width)) assert.ok(visibleWidth(line) <= width);
   const messageCount = session.messages.length;
+  assert.match(stripVTControlCharacters(render().join("\n")), /├─ ◐ Current/);
+  assert.match(stripVTControlCharacters(render().at(-1)), /└─ ! Blocked/);
+  const styleCalls = [];
+  const observedTheme = new Proxy(theme, { get(target, key) {
+    if (key === "fg") return (color, text) => { styleCalls.push(color); return target.fg(color, text); };
+    if (key === "bold") return text => { styleCalls.push("bold"); return target.bold(text); };
+    return Reflect.get(target, key);
+  } });
+  widgets.get("todo-queue")({ terminal: { rows: 30 } }, observedTheme).render(100);
+  for (const style of ["accent", "warning", "dim", "bold"]) assert.ok(styleCalls.includes(style), `Missing native theme style ${style}`);
+  const shortcut = session.extensionRunner.getShortcuts({}).get("ctrl+shift+t");
+  assert.ok(shortcut, "Collapse shortcut must be registered through actual SDK");
+  await shortcut.handler(session.extensionRunner.createContext());
+  assert.equal(render().length, 1);
+  await shortcut.handler(session.extensionRunner.createContext());
+  assert.ok(render().length > 1);
+  const longQueue = mixed.replace("## Pending\n", "## Pending\n" + Array.from({ length: 12 }, (_, i) => `- [ ] Extra ${i}\n`).join(""));
+  writeFileSync(todo, longQueue);
+  await waitFor(() => render().join("\n").includes("Extra 0"));
+  const factory = widgets.get("todo-queue");
+  const terminal = { rows: 30 };
+  const component = factory({ terminal }, theme);
+  const beforeLayoutPaints = paints;
+  assert.equal(component.render(100).length, 6);
+  toolsExpanded = true;
+  assert.equal(component.render(100).length, 15);
+  assert.match(component.render(100).at(-1), /ещё/);
+  assert.equal(paints, beforeLayoutPaints, "Expansion must not reread or replace the widget");
+  terminal.rows = 6;
+  assert.equal(component.render(100).length, 3);
+  terminal.rows = 2;
+  assert.equal(component.render(100).length, 1);
+  terminal.rows = 30;
+  assert.equal(paints, beforeLayoutPaints, "Resize must not reread or replace the widget");
+  await shortcut.handler(session.extensionRunner.createContext());
+  assert.equal(render().length, 1, "Collapse wins over tools-expanded mode");
+  await shortcut.handler(session.extensionRunner.createContext());
+  toolsExpanded = false;
+  writeFileSync(todo, mixed);
+  await waitFor(() => render().join("\n").includes("Current") && !render().join("\n").includes("Extra 0"));
+  assert.equal(session.messages.length, messageCount);
+  assert.equal(readFileSync(todo, "utf8"), mixed);
   await session.prompt("/queue panel");
   assert.equal(render().length, 1);
   await session.prompt("/queue panel");
@@ -208,7 +252,7 @@ try {
   assert.equal(readFileSync(todo, "utf8"), mixed);
   assert.equal(session.messages.length, messageCount, "Panel lifecycle must not call a model");
   assert.deepEqual(errors, []);
-  console.log("PASS actual queue SDK: existing selection/errors/history plus native panel, real width handling, collapse, atomic external edit, parse recovery, reload, missing/empty files, non-TUI and shutdown cleanup; no production TODO mutation");
+  console.log("PASS actual queue SDK: existing selection/errors/history plus native themed tree, shortcut, resize/global expansion, real width handling, collapse, atomic external edit, parse recovery, reload, missing/empty files, non-TUI and shutdown cleanup; no production TODO mutation");
 } finally {
   if (session) await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
   session?.dispose();

@@ -116,14 +116,20 @@ export function inspectTodo(text: string): QueueSnapshot {
   };
 }
 
-export function formatQueuePanel(state: QueueSnapshot, collapsed: boolean): string[] {
+export function formatQueuePanel(state: QueueSnapshot, collapsed: boolean, maxLines = 6): string[] {
   if (!state.current && !state.pending.length && !state.blocked.length) return [];
-  const lines = [`${collapsed ? "▸" : "▾"} TODO · Pending: ${state.pending.length} · Blocked: ${state.blocked.length}`];
-  if (collapsed) return lines;
+  const lines = [`${collapsed ? "▸" : "▾"} TODO · Pending: ${state.pending.length} · Blocked: ${state.blocked.length} · Ctrl+Shift+T`];
+  if (collapsed || maxLines <= 1) return lines;
   const safe = (text: string) => stripVTControlCharacters(text).replace(/[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g, " ");
-  if (state.current) lines.push(`▶ ${safe(state.current.text)}`);
-  for (const task of state.pending.slice(0, 3)) lines.push(`○ ${safe(task.text)}`);
-  if (state.pending.length > 3) lines.push(`+ ${state.pending.length - 3} ещё · /queue`);
+  const tasks = [...(state.current ? [state.current] : []), ...state.pending, ...state.blocked];
+  const overflow = tasks.length > maxLines - 1;
+  const visible = tasks.slice(0, overflow ? maxLines - 2 : maxLines - 1);
+  for (const task of visible) {
+    const glyph = task.section === "In progress" ? "◐" : task.section === "Blocked" ? "!" : "○";
+    lines.push(`├─ ${glyph} ${safe(task.text)}`);
+  }
+  if (overflow) lines.push(`├─ + ${tasks.length - visible.length} ещё · /queue`);
+  lines[lines.length - 1] = lines.at(-1)!.replace(/^├─/, "└─");
   return lines;
 }
 

@@ -43,15 +43,19 @@ The /queue and /queue list commands MUST show the current task, pending tasks an
 - **THEN** completed tasks remain available in the text and structured details and TODO bytes remain unchanged
 
 ### Requirement: Compact panel reflects the authoritative project queue
-Trusted TUI sessions MUST show a read-only widget above the editor with current task, Pending/Blocked counts, up to three next pending tasks in FIFO order and an overflow count. Expanded output MUST contain at most six width-bounded terminal-safe rows. Completed and deferred tasks MUST NOT render. `/queue panel` MUST toggle a one-line count view without changing TODO, task order or model messages. No additional task storage or dependency MUST be introduced.
+Trusted TUI sessions MUST render a read-only, terminal-safe tree of unfinished tasks with exact counts/overflow and distinct status glyphs/colors. Preview MUST fit six rows and half the terminal (minimum one); native expansion MUST retain the half-height cap. /queue panel and Ctrl+Shift+T MUST toggle one-row collapse. Rendering MUST adapt without IO. TODO/order/model messages MUST stay unchanged; no extra store, dependencies, config or Completed/Deferred rows.
 
 #### Scenario: Mixed and long queue
 - **WHEN** current, pending, blocked and completed tasks exist, including wide characters and control sequences
-- **THEN** panel rows show the current/FIFO subset and exact counts within the terminal width, without controls or completed history
+- **THEN** rows show current, Pending FIFO, then Blocked with exact hidden counts, closed tree branches and native width clipping with ellipsis; current uses ◐ with accent/bold, Pending ○ with dim glyph, Blocked ! with warning; user controls and Completed/Deferred never render
 
 #### Scenario: Collapse and expand
-- **WHEN** the user executes /queue panel twice
+- **WHEN** the slash command or registered collapse shortcut is invoked twice
 - **THEN** the same queue switches to one line and back without writes or model execution
+
+#### Scenario: Resize and global expansion
+- **WHEN** terminal height or native tools-expanded mode changes without a file event
+- **THEN** the same widget immediately adjusts visible rows and overflow without a disk read; collapsed view remains one line
 
 ### Requirement: Panel refresh and disposal remain passive
 The panel MUST refresh external TODO edits including atomic replacement and MUST stop its non-persistent watcher and clear its widget on shutdown/replacement/reload. Stale asynchronous reads MUST NOT repaint a disposed/replaced panel. Headless, RPC and untrusted sessions MUST NOT start a panel watcher. Missing or empty queues MUST hide the widget; parse/read errors MUST NOT leave stale tasks visible and MUST recover after correction.
