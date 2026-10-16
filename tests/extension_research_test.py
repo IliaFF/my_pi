@@ -114,6 +114,11 @@ class ResearchTests(unittest.TestCase):
             with self.assertRaises(watch.Rejected):
                 watch.read_archive(archive([(name, b'bad')]), None)
 
+    def test_archive_member_name_budget(self):
+        for name in ['package/' + 'a' * 2048 + '.ts', 'package/bad\nname.ts']:
+            with self.assertRaises(watch.Rejected):
+                watch.read_archive(archive([(name, b'export default 1;')]), None)
+
     def test_archive_expansion_and_input_budget(self):
         with patch.object(watch, 'MAX_EXPANDED', 16):
             with self.assertRaises(watch.Rejected):
@@ -121,6 +126,11 @@ class ResearchTests(unittest.TestCase):
         excerpts = watch.read_archive(archive([('package/README.md', b'x' * 30000)]), None)
         self.assertLessEqual(sum(len(x['text'].encode()) for x in excerpts), watch.MAX_EXCERPTS)
         self.assertTrue(excerpts[0]['truncated'])
+
+    def test_serialized_input_budget_includes_json_escape_expansion(self):
+        self.assertLess(len(watch.review_payload({}, [dict(package(), files=[])])), 400000)
+        with self.assertRaises(watch.Rejected):
+            watch.review_payload({}, [{'files': [{'text': '\u0001' * 120000}]}])
 
     def test_review_must_match_candidates_and_known_evidence(self):
         candidates = [dict(package(), files=[{'path': 'index.ts', 'text': 'code'}])]
@@ -167,7 +177,7 @@ class ResearchTests(unittest.TestCase):
     def test_success_and_notification_failure_do_not_repeat_model(self):
         with tempfile.TemporaryDirectory() as tmp:
             monitor = watch.Monitor({'state': tmp, 'profile': {'dependencies': {}}, 'hermes': '/missing'})
-            result = [{'name': 'pi-example', 'version': '1.0.0', 'verdict': 'skip', 'reason': 'Overlap.', 'risk': 'Not tested.', 'evidence': []}]
+            result = [{'name': 'pi-example', 'version': '1.0.0', 'verdict': 'consider', 'reason': 'Useful idea.', 'risk': 'Not tested.', 'evidence': []}]
             with patch.object(watch, 'fetch_catalog', return_value={'pi-example': package()}), patch.object(watch, 'collect_package', side_effect=lambda p: dict(p, files=[])), patch.object(monitor, 'review', return_value=result) as worker, patch.object(monitor, 'subscription_lock') as lock:
                 lock.return_value.__enter__.return_value = True
                 monitor.run()
@@ -176,6 +186,24 @@ class ResearchTests(unittest.TestCase):
                 monitor.run()
                 self.assertEqual(worker.call_count, 1)
                 self.assertEqual(monitor.state['reviewed']['pi-example'], '1.0.0')
+
+    def test_only_useful_candidates_are_notified(self):
+        for verdicts in [('skip', 'already-covered'), ('consider', 'skip')]:
+            with self.subTest(verdicts=verdicts), tempfile.TemporaryDirectory() as tmp:
+                monitor = watch.Monitor({'state': tmp, 'profile': {'dependencies': {}}, 'hermes': '/missing'})
+                candidates = [package('pi-useful'), package('pi-rejected')]
+                result = [dict(name=p['name'], version=p['version'], verdict=v, reason='Public idea.', risk='Not tested.', evidence=[]) for p, v in zip(candidates, verdicts)]
+                with patch.object(watch, 'fetch_catalog', return_value={p['name']: p for p in candidates}), patch.object(watch, 'collect_package', side_effect=lambda p: dict(p, files=[])), patch.object(monitor, 'review', return_value=result), patch.object(monitor, 'subscription_lock') as lock:
+                    lock.return_value.__enter__.return_value = True
+                    monitor.run()
+                self.assertEqual(len(monitor.state['reviewed']), 2)
+                self.assertEqual(len(json.loads((Path(tmp) / 'latest-review.json').read_text())['result']), 2)
+                message = '\n'.join(monitor.state['outbox'])
+                self.assertNotIn('pi-rejected', message)
+                if 'consider' in verdicts:
+                    self.assertIn('pi-useful', message)
+                else:
+                    self.assertEqual(message, '')
 
     def test_invalid_refresh_preserves_old_credential(self):
         with tempfile.TemporaryDirectory() as tmp:

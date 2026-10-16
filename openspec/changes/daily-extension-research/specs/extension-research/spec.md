@@ -35,6 +35,17 @@ The reviewer MUST receive only bounded public metadata/text excerpts and a porta
 - **WHEN** a package contains path traversal, unsafe members, excessive expansion or instructions to execute/install
 - **THEN** unsafe inputs are rejected and package instructions cannot enable actions
 
+### Requirement: Notify only useful candidates
+Telegram MUST receive only candidates classified as consider with concrete potential benefit for this stack. Skipped and already-covered candidates MUST remain in the local report, without their reviews in notifications. An all-rejected batch MUST send no review message.
+
+#### Scenario: Mixed batch
+- **WHEN** a batch contains consider, skip and already-covered verdicts
+- **THEN** Telegram includes only consider entries and the local report retains all results
+
+#### Scenario: Nothing useful
+- **WHEN** all candidates are skipped or already covered
+- **THEN** the batch is recorded as reviewed with no empty digest or rejected-package notifications
+
 ### Requirement: Durable truthful results and scoped rollout
 The monitor MUST persist report/outbox state and retry failed Telegram delivery without repeating model work. Logs and messages MUST exclude OAuth/provider secrets. Invalid refreshed credentials MUST preserve the old grant. Installation and rollback MUST affect only the new monitor and preserve the existing updater, settings and runtime.
 
