@@ -83,7 +83,10 @@ test('snapshot refuses symlink ancestors and oversized inputs', async () => {
     await writeFile(join(external, 'source'), 'same'); await symlink(external, join(root, 'dir'));
     await assert.rejects(() => fingerprint(root, todo), /symlink|symbolic/i);
     await rm(join(root, 'dir')); await mkdir(join(root, 'dir')); await writeFile(join(root, 'dir', 'source'), '');
-    await truncate(join(root, 'dir', 'source'), 257 * 1024 * 1024);
+    // Cross the aggregate budget without exceeding the VPS sandbox's 64 MiB file limit.
+    for (let i = 0; i < 5; i++) {
+      const path = join(root, `part-${i}`); await writeFile(path, ''); await truncate(path, 64 * 1024 * 1024);
+    }
     await assert.rejects(() => fingerprint(root, todo), /byte limit/);
   } finally { await rm(root, { recursive: true, force: true }); await rm(external, { recursive: true, force: true }); }
 });
