@@ -37,7 +37,7 @@
         "dist/src/extension.js",
         "dist/src/core/reload-shell-owner.js"
       ],
-      "reason": "Local process-only pilot: reject agent/wake at shared admission, disable other features/update checks, finite deadline and strict per-job output cap, truthful notification-only tool schema/prompt."
+      "reason": "Local process-only pilot: reject agents at shared admission; default notification-only with explicit validated completion wake opt-in; disable other features/update checks; retain finite deadline and strict per-job output cap."
     },
     {
       "package": "@dietrichgebert/ponytail",

@@ -30,20 +30,24 @@
  export const KILL_GRACE_MS = 3000;
  export const STOP_WAIT_MS = KILL_GRACE_MS + 1500;
  export const MAX_RECENT_TASKS = 100;
-@@ -1007,6 +1007,12 @@
+@@ -1007,6 +1007,16 @@
          }
      }
      async startTask(ctx, command, options = {}) {
 +        // Stack pilot policy applies equally to tools, commands and EventBus callers.
-+        if (options.isAgent === true || options.triggerOnCompletion === true)
-+            throw new Error('pi_bg_process_only: agent tasks and automatic model wake are disabled');
++        if (options.isAgent === true)
++            throw new Error('pi_bg_process_only: agent tasks are disabled');
++        if (options.triggerOnCompletion !== undefined && typeof options.triggerOnCompletion !== 'boolean')
++            throw new Error('pi_bg_process_only: completion wake must be a boolean');
++        if (options.triggerOnCompletion === true && options.notifyOnCompletion === false)
++            throw new Error('pi_bg_process_only: completion wake requires notifications');
 +        if (options.timeoutSeconds !== undefined && (!Number.isFinite(options.timeoutSeconds) || options.timeoutSeconds < 1))
 +            throw new Error('pi_bg_process_only: timeoutSeconds must be finite and at least 1');
-+        options = { ...options, isAgent: false, triggerOnCompletion: false, timeoutSeconds: options.timeoutSeconds ?? 600 };
++        options = { ...options, isAgent: false, triggerOnCompletion: options.triggerOnCompletion ?? false, timeoutSeconds: options.timeoutSeconds ?? 600 };
          const hasSurvival = Object.prototype.hasOwnProperty.call(options, 'surviveReload');
          if (hasSurvival && typeof options.surviveReload !== 'boolean') {
              throw new ReloadSurvivalError('pi_bg_survive_reload_invalid', 'surviveReload must be a boolean when present');
-@@ -2247,9 +2253,6 @@
+@@ -2247,9 +2257,6 @@
          if (!task.capExceeded) {
              task.capExceeded = true;
              task.error = `Output exceeded cap of ${formatSize(this.maxOutputBytes)}; terminating task`;
@@ -55,20 +59,18 @@
                  this.requestKill(task, 'SIGTERM');
 --- a/dist/src/core/extension-api.js
 +++ b/dist/src/core/extension-api.js
-@@ -18,8 +18,8 @@
+@@ -18,7 +18,7 @@
  export const BG_EXTENSION_CAPABILITIES = Object.freeze({
      api_version: 1,
      run: true,
 -    run_is_agent: true,
--    run_completion_trigger: true,
 +    run_is_agent: false,
-+    run_completion_trigger: false,
+     run_completion_trigger: true,
      status: true,
      logs: true,
-     logs_bounded: true,
 --- a/dist/src/extension.js
 +++ b/dist/src/extension.js
-@@ -48,16 +48,16 @@
+@@ -48,8 +48,8 @@
          description: 'Short human-readable task name shown in the bg footer dock. Required; use 2-6 words, not the raw command.',
      }),
      command: Type.String({ description: 'Shell command to start in the background' }),
@@ -79,13 +81,12 @@
      }),
      description: Type.Optional(Type.String({ description: 'Optional longer human-readable context for the task' })),
      timeoutSeconds: Type.Optional(Type.Number({ description: 'Optional timeout; task is failed and killed when exceeded' })),
-     notifyOnCompletion: Type.Optional(Type.Boolean({
+@@ -57,7 +57,7 @@
          description: 'Whether to deliver the durable terminal notification. Default: true; disable only when deliberately taking over completion monitoring.',
      })),
--    triggerOnCompletion: Type.Optional(Type.Boolean({
+     triggerOnCompletion: Type.Optional(Type.Boolean({
 -        description: 'Whether that notification should automatically trigger a follow-up agent turn. Default: true for bg_run; requires notifyOnCompletion.',
-+    triggerOnCompletion: Type.Optional(Type.Literal(false, {
-+        description: 'Automatic model wake is disabled in this stack pilot; only false is accepted.',
++        description: 'Explicit opt-in to a follow-up model turn at completion. Default: false; requires notifyOnCompletion.',
      })),
      surviveReload: Type.Optional(Type.Boolean({
          description: 'Opt in to retaining this exact ordinary isAgent:false shell execution across a real same-process Pi reload. Default: false. Unsupported for agent, managed, delegate, Fusion, and attested tasks.',
@@ -155,8 +156,8 @@
          label: 'Background Run',
 -        description: `Start a named long-running shell command in the background and return immediately with a task ID and output path. By default, completed, failed, or killed terminal state is delivered automatically as <background-task-notification> and starts a follow-up agent turn; do not sleep or poll merely to wait. Output is written to .pi/tasks and model-visible logs are bounded to ${formatSize(MAX_LOG_BYTES)}.`,
 -        promptSnippet: 'Start a named long-running shell command; default terminal notification wakes a follow-up turn, so yield instead of polling',
-+        description: `Start a local shell job and return its ID/output path immediately. Process-only stack pilot: notification-only, no automatic model turn or agent telemetry. Default timeout 600s; output file cap 1MiB; bounded log reads. Explicit commands are unsandboxed and do not use SSH routing.`,
-+        promptSnippet: 'Run a named long local shell job without blocking; completion does not wake the model',
++        description: `Start a local shell job and return its ID/output path immediately. Process-only stack pilot: notification-only by default; explicit triggerOnCompletion:true requests a follow-up model turn. No agent telemetry. Default timeout 600s; output file cap 1MiB; bounded log reads. Explicit commands are unsandboxed and do not use SSH routing.`,
++        promptSnippet: 'Run a named long local shell job; completion wakes the model only with explicit opt-in',
          promptGuidelines: [
 -            'Use bg_run instead of bash for commands expected to run for a long time, such as test suites, dev servers, watchers, or builds.',
 -            'Always set isAgent: true only when the background task launches an LLM/agent process; set isAgent: false for scripts, tests, dev servers, sleeps, and ordinary shell commands.',
@@ -166,9 +167,9 @@
 -            'Treat <background-task-notification> as durable terminal truth. Do not call bg_status to reconfirm it; call bg_logs only when the task output is needed.',
 -            'Use bg_status/bg_logs only when the user explicitly requests an update, automatic notification or wake-up was deliberately disabled, there is concrete evidence the task is hung, or a terminal notification arrived and output details are needed.',
 -            'Do not set notifyOnCompletion:false or triggerOnCompletion:false unless intentionally opting out of automatic completion handling.',
-+            'Use only for ordinary local shell jobs; isAgent must be false. No delegates, Fusion or automatic model wake.',
++            'Use only for ordinary local shell jobs; isAgent must be false. No delegates or Fusion. Set triggerOnCompletion:true only when the user authorizes continuation.',
 +            'Keep working only on independent work; never modify the scope under test while its job runs. Associate exit evidence with that exact scope and the authoritative TODO task.',
-+            'Completion is notification-only. Use bg_status/bg_logs for deliberate inspection without tight polling; no automatic follow-up turn will start.',
++            'Completion defaults to notification-only. With explicit triggerOnCompletion:true, the terminal notification starts or queues a follow-up turn; otherwise it does not. Never poll merely to wait.',
 +            'Use a short name and an explicit finite timeout when the 600s default is unsuitable. surviveReload is opt-in for same-process reload only; quit/restart stops the process.',
          ],
          parameters: BgRunParams,
