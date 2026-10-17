@@ -5,7 +5,7 @@
 ## Границы автоматизации
 
 - Стабильные точные версии существующих runtime dependencies; core и TUI одной версии. Никаких новых пакетов, API-key fallback или новых lifecycle scripts.
-- Агент может менять pins/lock, versioned patches, local extensions, Markdown документацию и один новый архивный OpenSpec change. Installer — только строку `PI_VERSION`. Managed configs, тесты, CI, инструкции и updater защищены. Изменения за границами требуют ручного review, даже если действительно нужны для нового API.
+- Агент может менять pins/lock, versioned patches, local extensions, Markdown документацию и один новый архивный OpenSpec change. Installer — только строку `PI_VERSION`. Managed configs, тесты, CI, инструкции и updater защищены. Перед repair контроллер сам синхронизирует в `configs/settings.json` только существующие exact npm-pins, совпадающие с baseline dependencies, с выбранными targets. Строковые declarations и `source` объектов обрабатываются одинаково; floating sources, selectors, состав/порядок пакетов и прочие настройки не меняются. Кандидат обязан сохранить подготовленные bytes и executable bit; иначе отказ до gate. Изменения за этими границами требуют ручного review, даже если действительно нужны для нового API.
 - Отдельные UID `pi-update-agent` и `pi-update-test`. Второй не имеет OAuth. Файлы агента никогда не выполняются от root; его `.git` никогда не используется контроллером.
 - `systemd` sandbox: read-only system, скрытые `/root` и `/home`, без capabilities, приватные tmp/devices, 3 GiB RAM, 256 tasks, 150% CPU. Job расположен на отдельном tmpfs 2 GiB; `/tmp` и `/var/tmp` — отдельные tmpfs по 512 MiB; агент 45 минут, gate 15 минут, ожидание CI 20 минут. Журнал этапа ограничен 64 MiB, старые журналы удаляются. После остановки workers tmpfs размонтируется. Outbound network нужен Codex/npm; полного сетевого sandbox нет.
 - Один flock, максимум три repair attempts на сочетание base/targets. Pending CI возобновляется без нового вызова модели. Неотправленные Telegram сообщения сохраняются. Остановка/перезагрузка не разрешает обход checks.
@@ -35,6 +35,8 @@ python3 /opt/my-pi-updater/vps-updater.py cleanup
 ```
 
 `check` сохраняет metadata discovery, не вызывает модель и не сливает pending candidate. Контроллер установлен вне checkout и не обновляет сам себя из сгенерированного кода. Для обновления controller/unit files: остановить timer/service, сделать root-only backup `/opt/my-pi-updater`, config/state и unit files, установить отдельно проверенную версию, проверить sandbox/gate, вернуть timer. Исходники из Git не заменяют автоматически установленный controller.
+
+Если агент остановился и оставил текущий `openspec/changes/autoupdate-<id>/` без архива, контроллер сообщает `repair incomplete` и направляет к приватному agent log за причиной. Это не разрешение автоматически архивировать failed change или публиковать его. Модельный вывод не пересылается в Telegram; исходный blocker проверяет оператор.
 
 После трёх неудач изучите приватный log и automation branch, если он уже был опубликован. Не сбрасывайте attempts вслепую. Новый release/base автоматически создаст новый fingerprint. Успешное слияние не доказывает поведение будущего релиза в production; установка рабочей сборки остаётся отдельным действием с backup/rollback по `diagnostics-and-rollback.md`.
 

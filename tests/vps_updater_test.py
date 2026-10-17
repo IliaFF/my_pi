@@ -30,6 +30,65 @@ class UpdaterTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(updater.Rejected):
                 updater.check_scope({path: (b"before", False)}, {path: (b"after", False)}, "openspec/changes/archive/update/")
 
+    def test_settings_pin_sync_preserves_everything_else(self):
+        settings = {"packages": ["npm:plain@1.0.0", {"source": "npm:@scope/tool@2.0.0", "extensions": []},
+                                 "npm:floating", "npm:unknown@1.0.0", "npm:plain@0.9.0"], "model": "unchanged"}
+        tree = {"configs/settings.json": (json.dumps(settings).encode(), False),
+                "npm/package.json": (json.dumps({"dependencies": {"plain": "1.0.0", "@scope/tool": "2.0.0"}}).encode(), False)}
+        expected = json.loads(json.dumps(settings))
+        expected["packages"][0] = "npm:plain@1.1.0"
+        expected["packages"][1]["source"] = "npm:@scope/tool@2.1.0"
+        content, mode = updater.settings_for_targets(tree, {"plain": "1.1.0", "@scope/tool": "2.1.0"})
+        self.assertEqual(json.loads(content), expected)
+        self.assertFalse(mode)
+        self.assertEqual(updater.settings_for_targets(tree, {"plain": "1.0.0", "@scope/tool": "2.0.0"}), tree["configs/settings.json"])
+
+    def test_candidate_settings_must_match_trusted_preparation(self):
+        tree = updater.read_tree(ROOT)
+        targets = json.loads(tree["npm/package.json"][0])["dependencies"]
+        updater.check_pins(tree, tree, targets)
+        for mutate in [lambda d: d.update(defaultModel="other"),
+                       lambda d: d["packages"].append("npm:evil@1.0.0"),
+                       lambda d: d["packages"].reverse(),
+                       lambda d: next(p for p in d["packages"] if isinstance(p, dict) and p["source"] == "npm:pine-of-glass").update(extensions=[]),
+                       lambda d: next(p for p in d["packages"] if isinstance(p, dict) and "pi-browser-use" in p["source"]).update(source="npm:@amaster.ai/pi-browser-use@99.0.0")]:
+            after = dict(tree)
+            data = json.loads(tree["configs/settings.json"][0]); mutate(data)
+            after["configs/settings.json"] = (json.dumps(data).encode(), False)
+            with self.assertRaisesRegex(updater.Rejected, "settings"):
+                updater.check_pins(tree, after, targets)
+        for replacement in [None, (tree["configs/settings.json"][0], not tree["configs/settings.json"][1])]:
+            after = dict(tree)
+            if replacement is None:
+                del after["configs/settings.json"]
+            else:
+                after["configs/settings.json"] = replacement
+            with self.assertRaisesRegex(updater.Rejected, "settings"):
+                updater.check_pins(tree, after, targets)
+
+    def test_exact_settings_pin_update_passes_scope_and_pins(self):
+        tree = updater.read_tree(ROOT)
+        targets = json.loads(tree["npm/package.json"][0])["dependencies"]
+        targets["@amaster.ai/pi-browser-use"] = "0.1.28"
+        after = dict(tree)
+        for name in ["npm/package.json", "npm/package-lock.json", "configs/settings.json"]:
+            after[name] = (tree[name][0].replace(b"0.1.26", b"0.1.28"), tree[name][1])
+        after["configs/settings.json"] = updater.settings_for_targets(tree, targets)
+        updater.check_scope(tree, after, "openspec/changes/archive/update/")
+        updater.check_pins(tree, after, targets)
+        after["configs/settings.json"] = tree["configs/settings.json"]
+        with self.assertRaisesRegex(updater.Rejected, "settings"):
+            updater.check_pins(tree, after, targets)
+
+    def test_current_unarchived_change_reports_incomplete_repair(self):
+        prefix = "openspec/changes/archive/2026-10-17-autoupdate-f9a5c2a903da/"
+        path = "openspec/changes/autoupdate-f9a5c2a903da/.openspec.yaml"
+        with self.assertRaisesRegex(updater.Rejected, "repair incomplete.*private.*log"):
+            updater.check_scope({}, {path: (b"schema: spec-driven", False)}, prefix)
+        for before, other in [({path: (b"old", False)}, path), ({}, path.replace("f9a5c2a903da", "aaaaaaaaaaaa"))]:
+            with self.assertRaisesRegex(updater.Rejected, "protected path"):
+                updater.check_scope(before, {other: (b"new", False)}, prefix)
+
     def test_patch_and_local_extension_changes_allowed(self):
         changed = updater.check_scope({}, {"patches/x+2.0.0.patch": (b"patch", False), "local-extensions/x.ts": (b"code", False)}, "openspec/changes/archive/update/")
         self.assertEqual(len(changed), 2)
@@ -207,6 +266,39 @@ class UpdaterTests(unittest.TestCase):
             persisted = json.loads(controller.state_path.read_text())["attempts"]
             self.assertEqual(persisted["older-fingerprint"], 3)
             self.assertEqual(len(persisted), 2)
+
+    def test_repair_receives_prepared_settings_and_incomplete_work_never_reaches_gate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            controller = self.make_controller(temp)
+            controller.config.update(jobs=temp, auth_home=str(root / "auth"), node="/fake/node", pi_cli="/fake/pi", model="fake")
+            (root / "auth/.pi/agent").mkdir(parents=True)
+            tree = updater.read_tree(ROOT)
+            current = json.loads(tree["npm/package.json"][0])["dependencies"]
+            targets = {**current, "@amaster.ai/pi-browser-use": "0.1.28"}
+            latest = [{"version": targets[name]} for name in current]
+            auth = {"openai": {"access": "fixture-access-token", "refresh": "fixture-refresh-token"}}
+
+            def copy_tree(files, destination, user):
+                destination.mkdir(parents=True)
+                for name, (content, executable) in files.items():
+                    path = destination / name; path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes(content); path.chmod(0o700 if executable else 0o600)
+
+            def repair(role, work, home, command, log, timeout):
+                self.assertEqual(role, "agent")
+                self.assertEqual((work / "configs/settings.json").read_bytes(), updater.settings_for_targets(tree, targets)[0])
+                fingerprint = json.loads((root / "latest-check.json").read_text())["fingerprint"]
+                path = work / ("openspec/changes/autoupdate-" + fingerprint[:12] + "/.openspec.yaml")
+                path.parent.mkdir(parents=True); path.write_text("schema: spec-driven")
+
+            with patch.object(controller, "baseline", return_value=("base", tree)), patch.object(controller, "copy_tree", side_effect=copy_tree), patch.object(controller, "sandbox", side_effect=repair) as sandbox, patch.object(controller, "git") as git, patch.object(updater, "fetch_json", side_effect=latest), patch.object(updater, "read_oauth", return_value=auth), patch.object(updater.shutil, "disk_usage", return_value=Mock(free=10 ** 12)), patch.object(updater.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+                with self.assertRaisesRegex(updater.Rejected, "repair incomplete"):
+                    controller.run()
+                self.assertEqual(sandbox.call_count, 1)
+                git.assert_not_called()
+            self.assertFalse(list(root.glob("run-*")))
+            self.assertNotIn("pending", controller.state)
 
     def test_retry_and_pending_take_priority(self):
         self.assertEqual(updater.next_action({"pending": {"sha": "x"}, "attempts": {"x": 3}}, "x"), "resume")

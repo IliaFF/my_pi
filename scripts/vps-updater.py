@@ -70,20 +70,45 @@ def read_tree(root):
     return result
 
 
+def settings_for_targets(before, targets):
+    original, executable = before["configs/settings.json"]
+    settings = json.loads(original)
+    current = json.loads(before["npm/package.json"][0])["dependencies"]
+    replacements = {f"npm:{name}@{version}": f"npm:{name}@{targets[name]}" for name, version in current.items()}
+    changed = False
+    for index, entry in enumerate(settings["packages"]):
+        source = entry if isinstance(entry, str) else entry["source"]
+        replacement = replacements.get(source, source)
+        if replacement == source:
+            continue
+        changed = True
+        if isinstance(entry, str):
+            settings["packages"][index] = replacement
+        else:
+            entry["source"] = replacement
+    return ((json.dumps(settings, indent=2, ensure_ascii=False) + "\n").encode() if changed else original, executable)
+
+
 def check_scope(before, after, change_prefix):
     changed = sorted(p for p in before.keys() | after.keys() if before.get(p) != after.get(p))
     for path in changed:
-        allowed = path in {"manifest.json", "npm/package.json", "npm/package-lock.json", "install.sh", "README.md"}
+        allowed = path in {"manifest.json", "npm/package.json", "npm/package-lock.json", "install.sh", "README.md", "configs/settings.json"}
         allowed |= path.startswith("patches/") and path.endswith(".patch")
         allowed |= path.startswith("local-extensions/") and path.endswith((".ts", ".js", ".json", ".md"))
         allowed |= path.startswith("docs/") and path.endswith(".md")
         allowed |= path.startswith(change_prefix) and path.endswith((".md", ".yaml")) and path not in before
         if not allowed:
+            active = re.fullmatch(r"openspec/changes/(autoupdate-[a-f0-9]{12})/.+", path)
+            if path not in before and active and change_prefix.endswith("-" + active[1] + "/"):
+                raise Rejected("repair incomplete: current OpenSpec change is not archived; inspect private agent log for blockers")
             raise Rejected("protected path changed: " + path)
     return changed
 
 
 def check_pins(before, after, targets):
+    if after.get("configs/settings.json") != settings_for_targets(before, targets):
+        raise Rejected("settings differ from controller-prepared exact pins")
+
     def data(tree, path):
         if path not in tree:
             raise Rejected("required release file removed")
@@ -341,7 +366,9 @@ class Updater:
             subprocess.run(["mount", "-t", "tmpfs", "-o", "size=2G,nosuid,nodev,mode=0711", "tmpfs", str(job)], check=True, capture_output=True, timeout=30)
             mounted = True
             work = job / "repair"
-            self.copy_tree(before, work, "pi-update-agent")
+            repair_tree = dict(before)
+            repair_tree["configs/settings.json"] = settings_for_targets(before, targets)
+            self.copy_tree(repair_tree, work, "pi-update-agent")
             auth_path = Path(self.config["auth_home"]) / ".pi/agent/auth.json"
             auth = read_oauth(Path(self.config["auth_home"]))
             home = job / "agent-home"
@@ -351,6 +378,7 @@ class Updater:
                       "Preserve all existing local contracts. Work only here. Read AGENTS.md first; run npm/OpenSpec here. Do not deploy or push. "
                       "No personal settings, credentials, sessions or logs in source. The controller handles Git commits and acceptance. "
                       "Protected: tests/, scripts/, configs/, .github/, AGENTS.md, root package files, existing OpenSpec specs/history. "
+                      "The controller already synchronized existing exact npm pins in configs/settings.json to targets; leave that prepared file unchanged. "
                       "Allowed: npm exact pins/lock (same package names/scripts/allowScripts), manifest release/patch metadata (same managed configs), "
                       "installer PI_VERSION line only, versioned patches, local-extensions, README/docs Markdown. "
                       "Create proposal/design/tasks/spec delta/evidence using OpenSpec, archive only after full npm test PASS into " + change + ". "
