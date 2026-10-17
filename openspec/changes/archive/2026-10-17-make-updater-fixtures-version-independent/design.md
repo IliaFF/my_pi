@@ -1,0 +1,6 @@
+# Design
+Read the baseline browser pin and increment its patch component for the two update scenarios. A small shared in-memory fixture builder changes only the browser dependency, root lock pin, its version/resolved URL, and controller-prepared exact settings while preserving executable modes. Synthetic lock integrity is retained as fixture data, not presented as a downloadable real release.
+
+A new offline regression runs both existing tests with read_tree(ROOT) redirected to synthetic0.1.28 and9.8.7 baselines; non-ROOT worktree reads remain real, so incomplete OpenSpec is still detected after actual temporary repair writes. Run the regression before fixing the old literals. Keep acceptance/rejection assertions, assert that update bytes really differ, and verify no gate or Git publication occurs for incomplete work.
+
+No package installation or runtime/controller behavior is changed. The current and synthetic version checks use the existing real controller orchestration with mocked external boundaries; all existing actual SDK/RPC gates remain. No automatic archive or second VPS attempt is permitted. Current local HEAD49900cd contains unrelated unpublished commits; do not blindly push it.
