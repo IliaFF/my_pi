@@ -14,6 +14,7 @@ import pwd
 import re
 import resource
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -209,7 +210,7 @@ def atomic_json(path, data):
 def sandbox_command(config, role, work, home, command, unit, timeout):
     properties = ["ProtectHome=yes", "ProtectSystem=strict", "NoNewPrivileges=yes", "TemporaryFileSystem=/tmp:rw,size=512M,mode=1777 /var/tmp:rw,size=512M,mode=1777", "PrivateDevices=yes", "ProtectKernelTunables=yes", "ProtectKernelModules=yes", "ProtectControlGroups=yes", "RestrictSUIDSGID=yes", "CapabilityBoundingSet=", "KillMode=control-group", "MemoryMax=3G", "TasksMax=256", "LimitFSIZE=64M", "CPUQuota=150%", f"RuntimeMaxSec={timeout}", "PartOf=my-pi-updater.service", f"ReadWritePaths={work} {home}", "UMask=0077"]
     properties += ["InaccessiblePaths=" + config["auth_home"]]
-    return ["systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=" + unit, "--uid=pi-update-" + role, "--working-directory=" + str(work), *["--property=" + p for p in properties], "/usr/bin/env", "-i", "HOME=" + str(home), "PATH=" + config["node"] + ":/usr/bin:/bin", "LANG=C.UTF-8", "OPENSPEC_TELEMETRY=0", "NPM_CONFIG_UPDATE_NOTIFIER=false", "NPM_CONFIG_CACHE=" + str(work / ".cache/npm"), *command]
+    return ["systemd-run", "--quiet", "--wait", "--pipe", "--unit=" + unit, "--uid=pi-update-" + role, "--working-directory=" + str(work), *["--property=" + p for p in properties], "/usr/bin/env", "-i", "HOME=" + str(home), "PATH=" + config["node"] + ":/usr/bin:/bin", "LANG=C.UTF-8", "OPENSPEC_TELEMETRY=0", "NPM_CONFIG_UPDATE_NOTIFIER=false", "NPM_CONFIG_CACHE=" + str(work / ".cache/npm"), *command]
 
 
 def fetch_json(url):
@@ -274,14 +275,64 @@ class Updater:
     def sandbox(self, role, work, home, command, log, timeout):
         unit = "my-pi-worker-" + role + "-" + str(os.getpid())
         args = sandbox_command(self.config, role, work, home, command, unit, timeout)
+        result = None
+        timed_out = False
         try:
             with log.open("wb") as stream:
-                result = subprocess.run(args, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout + 60,
-                                        preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_FSIZE, (64 * 1024 ** 2, 64 * 1024 ** 2)))
-            if result.returncode:
-                raise Rejected(role + " sandbox failed; private log retained")
+                os.fchmod(stream.fileno(), 0o600)
+                try:
+                    result = subprocess.run(args, stdout=stream, stderr=subprocess.STDOUT, timeout=timeout + 60,
+                                            preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_FSIZE, (64 * 1024 ** 2, 64 * 1024 ** 2)))
+                except subprocess.TimeoutExpired:
+                    timed_out = True
         finally:
-            subprocess.run(["systemctl", "stop", unit], capture_output=True, timeout=30)
+            try:
+                fields = {}
+                available = False
+                try:
+                    status = subprocess.run(["systemctl", "show", unit, "-p", "Result", "-p", "ExecMainCode", "-p", "ExecMainStatus"], capture_output=True, text=True, timeout=10)
+                    available = status.returncode == 0
+                    if available:
+                        fields = dict(line.split("=", 1) for line in status.stdout.splitlines() if "=" in line)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                known_results = {"success", "exit-code", "signal", "core-dump", "timeout", "oom-kill", "watchdog", "resources", "protocol", "start-limit-hit", "exec-condition"}
+                code, value = fields.get("ExecMainCode", ""), fields.get("ExecMainStatus", "")
+                metadata = {
+                    "launcherReturncode": result.returncode if result is not None else None,
+                    "timedOut": timed_out, "logBytes": log.stat().st_size if log.exists() else 0,
+                    "workerStatusAvailable": available,
+                    "workerResult": fields.get("Result") if fields.get("Result") in known_results else "unknown",
+                    "workerCode": int(code) if code in {"0", "1", "2", "3"} else None,
+                    "workerStatus": int(value) if re.fullmatch(r"[0-9]{1,3}", value) and int(value) <= 255 else None,
+                }
+                atomic_json(log.with_suffix(".status.json"), metadata)
+            finally:
+                try:
+                    subprocess.run(["systemctl", "stop", unit], capture_output=True, timeout=30)
+                finally:
+                    subprocess.run(["systemctl", "reset-failed", unit], capture_output=True, timeout=30)
+        worker_failed = metadata["workerResult"] not in {"success", "unknown"} or metadata["workerCode"] in {2, 3} or (metadata["workerCode"] == 1 and bool(metadata["workerStatus"]))
+        if timed_out or result.returncode or worker_failed:
+            worker_signal = metadata["workerCode"] in {2, 3} and bool(metadata["workerStatus"])
+            if timed_out:
+                reason = "controller deadline"
+            elif metadata["workerResult"] in {"timeout", "oom-kill"}:
+                reason = "worker " + metadata["workerResult"]
+            elif worker_signal or result.returncode < 0:
+                number = metadata["workerStatus"] if worker_signal else -result.returncode
+                try:
+                    name = signal.Signals(number).name
+                except ValueError:
+                    name = str(number)
+                reason = ("worker" if worker_signal else "launcher") + " signal " + name
+                if number == signal.SIGXFSZ:
+                    reason += " (per-file size limit)"
+            elif metadata["workerCode"] == 1 and metadata["workerStatus"]:
+                reason = "worker exit " + str(metadata["workerStatus"])
+            else:
+                reason = "worker " + metadata["workerResult"] if worker_failed else "launcher exit " + str(result.returncode)
+            raise Rejected(role + " sandbox failed: " + reason + "; private diagnostics retained")
 
     @staticmethod
     def copy_tree(tree, destination, user):
@@ -327,6 +378,7 @@ class Updater:
 
     def cleanup(self):
         subprocess.run(["systemctl", "stop", "my-pi-worker-*.service"], capture_output=True, timeout=60)
+        subprocess.run(["systemctl", "reset-failed", "my-pi-worker-*.service"], capture_output=True, timeout=30)
         for job in Path(self.config["jobs"]).iterdir():
             if not re.fullmatch(r"run-[a-z0-9_]+", job.name) or job.is_symlink() or not job.is_dir():
                 raise Rejected("unexpected job cleanup path")
@@ -358,7 +410,8 @@ class Updater:
         job.chmod(0o711)
         logs = self.state_dir / "logs"
         logs.mkdir(exist_ok=True)
-        for old in sorted(logs.glob("*"), key=lambda p: p.stat().st_mtime)[:-4]:
+        for old in sorted(logs.glob("*.log"), key=lambda p: p.stat().st_mtime)[:-4]:
+            old.with_suffix(".status.json").unlink(missing_ok=True)
             old.unlink()
         log_name = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         mounted = False
@@ -386,7 +439,7 @@ class Updater:
                       "Use npm ci --ignore-scripts --legacy-peer-deps; never enable new lifecycle scripts. "
                       "Targets (all must match exactly): " + json.dumps(targets, sort_keys=True))
             try:
-                self.sandbox("agent", work, home, [str(Path(self.config["node"]) / "node"), self.config["pi_cli"], "--print", "--offline", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-mcp", "--model", self.config["model"], "--thinking", "medium", prompt], logs / (log_name + "-agent.log"), 2700)
+                self.sandbox("agent", work, home, [str(Path(self.config["node"]) / "node"), self.config["pi_cli"], "--mode", "json", "--offline", "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-mcp", "--model", self.config["model"], "--thinking", "medium", prompt], logs / (log_name + "-agent.log"), 2700)
             finally:
                 refreshed = read_oauth(home)
                 atomic_json(auth_path, refreshed)

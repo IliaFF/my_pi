@@ -5,7 +5,9 @@ from pathlib import Path
 import tempfile
 import unittest
 import os
+import signal
 import subprocess
+import sys
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -178,9 +180,102 @@ class UpdaterTests(unittest.TestCase):
             self.assertIn("--uid=pi-update-" + role, command)
             for prop in ["ProtectHome=yes", "ProtectSystem=strict", "NoNewPrivileges=yes", "KillMode=control-group", "RuntimeMaxSec=10", "PartOf=my-pi-updater.service", "TemporaryFileSystem=/tmp:rw,size=512M,mode=1777 /var/tmp:rw,size=512M,mode=1777"]:
                 self.assertIn("--property=" + prop, command)
+            self.assertNotIn("--collect", command, "failed worker metadata must survive until collection")
             if role == "test":
                 self.assertIn("--property=InaccessiblePaths=/var/lib/private-auth", command)
                 self.assertFalse(any("OPENAI_API_KEY" in x or "SSH_AUTH_SOCK" in x for x in command))
+
+    def test_actual_file_limit_signal_retains_private_progress_and_status(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); controller = self.make_controller(temp)
+            controller.config.update(node="/fake/node", auth_home="/private/auth")
+            log = root / "agent.log"; calls = []
+            actual_run = subprocess.run
+            code = '''import json,os,resource,signal,sys
+print(json.dumps({"type":"tool_execution_start","toolName":"bash","args":{"command":"fixture-private-event"}}),flush=True)
+resource.setrlimit(resource.RLIMIT_CORE,(0,0))
+resource.setrlimit(resource.RLIMIT_FSIZE,(1024,1024))
+signal.signal(signal.SIGXFSZ,signal.SIG_DFL)
+fd=os.open(sys.argv[1],os.O_WRONLY|os.O_CREAT,0o600)
+while True: os.write(fd,b"x"*1024)
+'''
+
+            def run(args, **kwargs):
+                calls.append(args)
+                if args[0] == "systemd-run":
+                    return actual_run([sys.executable, "-u", "-c", code, str(root / "oversized")], **kwargs)
+                if args[1] == "show":
+                    return subprocess.CompletedProcess(args, 0, f"Result=signal\nExecMainCode=2\nExecMainStatus={signal.SIGXFSZ}\n", "")
+                return subprocess.CompletedProcess(args, 0, "", "")
+
+            with patch.object(updater.subprocess, "run", side_effect=run):
+                with self.assertRaisesRegex(updater.Rejected, "worker signal SIGXFSZ") as failure:
+                    controller.sandbox("agent", root, root, ["fixture"], log, 10)
+            self.assertIn("fixture-private-event", log.read_text())
+            self.assertNotIn("fixture-private-event", str(failure.exception))
+            metadata = json.loads(log.with_suffix(".status.json").read_text())
+            self.assertEqual(metadata["workerStatus"], signal.SIGXFSZ)
+            self.assertEqual(metadata["workerCode"], 2)
+            self.assertGreater(metadata["logBytes"], 0)
+            self.assertNotIn("fixture-private-event", json.dumps(metadata))
+            self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(log.with_suffix(".status.json").stat().st_mode & 0o777, 0o600)
+            self.assertEqual([args[1] for args in calls if args[0] == "systemctl"], ["show", "stop", "reset-failed"])
+
+    def test_cleanup_resets_failed_worker_units(self):
+        with tempfile.TemporaryDirectory() as temp:
+            controller = self.make_controller(temp)
+            jobs = Path(temp) / "jobs"; jobs.mkdir()
+            controller.config["jobs"] = str(jobs)
+            with patch.object(updater.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+                controller.cleanup()
+            self.assertEqual([call.args[0] for call in run.call_args_list], [
+                ["systemctl", "stop", "my-pi-worker-*.service"],
+                ["systemctl", "reset-failed", "my-pi-worker-*.service"],
+            ])
+
+    def test_sandbox_status_categories_and_cleanup(self):
+        cases = [
+            (0, "Result=success\nExecMainCode=1\nExecMainStatus=0\n", None),
+            (1, "Result=exit-code\nExecMainCode=1\nExecMainStatus=7\n", "worker exit 7"),
+            (0, "Result=signal\nExecMainCode=2\nExecMainStatus=25\n", "worker signal SIGXFSZ"),
+            (1, "Result=oom-kill\nExecMainCode=2\nExecMainStatus=9\n", "worker oom-kill"),
+            (1, "Result=timeout\nExecMainCode=2\nExecMainStatus=15\n", "worker timeout"),
+            (-signal.SIGXFSZ, None, "launcher signal SIGXFSZ"),
+            (1, None, "launcher exit 1"),
+            (1, "query-timeout", "launcher exit 1"),
+            (1, "Result=fixture-private-status\nExecMainCode=secret\nExecMainStatus=secret\n", "launcher exit 1"),
+            ("timeout", None, "controller deadline"),
+        ]
+        for returncode, worker, reason in cases:
+            with self.subTest(returncode=returncode, worker=worker), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); controller = self.make_controller(temp)
+                controller.config.update(node="/fake/node", auth_home="/private/auth")
+                log = root / "agent.log"; calls = []
+
+                def run(args, **kwargs):
+                    calls.append(args)
+                    if args[0] == "systemd-run":
+                        if returncode == "timeout":
+                            raise subprocess.TimeoutExpired(args, 10)
+                        return subprocess.CompletedProcess(args, returncode)
+                    if args[1] == "show":
+                        if worker == "query-timeout":
+                            raise subprocess.TimeoutExpired(args, 10)
+                        return subprocess.CompletedProcess(args, 0 if worker is not None else 1, worker or "", "fixture-private-status")
+                    return subprocess.CompletedProcess(args, 0, "", "")
+
+                with patch.object(updater.subprocess, "run", side_effect=run):
+                    if reason:
+                        with self.assertRaisesRegex(updater.Rejected, reason) as failure:
+                            controller.sandbox("agent", root, root, ["fixture"], log, 10)
+                        self.assertNotIn("fixture-private", str(failure.exception))
+                    else:
+                        controller.sandbox("agent", root, root, ["fixture"], log, 10)
+                metadata = json.loads(log.with_suffix(".status.json").read_text())
+                self.assertEqual(metadata["timedOut"], returncode == "timeout")
+                self.assertNotIn("fixture-private", json.dumps(metadata))
+                self.assertEqual([args[1] for args in calls if args[0] == "systemctl"], ["show", "stop", "reset-failed"])
 
     def test_refreshed_oauth_rejects_symlink_parent_and_api_keys(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -273,6 +368,12 @@ class UpdaterTests(unittest.TestCase):
             controller = self.make_controller(temp)
             controller.config.update(jobs=temp, auth_home=str(root / "auth"), node="/fake/node", pi_cli="/fake/pi", model="fake")
             (root / "auth/.pi/agent").mkdir(parents=True)
+            logs = root / "logs"; logs.mkdir()
+            for index in range(5):
+                old = logs / f"old-{index}.log"
+                old.write_text("fixture-event")
+                old.with_suffix(".status.json").write_text("{}")
+                os.utime(old, (index + 1, index + 1))
             tree = updater.read_tree(ROOT)
             current = json.loads(tree["npm/package.json"][0])["dependencies"]
             targets = {**current, "@amaster.ai/pi-browser-use": "0.1.28"}
@@ -287,6 +388,8 @@ class UpdaterTests(unittest.TestCase):
 
             def repair(role, work, home, command, log, timeout):
                 self.assertEqual(role, "agent")
+                self.assertEqual(command[command.index("--mode") + 1], "json")
+                self.assertNotIn("--print", command)
                 self.assertEqual((work / "configs/settings.json").read_bytes(), updater.settings_for_targets(tree, targets)[0])
                 fingerprint = json.loads((root / "latest-check.json").read_text())["fingerprint"]
                 path = work / ("openspec/changes/autoupdate-" + fingerprint[:12] + "/.openspec.yaml")
@@ -299,6 +402,10 @@ class UpdaterTests(unittest.TestCase):
                 git.assert_not_called()
             self.assertFalse(list(root.glob("run-*")))
             self.assertNotIn("pending", controller.state)
+            self.assertFalse((logs / "old-0.log").exists())
+            self.assertFalse((logs / "old-0.status.json").exists())
+            self.assertEqual(len(list(logs.glob("*.log"))), 4)
+            self.assertEqual(len(list(logs.glob("*.status.json"))), 4)
 
     def test_retry_and_pending_take_priority(self):
         self.assertEqual(updater.next_action({"pending": {"sha": "x"}, "attempts": {"x": 3}}, "x"), "resume")
