@@ -1,20 +1,24 @@
 # background-shell-pilot Specification
 
 ## Purpose
-Provide a narrowly scoped local shell-job pilot with enforced process-only admission, bounded output and deadlines, explicit cancellation, default notification-only completion with explicit follow-up opt-in and truthful reload/restart limits.
+Provide a narrowly scoped local shell-job pilot with enforced process-only admission, bounded output and deadlines, explicit cancellation, default automatic completion follow-up with explicit opt-out and truthful reload/restart limits.
 
 ## Requirements
 
 ### Requirement: Local process-only background admission
-The pilot MUST load only the shell entry, reject agent jobs at shared admission (including EventBus), and disable Delegate/Fusion/attested/attribution despite environment overrides. Ordinary jobs MUST default to notification-only. Only explicit boolean triggerOnCompletion true with enabled notifications MAY wake a model; invalid/contradictory requests MUST fail before spawn. Tool/EventBus policy descriptions MUST be accurate.
+The pilot MUST load only shell jobs, reject agents at shared admission and disable Delegate/Fusion/attested/attribution despite overrides. Ordinary bg_run and /bg jobs MUST default to completion wake; explicit false MUST disable it. EventBus MUST retain required explicit booleans. Invalid or contradictory requests MUST fail before spawn. Tool/EventBus descriptions MUST match policy.
 
 #### Scenario: Ordinary job
-- **WHEN** a named shell command is launched without explicit wake
-- **THEN** launch returns without waiting, status records exit state, bounded logs remain accessible, and completion starts no provider/model turn
+- **WHEN** a named shell command is launched with default completion options
+- **THEN** launch returns without waiting, status records exit state, bounded logs remain accessible, and terminal completion starts or queues exactly one provider/model follow-up turn, including failure and timeout
 
 #### Scenario: Authorized explicit wake
 - **WHEN** an ordinary tool or EventBus job explicitly requests completion wake with notifications enabled
 - **THEN** terminal completion is delivered through the existing native Pi follow-up mechanism; idle Pi continues and busy Pi queues continuation without duplicate wake on status/log reads
+
+#### Scenario: Explicit opt-out
+- **WHEN** a tool job sets triggerOnCompletion false or disables notifications without explicit wake
+- **THEN** explicit false keeps notification-only behavior; disabled notifications without explicit wake disable both notification and continuation, while explicit true with disabled notifications is rejected before spawn
 
 #### Scenario: Unsafe request
 - **WHEN** a caller requests isAgent true, malformed wake, wake with notifications disabled or an unapproved feature override
@@ -25,7 +29,7 @@ The pilot MUST load only the shell entry, reject agent jobs at shared admission 
 - **THEN** shell commands remain local and unsandboxed; wake MUST NOT grant new operational permissions
 
 ### Requirement: Bounded lifecycle and truthful recovery
-Jobs MUST retain finite default deadlines and fixed per-job log caps. Cancellation MUST stop the Linux process tree; opted jobs MAY deliver killed completion wake. Only opted ordinary jobs MAY survive actual same-process reload with identity/completion policy intact. Quit/shutdown MUST suppress wake; restart MUST NOT adopt processes or replay historical wake. Retained logs MUST NOT imply continued execution.
+Jobs MUST retain finite default deadlines and fixed per-job log caps. Cancellation MUST stop the Linux process tree; wake-enabled jobs MAY deliver killed completion wake. Only opted ordinary jobs MAY survive actual same-process reload with identity/completion policy intact. Quit/shutdown MUST suppress wake; restart MUST NOT adopt processes or replay historical wake. Retained logs MUST NOT imply continued execution.
 
 #### Scenario: Timeout or output overflow
 - **WHEN** deadline or output cap is reached
@@ -33,7 +37,7 @@ Jobs MUST retain finite default deadlines and fixed per-job log caps. Cancellati
 
 #### Scenario: Reload opt-in
 - **WHEN** a surviving shell job experiences real same-process Pi reload
-- **THEN** its identity/PID and explicit completion policy remain stable, default jobs terminate and wake occurs only when explicitly requested
+- **THEN** its identity/PID and resolved completion policy remain stable, non-surviving jobs terminate and wake follows the resolved completion policy
 
 #### Scenario: Shutdown and restart
 - **WHEN** session quits and a new runtime starts

@@ -43,7 +43,7 @@
 +            throw new Error('pi_bg_process_only: completion wake requires notifications');
 +        if (options.timeoutSeconds !== undefined && (!Number.isFinite(options.timeoutSeconds) || options.timeoutSeconds < 1))
 +            throw new Error('pi_bg_process_only: timeoutSeconds must be finite and at least 1');
-+        options = { ...options, isAgent: false, triggerOnCompletion: options.triggerOnCompletion ?? false, timeoutSeconds: options.timeoutSeconds ?? 600 };
++        options = { ...options, isAgent: false, triggerOnCompletion: options.triggerOnCompletion ?? (options.notifyOnCompletion !== false), timeoutSeconds: options.timeoutSeconds ?? 600 };
          const hasSurvival = Object.prototype.hasOwnProperty.call(options, 'surviveReload');
          if (hasSurvival && typeof options.surviveReload !== 'boolean') {
              throw new ReloadSurvivalError('pi_bg_survive_reload_invalid', 'surviveReload must be a boolean when present');
@@ -86,7 +86,7 @@
      })),
      triggerOnCompletion: Type.Optional(Type.Boolean({
 -        description: 'Whether that notification should automatically trigger a follow-up agent turn. Default: true for bg_run; requires notifyOnCompletion.',
-+        description: 'Explicit opt-in to a follow-up model turn at completion. Default: false; requires notifyOnCompletion.',
++        description: 'Whether completion automatically starts a follow-up model turn. Default: true when notifications are enabled; set false for notification-only completion.',
      })),
      surviveReload: Type.Optional(Type.Boolean({
          description: 'Opt in to retaining this exact ordinary isAgent:false shell execution across a real same-process Pi reload. Default: false. Unsupported for agent, managed, delegate, Fusion, and attested tasks.',
@@ -108,6 +108,15 @@
          handler: async (args, ctx) => {
              try {
                  const parsed = parseBgCommandArgs(args);
+@@ -603,7 +605,7 @@
+                     isAgent: parsed.isAgent,
+                     surviveReload: parsed.surviveReload,
+                     notifyOnCompletion: true,
+-                    triggerOnCompletion: false,
++                    triggerOnCompletion: true,
+                 };
+                 if (parsed.name !== undefined)
+                     taskOptions.name = parsed.name;
 @@ -636,28 +638,6 @@
              return Promise.resolve();
          },
@@ -156,8 +165,8 @@
          label: 'Background Run',
 -        description: `Start a named long-running shell command in the background and return immediately with a task ID and output path. By default, completed, failed, or killed terminal state is delivered automatically as <background-task-notification> and starts a follow-up agent turn; do not sleep or poll merely to wait. Output is written to .pi/tasks and model-visible logs are bounded to ${formatSize(MAX_LOG_BYTES)}.`,
 -        promptSnippet: 'Start a named long-running shell command; default terminal notification wakes a follow-up turn, so yield instead of polling',
-+        description: `Start a local shell job and return its ID/output path immediately. Process-only stack pilot: notification-only by default; explicit triggerOnCompletion:true requests a follow-up model turn. No agent telemetry. Default timeout 600s; output file cap 1MiB; bounded log reads. Explicit commands are unsandboxed and do not use SSH routing.`,
-+        promptSnippet: 'Run a named long local shell job; completion wakes the model only with explicit opt-in',
++        description: `Start a local shell job and return its ID/output path immediately. Process-only stack pilot: completion starts or queues a follow-up model turn by default; triggerOnCompletion:false opts out. No agent telemetry. Default timeout 600s; output file cap 1MiB; bounded log reads. Explicit commands are unsandboxed and do not use SSH routing.`,
++        promptSnippet: 'Run a named long local shell job; completion wakes the model by default unless explicitly disabled',
          promptGuidelines: [
 -            'Use bg_run instead of bash for commands expected to run for a long time, such as test suites, dev servers, watchers, or builds.',
 -            'Always set isAgent: true only when the background task launches an LLM/agent process; set isAgent: false for scripts, tests, dev servers, sleeps, and ordinary shell commands.',
@@ -167,9 +176,9 @@
 -            'Treat <background-task-notification> as durable terminal truth. Do not call bg_status to reconfirm it; call bg_logs only when the task output is needed.',
 -            'Use bg_status/bg_logs only when the user explicitly requests an update, automatic notification or wake-up was deliberately disabled, there is concrete evidence the task is hung, or a terminal notification arrived and output details are needed.',
 -            'Do not set notifyOnCompletion:false or triggerOnCompletion:false unless intentionally opting out of automatic completion handling.',
-+            'Use only for ordinary local shell jobs; isAgent must be false. No delegates or Fusion. Set triggerOnCompletion:true only when the user authorizes continuation.',
++            'Use only for ordinary local shell jobs; isAgent must be false. No delegates or Fusion. Completion wakes the agent by default; set triggerOnCompletion:false only when intentionally opting out.',
 +            'Keep working only on independent work; never modify the scope under test while its job runs. Associate exit evidence with that exact scope and the authoritative TODO task.',
-+            'Completion defaults to notification-only. With explicit triggerOnCompletion:true, the terminal notification starts or queues a follow-up turn; otherwise it does not. Never poll merely to wait.',
++            'Completion defaults to automatic follow-up after success, failure, timeout or cancellation. Explicit triggerOnCompletion:false keeps notification-only completion; notifyOnCompletion:false without explicit wake disables both. Never poll merely to wait.',
 +            'Use a short name and an explicit finite timeout when the 600s default is unsuitable. surviveReload is opt-in for same-process reload only; quit/restart stops the process.',
          ],
          parameters: BgRunParams,
@@ -179,7 +188,7 @@
                  surviveReload: params.surviveReload ?? false,
                  notifyOnCompletion: params.notifyOnCompletion ?? true,
 -                triggerOnCompletion: params.triggerOnCompletion ?? true,
-+                triggerOnCompletion: params.triggerOnCompletion ?? false,
++                triggerOnCompletion: params.triggerOnCompletion ?? (params.notifyOnCompletion !== false),
              };
              if (params.description !== undefined)
                  taskOptions.description = params.description;

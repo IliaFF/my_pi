@@ -69,9 +69,9 @@ try {
     assert.equal(modelTurns, expectedRuns); assert.equal(provider.getPendingResponseCount(), 0);
     return done;
   };
-  for (const exit of [0, 7]) {
+  for (const triggerOnCompletion of [undefined, true]) for (const exit of [0, 7]) {
     nextWake();
-    const task = await run(`printf 'explicit-wake\\n'; exit ${exit}`, { triggerOnCompletion: true });
+    const task = await run(`printf 'completion-wake\\n'; exit ${exit}`, { triggerOnCompletion });
     assert.equal(task.triggerOnCompletion, true); assert.equal((await woke(task)).exitCode, exit);
   }
   const taskCount = (await call("bg_status", {})).details.tasks.length;
@@ -86,27 +86,32 @@ try {
   nextWake();
   const eventJob = await request("run", { name: "Event wake", command: "printf event-wake", isAgent: false, notifyOnCompletion: true, triggerOnCompletion: true });
   assert.equal(eventJob.ok, true); pids.add(eventJob.result.pid); assert.equal((await woke(eventJob.result)).status, "completed");
-  const ok = await run("printf 'pilot-ok\\n'");
+  const ok = await run("printf 'pilot-ok\\n'", { triggerOnCompletion: false });
   assert.equal(ok.triggerOnCompletion, false); assert.equal(ok.timeoutSeconds, 600);
   const done = await terminal(ok.id); assert.equal(done.status, "completed"); assert.equal(done.exitCode, 0);
   assert.match(JSON.stringify((await call("bg_logs", { taskId: ok.id, maxBytes: 256 })).content), /pilot-ok/);
+  nextWake();
   await session.prompt('/bg --name "Command default" printf command-default');
   const commandJob = (await call("bg_status", {})).details.tasks.find(t => t.name === "Command default");
-  assert.ok(commandJob); assert.equal(commandJob.triggerOnCompletion, false); await terminal(commandJob.id);
-  const failed = await run("printf 'pilot-fail\\n'; exit 7"); assert.equal((await terminal(failed.id)).exitCode, 7);
-  const timed = await run("sleep 30", { timeoutSeconds: 1 }); assert.equal((await terminal(timed.id)).status, "failed"); await until(() => !alive(timed.pid));
+  assert.ok(commandJob); assert.equal(commandJob.triggerOnCompletion, true); await woke(commandJob);
+  const failed = await run("printf 'pilot-fail\\n'; exit 7", { triggerOnCompletion: false }); assert.equal((await terminal(failed.id)).exitCode, 7);
+  const muted = await run("printf muted", { notifyOnCompletion: false });
+  assert.equal(muted.triggerOnCompletion, false); await terminal(muted.id);
+  nextWake();
+  const timed = await run("sleep 30", { timeoutSeconds: 1 }); assert.equal((await woke(timed)).status, "failed"); await until(() => !alive(timed.pid));
+  nextWake();
   const tree = await run(node("const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});console.log('CHILD='+c.pid);setInterval(()=>{},1000)"));
   const child = await until(async () => { const m = JSON.stringify((await call("bg_logs", { taskId: tree.id })).content).match(/CHILD=(\d+)/); return m && Number(m[1]); }); pids.add(child);
-  await call("bg_kill", { taskId: tree.id }); assert.equal((await terminal(tree.id)).status, "killed"); await until(() => !alive(child) && !alive(tree.pid));
+  await call("bg_kill", { taskId: tree.id }); assert.equal((await woke(tree)).status, "killed"); await until(() => !alive(child) && !alive(tree.pid));
   for (const surviveReload of [false, true]) {
-    const huge = await run(node("process.stdout.write('x'.repeat(2*1024*1024));setInterval(()=>{},1000)"), { surviveReload });
+    const huge = await run(node("process.stdout.write('x'.repeat(2*1024*1024));setInterval(()=>{},1000)"), { surviveReload, triggerOnCompletion: false });
     const capped = await terminal(huge.id); assert.equal(capped.status, "failed"); assert.match(capped.error, /cap/);
     const full = join(cwd, huge.outputPath); assert.ok(statSync(full).size <= 1024 * 1024);
     const window = await call("bg_logs", { taskId: huge.id, maxBytes: 256 }); assert.ok(window.details.bytesRead <= 256);
     await until(() => !alive(huge.pid));
   }
-  const keep = await run("sleep 30", { surviveReload: true });
-  const stop = await run("sleep 30");
+  const keep = await run("sleep 30", { surviveReload: true, triggerOnCompletion: false });
+  const stop = await run("sleep 30", { triggerOnCompletion: false });
   assert.equal(keep.status, "running"); assert.equal(stop.status, "running");
   await session.reload();
   const rebound = await status(keep.id); assert.equal(rebound.pid, keep.pid); assert.equal(rebound.status, "running"); assert.ok(alive(keep.pid)); await until(() => !alive(stop.pid));
@@ -122,7 +127,7 @@ try {
   const busy = session.prompt("Offline busy turn");
   await until(() => releaseBusy);
   nextWake(false);
-  const queued = await run("printf busy-wake", { triggerOnCompletion: true });
+  const queued = await run("printf busy-wake");
   await terminal(queued.id); await until(() => session.agent.peekQueuedMessages().some(m => m.role === "custom" && m.details?.id === queued.id));
   assert.equal(provider.state.callCount, expectedTurns - 1, "Busy completion must queue, not overlap provider calls");
   releaseBusy(); releaseBusy = undefined; await busy; await woke(queued);
@@ -131,7 +136,7 @@ try {
   await call("bg_kill", { taskId: cancelled.id }); assert.equal((await woke(cancelled)).status, "killed"); await until(() => !alive(cancelled.pid));
   const gate = join(root, "finish-after-reload");
   nextWake();
-  const survivor = await run(node(`const fs=require('node:fs');const t=setInterval(()=>{if(fs.existsSync(${JSON.stringify(gate)})){clearInterval(t);console.log('reload-wake')}},20)`), { surviveReload: true, triggerOnCompletion: true });
+  const survivor = await run(node(`const fs=require('node:fs');const t=setInterval(()=>{if(fs.existsSync(${JSON.stringify(gate)})){clearInterval(t);console.log('reload-wake')}},20)`), { surviveReload: true });
   await session.reload();
   const adopted = await status(survivor.id); assert.equal(adopted.pid, survivor.pid); assert.equal(adopted.triggerOnCompletion, true); assert.ok(alive(survivor.pid));
   writeFileSync(gate, "finish"); assert.equal((await woke(survivor)).status, "completed");
@@ -142,7 +147,7 @@ try {
   assert.ok((await call("bg_status", {})).details.tasks.every(t => t.status !== "running"));
   await emitSessionShutdownEvent(session._extensionRunner, { type: "session_shutdown", reason: "quit" });
   assert.deepEqual(errors, []); assert.equal(modelTurns, expectedRuns); assert.equal(provider.state.callCount, expectedTurns); assert.equal(network, 0);
-  console.log(`PASS real SDK: process-only surface; tool/EventBus guards; notification-only defaults; ${expectedTurns} actual faux requests/${expectedRuns} agent runs for explicit success/failure/EventBus/busy/cancel/reload; no duplicate wake or shutdown/history replay; timeout/tree kill/1MiB cap retained; 0 network attempts`);
+  console.log(`PASS real SDK: process-only surface; tool/EventBus guards; default tool/command wake and explicit opt-outs; ${expectedTurns} actual faux requests/${expectedRuns} agent runs for default/explicit success/failure/timeout/EventBus/command/busy/cancel/reload; no duplicate wake or shutdown/history replay; timeout/tree kill/1MiB cap retained; 0 network attempts`);
 } finally {
   releaseBusy?.();
   if (session) { try { await session._extensionRunner.emit({ type: "session_shutdown", reason: "quit" }); } catch {} session.dispose(); }

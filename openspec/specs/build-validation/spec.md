@@ -68,11 +68,11 @@ The build MUST load Meantime from the existing pine-of-glass package alongside i
 - **THEN** pi-meantime.json enables the observer, while preservation-mode reinstall leaves existing user tuning unchanged
 
 ### Requirement: Process-only background pilot has real offline lifecycle checks
-The mandatory gate MUST use actual current Pi SDK/package shell lifecycle in a temporary workspace, without credentials/external provider calls, with bounded deadlines and child-tree cleanup. Existing SDK/CLI gates MUST remain. Explicit wake MUST use actual SDK/scripted faux provider (not only callback/static mocks), covering idle/busy, defaults, duplicates, tool/EventBus admission, success/failure/cancel and native reload/shutdown.
+The mandatory gate MUST use actual current Pi SDK/package shell lifecycle in a temporary workspace, without credentials/external provider calls, with bounded deadlines and child-tree cleanup. Existing SDK/CLI gates MUST remain. Default and explicit wake MUST use actual SDK/scripted faux provider (not only callback/static mocks), covering idle/busy, defaults, duplicates, tool/EventBus admission, success/failure/cancel and native reload/shutdown.
 
 #### Scenario: Full offline regression
 - **WHEN** process-only package pin/patch changes
-- **THEN** success/error/timeout/cancel/log-limit/reload/shutdown and opt-in completion continuation checks plus unsafe-request rejection run before runtime acceptance
+- **THEN** success/error/timeout/cancel/log-limit/reload/shutdown and default completion continuation (including timeout and /bg), explicit opt-out and explicit wake checks plus unsafe-request rejection run before runtime acceptance
 
 ### Requirement: Ponytail context changes have real SDK coverage
 The mandatory gate MUST verify Ponytail request-local discovery and explicit commands using actual Pi SDK and faux provider contexts in an isolated agent with no credentials or external requests.
