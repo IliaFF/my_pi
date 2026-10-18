@@ -82,6 +82,19 @@
         "dist/tools/purge.js"
       ],
       "reason": "Register rare tools as native deferred; keep executors/schemas/hooks and recorded-session declarations unchanged, no auto-unloading."
+    },
+    {
+      "package": "@beyona/pi-zai-usage",
+      "version": "1.1.0",
+      "pinRequired": true,
+      "settingsSpec": "npm:@beyona/pi-zai-usage@1.1.0",
+      "patch": "patches/@beyona+pi-zai-usage+1.1.0.patch",
+      "files": [
+        "dist/index.js",
+        "dist/codex-api.js",
+        "dist/codex-api.d.ts"
+      ],
+      "reason": "Show explicitly labeled separate Codex-account quota for native OpenAI without changing inference or forwarding native credentials; reject unsafe OAuth origins/redirects and stale lifecycle results."
     }
   ],
   "managedConfigs": [

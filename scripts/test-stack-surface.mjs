@@ -101,7 +101,7 @@ try {
   assert.equal(await hasCodexAuth(context("openai-codex")), true);
   assert.equal(await hasCodexAuth(context("openai")), false);
   await assert.rejects(getCodexUsage(context("openai")), error => error.code === "codex-no-auth");
-  console.log("PASS quota compatibility probe: legacy supported; new OpenAI-only gpt-6.1-sol credentials are NOT supported by pi-zai-usage 1.1.0 (mocked, no login/network)");
+  console.log("PASS quota auth boundary: legacy supported; native-only credentials cannot supply separate Codex account quota (mocked, no login/network)");
 } finally {
   rmSync(state, { recursive: true, force: true });
 }

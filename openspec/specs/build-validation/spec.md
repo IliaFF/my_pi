@@ -155,3 +155,10 @@ The mandatory offline updater tests MUST derive a newer stable target from each 
 #### Scenario: A future baseline is used
 - **WHEN** a synthetic newer baseline pin is used
 - **THEN** the same fixtures pass without source version-literal edits and incomplete repair still never reaches gate or publication
+
+### Requirement: Native quota fallback has offline SDK coverage
+The mandatory gate MUST exercise the actual patched usage extension with actual Pi SDK lifecycle and footer rendering, isolated synthetic credentials and mocked HTTP. It MUST cover native/legacy disjoint IDs, missing/changed auth, rejected origins/redirects, account-source labels and late-result cleanup. No real model/provider calls are permitted.
+
+#### Scenario: Mandatory quota regression
+- **WHEN** npm test runs
+- **THEN** fallback routing/rendering and credential rejection failures reject the build without private credentials or live requests

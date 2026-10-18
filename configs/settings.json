@@ -19,7 +19,7 @@
     "npm:@juicesharp/rpiv-ask-user-question",
     "npm:pi-token-speed",
     "npm:pi-fast-resume",
-    "npm:@beyona/pi-zai-usage",
+    "npm:@beyona/pi-zai-usage@1.1.0",
     {
       "source": "npm:pine-of-glass",
       "extensions": [
