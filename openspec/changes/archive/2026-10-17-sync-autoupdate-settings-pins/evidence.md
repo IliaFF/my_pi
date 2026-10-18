@@ -21,3 +21,6 @@
 
 ## Limits
 No paid/provider repair, working-runtime changes, timer changes, publication or live new-release acceptance was performed during source validation. Hosted CI for this change is not run. Passing offline tests does not prove future migrations or live availability. Existing active-change rejection, protected config/test/controller policy outside exact prepared pins, gate and exact-SHA CI remain mandatory. Deployment/retry needs its own backup and result evidence.
+
+## Scoped publication
+User explicitly approved publishing only the updater fix over GitHub main 0d46f1fb242847cb85d3f13715f8a9e3535356d3. Separate worktree excludes six prior local commits and the queue fixture compatibility change, which is absent from that public baseline. Controller bytes remain identical to d2d02b5. Updater tests exclude only the unrelated new capped-queue regression; all updater pin/scope/orchestration checks remain. Full isolated publication gate and exact-SHA hosted CI are required before fast-forward and deployment.

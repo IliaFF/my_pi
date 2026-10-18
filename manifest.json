@@ -5,13 +5,13 @@
   "patchedPackages": [
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.13.8",
+      "version": "2.13.9",
       "pinRequired": false,
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.13.8.patch",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.13.9.patch",
       "files": [
         "reconcile.ts"
       ],
-      "reason": "Reconcile UI availability at session_start; stock 2.13.8 fails first-turn tool availability regression."
+      "reason": "Reconcile UI availability at session_start; stock 2.13.9 fails first-turn tool availability regression."
     },
     {
       "package": "pi-train-agents",
@@ -37,13 +37,13 @@
         "dist/src/extension.js",
         "dist/src/core/reload-shell-owner.js"
       ],
-      "reason": "Local process-only pilot: reject agents at shared admission; default notification-only with explicit validated completion wake opt-in; disable other features/update checks; retain finite deadline and strict per-job output cap."
+      "reason": "Local process-only pilot: reject agents at shared admission; default completion wake with explicit validated opt-out; disable other features/update checks; retain finite deadline and strict per-job output cap."
     },
     {
       "package": "@dietrichgebert/ponytail",
-      "version": "5.3.0",
+      "version": "5.3.2",
       "pinRequired": false,
-      "patch": "patches/@dietrichgebert+ponytail+5.3.0.patch",
+      "patch": "patches/@dietrichgebert+ponytail+5.3.2.patch",
       "files": [
         "pi-extension/index.js",
         "skills/ponytail-review/SKILL.md",

@@ -49,6 +49,10 @@ Installer MUST provide an explicit configuration-preserving deployment mode. Exi
 - **WHEN** preservation mode is selected but personal configuration is absent
 - **THEN** portable defaults are installed
 
+#### Scenario: Published release diverges from local source
+- **WHEN** an approved installation follows integration of published changes with local commits
+- **THEN** local behavior and private configuration are preserved, exact merged source and host gates pass, and any active project override is backed up and validated separately before being reported as updated
+
 ### Requirement: Approved optional package removal is scoped
 An explicitly requested optional package removal MUST update portable declarations, dependency lock and installed package configuration without removing other direct dependencies or private user data. Runtime removal MUST have a recoverable pre-state backup. Already loaded extension hooks MUST NOT be reported as unloaded until reload/restart.
 
