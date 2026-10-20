@@ -9,7 +9,7 @@
     "spec:validate": "openspec validate --all --strict --no-interactive"
   },
   "devDependencies": {
-    "@fission-ai/openspec": "1.14.1"
+    "@fission-ai/openspec": "1.14.3"
   },
   "engines": {
     "node": ">=24.0.0"

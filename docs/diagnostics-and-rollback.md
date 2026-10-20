@@ -36,7 +36,7 @@ npm test -- --agent "$HOME/.pi/agent"
 
 - Ранее обнаруженный drift RPIV patch и loop-profiler устранён согласованной latest-stable установкой. Host gate PASS; verify failures=0, warnings=3 относятся к сохранённым личным settings/mcp/APPEND (audit-only). Текущий процесс требует restart; не считать обновление файлов hot reload.
 - Для существующего runtime используйте install.sh --preserve-settings --install-core; bare install применяет default settings.
-- OpenSpec1.14.1 tooling audit сохраняет4 high в transitive glob dependencies; runtime audit0. Не применять audit fix --force: предложен несовместимый downgrade OpenSpec.
+- OpenSpec1.14.3 tooling audit: 0 vulnerabilities при обновлении 2026-10-19; это результат проверки текущего dependency tree, не гарантия отсутствия будущих advisories. Не применять audit fix --force без отдельной проверки совместимости.
 - Mandatory gate проверяет real SDK + faux provider, real CLI startup, local patched packages, temporary filesystem. MCP transports отключены; API keys не передаются.
 - Smoke guard блокирует Node fetch/http/net, но не является OS sandbox для native code/подпроцессов.
 - Registry archive replay остаётся в отдельном `python3 scripts/test-release.py`; `npm test` проверяет fresh lock installation + application/reverse verification установленных патчей без повторного скачивания архивов.
