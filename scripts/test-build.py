@@ -132,6 +132,7 @@ def main():
             ready = check("patch-apply", "integration", [sys.executable, "scripts/maintenance.py", "apply"])
             ready = check("patch-verify", "integration", [sys.executable, "scripts/maintenance.py", "verify"]) and ready
         if ready:
+            check("context-fold-index", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-context-fold-index.mjs", str(modules)], timeout=30)
             check("stack-surface", "integration", ["node", "scripts/test-stack-surface.mjs", str(agent)])
             check("native-quota-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-native-quota-sdk.mjs", str(modules)], timeout=30)
             check("deferred-tools-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-deferred-tools-sdk.mjs", str(modules)], timeout=60)

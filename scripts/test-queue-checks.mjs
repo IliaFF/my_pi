@@ -57,6 +57,30 @@ test('only actual successful terminal checks of the current task and snapshot co
   assert.doesNotThrow(() => assertFreshChecks([{ ...pass, taskId: 'other' }], task, new Map()));
 });
 
+test('obsolete passed checks need explicit fresh same-scope replacement, with all guards intact', () => {
+  const task = { id: 'task', text: 'Implement' }, snapshots = new Map([['/project', 'current']]);
+  const old = { id: 'before-archive', taskId: task.id, taskText: task.text, command: 'validate-active-change', cwd: '/project',
+    jobId: 'old-job', status: 'completed', exitCode: 0, before: 'old', after: 'old' };
+  const fresh = { ...old, id: 'final', command: 'npm test', jobId: 'new-job', before: 'current', after: 'current' };
+  assert.throws(() => assertFreshChecks([old, fresh], task, snapshots), /stale/);
+  const replaced = { ...old, supersededBy: fresh.id, supersededReason: 'Change archived; final gate validates merged specs' };
+  assert.doesNotThrow(() => assertFreshChecks([replaced, fresh], task, snapshots));
+  for (const invalid of [{ supersededReason: '' }, { supersededReason: 'x'.repeat(501) }, { supersededBy: 'missing' }, { invalidated: true },
+    { status: 'failed', exitCode: 1 }, { status: 'unknown' }, { status: 'running' }, { before: 'changed-during-run' },
+    { taskText: 'old objective' }, { after: undefined }, { jobId: undefined }]) {
+    assert.throws(() => assertFreshChecks([{ ...replaced, ...invalid }, fresh], task, snapshots));
+  }
+  for (const invalid of [{ invalidated: true }, { taskId: 'other' }, { taskText: 'other' }, { cwd: '/other' },
+    { before: 'old', after: 'old' }, { status: 'failed', exitCode: 1 }, { status: 'running' }]) {
+    assert.throws(() => assertFreshChecks([replaced, { ...fresh, ...invalid }], task, snapshots));
+  }
+  assert.throws(() => assertFreshChecks([replaced, fresh, { ...fresh, id: 'latest', before: 'old', after: 'old' }], task, snapshots));
+  const final = { ...fresh, id: 'after-second-archive', command: 'final suite' };
+  assert.doesNotThrow(() => assertFreshChecks([replaced, { ...fresh, supersededBy: final.id, supersededReason: 'Second archive' }, final], task, snapshots));
+  assert.throws(() => assertFreshChecks([replaced, { ...fresh, supersededBy: old.id, supersededReason: 'cycle' }], task, snapshots));
+  assert.throws(() => assertFreshChecks([replaced, fresh, { ...old, id: 'unrelated', command: 'another required check' }], task, snapshots));
+});
+
 test('async TODO mutation preserves lock, concurrent edit detection and cleanup', async () => {
   const root = await mkdtemp(join(tmpdir(), 'queue-lock-')), todo = join(root, 'TODO.md');
   try {

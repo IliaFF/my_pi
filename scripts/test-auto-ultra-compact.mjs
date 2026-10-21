@@ -97,6 +97,7 @@ async function createContinuationHarness(home) {
 const foldSource = resolve(process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME, ".pi/agent"), "npm/node_modules/context-fold/index.ts");
 const oldHome = process.env.HOME;
 const oldAgentDir = process.env.PI_CODING_AGENT_DIR;
+let nativeRestoreMessage;
 const testHome = mkdtempSync(join(tmpdir(), "pi-compaction-followup-"));
 process.env.HOME = testHome;
 process.env.PI_CODING_AGENT_DIR = testHome;
@@ -133,6 +134,7 @@ try {
   assert.match(automatic.sent[0].message, /^После автосжатия сначала прочитай текущий TODO\.md/);
   assert.ok(automatic.sent[0].message.includes("не требуют отдельной записи"));
   assert.doesNotMatch(automatic.sent[0].message, /recovery|packet/i);
+  nativeRestoreMessage = automatic.sent[0].message;
   assert.doesNotMatch(await automatic.status(), /lastRecovery|lastProjectRecovery|summaryContract/);
   automatic.setContextTokens(175_000);
   await automatic.emit("turn_end");
@@ -232,6 +234,8 @@ try {
     const manager = SessionManager.create(testHome, testHome);
     const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
+    manager.appendMessage({ role: "user", content: nativeRestoreMessage, timestamp: -2 });
+    manager.appendMessage({ role: "user", content: "[TODO QUEUE sdk-fixture]\nЭто кандидат из Pending, ещё не взятый в работу.\n\nValidate archived SDK fixture.\nDo not publish yet.\n\nПосле claim используй настоящий id из результата инструмента, не placeholder кандидата.", timestamp: -1 });
     for (let i = 0; i < 4; i++) {
       manager.appendMessage({ role: "user", content: `Keep exact intent ${i}`, timestamp: i * 2 });
       manager.appendMessage({ role: "assistant", content: text(20000), api: model.api, provider: model.provider,
@@ -247,6 +251,11 @@ try {
       const result = await session.compact();
       assert.match(result.summary, /deterministic seed index — no model involved/);
       assert.match(result.summary, /Keep exact intent/);
+      if (process.env.PI_TEST_EXPECT_INDEX_PATCH === "1") {
+        const intents = result.summary.split("## User intents")[1].split("\n## ")[0];
+        assert.match(intents, /Validate archived SDK fixture\./);
+        assert.doesNotMatch(intents, /После автосжатия|\[TODO QUEUE/);
+      }
       assert.equal(manager.getEntries().filter((entry) => entry.type === "compaction").length, 1);
       assert.equal(session.isCompacting, false);
       assert.equal(modelCalls, 0, "deterministic compaction must not authenticate or call a provider");

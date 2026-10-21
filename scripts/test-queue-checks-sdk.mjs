@@ -80,6 +80,57 @@ try {
   const bad = await start(scriptCommand); await wait(bad.jobId); writeFileSync(failScript, 'process.exit(0)');
   const good = await start(scriptCommand); await wait(good.jobId);
   assert.equal((await complete()).isError, true, 'Other stale/failed commands still required');
+  // An archived active spec can be replaced explicitly, but never by hiding a failed check.
+  writeFileSync(todo, original.replace('pi-task:task', 'pi-task:archive'));
+  const archiveTodo = readFileSync(todo, 'utf8'), activeSpec = join(workspace, 'active-change.md');
+  writeFileSync(activeSpec, 'active specification');
+  const otherScope = join(workspace, 'other-check-scope'); mkdirSync(otherScope);
+  const archiveCheck = async command => {
+    const r = await invoke({ action: 'check', id: 'archive', command, timeoutSeconds: 5 });
+    assert.equal(r.isError, false, JSON.stringify(r.result));
+    await wait(r.result.details.check.jobId);
+    await invoke({ action: 'checks', id: 'archive' });
+    return r.result.details.check;
+  };
+  const preArchive = await archiveCheck(`${JSON.stringify(process.execPath)} -e 'require("node:fs").accessSync("active-change.md")'`);
+  rmSync(activeSpec);
+  writeFileSync(failScript, 'process.exit(1)');
+  const archiveFailure = await archiveCheck(scriptCommand);
+  const finalCommand = `${JSON.stringify(process.execPath)} -e 'process.exit(0)'`;
+  const finalBeforeFix = await archiveCheck(finalCommand);
+  const replace = (checkId, replacementId, reason = 'Active spec archived; final suite validates archived specs') =>
+    invoke({ action: 'supersede', id: 'archive', checkId, replacementId, reason });
+  assert.equal((await replace(archiveFailure.id, finalBeforeFix.id)).isError, true, 'Must not hide failed command');
+  writeFileSync(failScript, 'process.exit(0)');
+  const archiveRerun = await archiveCheck(scriptCommand);
+  assert.equal((await replace(preArchive.id, finalBeforeFix.id)).isError, true, 'Replacement snapshot is stale');
+  const finalArchive = await archiveCheck(finalCommand);
+  const other = await invoke({ action: 'check', id: 'archive', command: finalCommand, cwd: otherScope, timeoutSeconds: 5 });
+  assert.equal(other.isError, false); await wait(other.result.details.check.jobId);
+  await invoke({ action: 'checks', id: 'archive' });
+  const jobsBeforeReplacement = terminal.size;
+  for (const args of [[preArchive.id, finalArchive.id, ' '], ['missing', finalArchive.id],
+    [first.id, finalArchive.id], [preArchive.id, 'missing'], [preArchive.id, preArchive.id],
+    [preArchive.id, other.result.details.check.id]]) {
+    assert.equal((await replace(...args)).isError, true);
+    assert.equal(readFileSync(todo, 'utf8'), archiveTodo, 'Invalid supersession must not mutate TODO');
+  }
+  const beforeSupersede = await invoke({ action: 'complete', id: 'archive', summary: 'Done', evidence: ['final suite'] });
+  assert.equal(beforeSupersede.isError, true, 'New command alone cannot erase stale active-spec requirement');
+  assert.ok(!session.sessionManager.getBranch().some(e => e.type === 'custom' && e.customType === 'todo-queue-check-v1' && e.data.supersededBy), 'Invalid attempts must not append supersession');
+  const validReplacement = await replace(preArchive.id, finalArchive.id);
+  assert.equal(validReplacement.isError, false, JSON.stringify(validReplacement.result));
+  assert.equal(terminal.size, jobsBeforeReplacement, 'Supersession must not launch another shell job');
+  assert.equal(readFileSync(todo, 'utf8'), archiveTodo, 'Successful supersession must not mutate TODO');
+  const archiveRecords = (await invoke({ action: 'checks', id: 'archive' })).result.details.checks;
+  assert.equal(archiveRecords.find(r => r.id === preArchive.id).supersededBy, finalArchive.id);
+  assert.ok(archiveRecords.some(r => r.id === archiveFailure.id && r.exitCode === 1), 'Failure history remains');
+  assert.ok(archiveRecords.some(r => r.id === archiveRerun.id && r.exitCode === 0), 'Same-command rerun remains');
+  const ledger = session.sessionManager.getBranch().filter(e => e.type === 'custom' && e.customType === 'todo-queue-check-v1');
+  assert.ok(ledger.some(e => e.data.id === preArchive.id && !e.data.supersededBy), 'Original successful evidence remains in append-only history');
+  assert.ok(ledger.some(e => e.data.id === preArchive.id && e.data.supersededReason), 'Reason is persisted');
+  assert.equal((await invoke({ action: 'complete', id: 'archive', summary: 'Done', evidence: ['explicit archive replacement'] })).isError, false);
+
   // A fresh task exercises successful completion without importing prior lifecycle evidence.
   writeFileSync(todo, original.replace('pi-task:task', 'pi-task:next'));
   const next = await invoke({ action: 'check', id: 'next', command: scriptCommand, timeoutSeconds: 5 }); assert.equal(next.isError, false); await wait(next.result.details.check.jobId);

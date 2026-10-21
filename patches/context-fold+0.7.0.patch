@@ -1,0 +1,34 @@
+--- a/src/core/index/seed-index.ts
++++ b/src/core/index/seed-index.ts
+@@ -128,7 +128,7 @@
+ 	}
+ 	for (const b of all) {
+ 		if (b.kind === "user" && b.turn >= minTurn && b.turn <= maxTurn) {
+-			const line = firstLine(b.text, USER_FIRST_LINE_CLIP);
++			const line = userIntent(b.text);
+ 			if (line) out.userMessages.push({ turn: b.turn, firstLine: line });
+ 		}
+ 	}
+@@ -137,6 +137,13 @@
+ 	return out;
+ }
+ 
++// shortcut: WireBlock has no provenance; use exact owned envelopes until origin metadata is available.
++function userIntent(text: string): string {
++	if (text.startsWith("После автосжатия сначала прочитай текущий TODO.md в корне проекта, если продолжаешь многошаговую проектную работу: только он определяет отслеживаемую задачу и следующий шаг.")) return "";
++	const queue = text.match(/^\[TODO QUEUE [^\]\r\n]+\]\r?\n[^\n]+\r?\n\r?\n([\s\S]+?)\r?\n\r?\nПосле claim используй настоящий id из результата инструмента, не placeholder кандидата\./);
++	return firstLine(queue?.[1] ?? text, USER_FIRST_LINE_CLIP);
++}
++
+ /** Re-extract history with recent blocks taking precedence, even within one long user turn. */
+ export function extractCompactionIndex(blocks: WireBlock[]): ExtractedIndex {
+ 	const calls = new Map(blocks.filter(b => b.kind === "tool_call" && b.callId).map(b => [b.callId!, b]));
+@@ -158,7 +165,7 @@
+ 		errors: recent("errors", MAX_ERRORS),
+ 		identifiers: recent("identifiers", MAX_IDENTIFIERS),
+ 		// Recovery can compact an oversized user input after omitting its failed assistant attempt.
+-		userMessages: blocks.filter(b => b.kind === "user").map(b => ({ turn: b.turn, firstLine: firstLine(b.text, USER_FIRST_LINE_CLIP) })),
++		userMessages: blocks.filter(b => b.kind === "user").map(b => ({ turn: b.turn, firstLine: userIntent(b.text) })).filter(u => u.firstLine),
+ 	};
+ }
+ 

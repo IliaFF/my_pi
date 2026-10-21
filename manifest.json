@@ -108,6 +108,16 @@
         "dist/index.js"
       ],
       "reason": "Declare web_enable only while configured web tools are missing; preserve lazy/eager activation, renamed/disabled tools, resume and registered executor."
+    },
+    {
+      "package": "context-fold",
+      "version": "0.7.0",
+      "pinRequired": false,
+      "patch": "patches/context-fold+0.7.0.patch",
+      "files": [
+        "src/core/index/seed-index.ts"
+      ],
+      "reason": "Exclude exact owned restore envelopes and index queue task bodies in soft/hard user intents; retain ordinary text and explicitly tested multiline truncation."
     }
   ],
   "managedConfigs": [

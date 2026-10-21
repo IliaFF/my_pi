@@ -215,7 +215,7 @@ PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 
 ## Compaction
 
-`context-fold@0.7.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256.
+`context-fold@0.7.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256. Versioned patch убирает из User intents точный служебный restore prompt и заменяет заголовок собственного queue prompt первой строкой тела задачи. Обычный текст не фильтруется по общим словам. Это не смысловое резюме: ограничения на следующих строках по-прежнему не гарантированно попадают в индекс; распознавание собственных текстовых envelopes нужно заменить origin metadata, если bridge начнёт её передавать.
 
 Fold ladder начинает сворачивать stale `tool_result` и `thinking` blocks при 45% context window; user intent, assistant conclusions, tool calls и свежий tail не сворачиваются. Обычный fold требует экономию минимум 12% окна. Несжимаемый tail/roots остаётся честно обозначенным floor.
 

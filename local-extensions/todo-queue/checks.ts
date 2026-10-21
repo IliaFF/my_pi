@@ -15,6 +15,7 @@ export type CheckRecord = {
   id: string; taskId: string; taskText: string; command: string; cwd: string;
   status: string; jobId?: string; before?: string; after?: string; exitCode?: number;
   invalidated?: boolean; error?: string;
+  supersededBy?: string; supersededReason?: string;
 };
 
 export async function fingerprint(cwd: string, todo: string): Promise<string> {
@@ -73,13 +74,31 @@ export async function fingerprint(cwd: string, todo: string): Promise<string> {
   return hash.digest("hex");
 }
 
+function stablePass(record: CheckRecord, task: Pick<QueueTask, "id" | "text">): boolean {
+  return !record.invalidated && record.taskId === task.id && record.taskText === task.text &&
+    record.status === "completed" && record.exitCode === 0 && !!record.jobId && !!record.before && record.before === record.after;
+}
+
 export function assertFreshChecks(records: CheckRecord[], task: Pick<QueueTask, "id" | "text">, snapshots: Map<string, string>): void {
   const own = records.filter(r => r.taskId === task.id);
   if (own.some(r => r.status === "running")) throw new Error("Required check is still running; wait for its notification");
   const latest = new Map(own.map(r => [JSON.stringify([r.cwd, r.command]), r]));
-  for (const record of latest.values()) {
-    if (record.invalidated || record.taskText !== task.text || record.status !== "completed" || record.exitCode !== 0 || !record.jobId || !record.before || record.before !== record.after || record.after !== snapshots.get(record.cwd)) {
-      throw new Error(`Check ${record.id} is failed, stale or unknown; explicitly rerun: ${record.command}`);
+  const byId = new Map([...latest.values()].map(r => [r.id, r]));
+  for (const initial of latest.values()) {
+    let record = initial;
+    const seen = new Set<string>();
+    while (true) {
+      if (seen.has(record.id) || !stablePass(record, task) || record.cwd !== initial.cwd) {
+        throw new Error(`Check ${record.id} is failed, stale or unknown; explicitly rerun: ${record.command}`);
+      }
+      seen.add(record.id);
+      if (record.supersededBy === undefined) {
+        if (record.after !== snapshots.get(record.cwd)) throw new Error(`Check ${record.id} is stale; explicitly rerun or supersede: ${record.command}`);
+        break;
+      }
+      const replacement = byId.get(record.supersededBy);
+      if (!record.supersededReason?.trim() || record.supersededReason.length > 500 || !replacement) throw new Error(`Invalid supersession for check ${record.id}`);
+      record = replacement;
     }
   }
 }
@@ -133,6 +152,21 @@ export function queueChecks(pi: ExtensionAPI) {
         save({ ...record });
       }
       return own;
+    },
+    async supersede(ctx: ExtensionToolContext, todo: string, task: QueueTask, checkId: string, replacementId: string, reason: string) {
+      if (!reason.trim() || reason.length > 500) throw new Error("Supersession reason must contain 1–500 characters");
+      const own = await this.inspect(ctx, todo, task);
+      const latest = new Map(own.map(r => [JSON.stringify([r.cwd, r.command]), r]));
+      const active = [...latest.values()];
+      const old = active.find(r => r.id === checkId), replacement = active.find(r => r.id === replacementId);
+      if (!old || !replacement || old.id === replacement.id || old.cwd !== replacement.cwd || !stablePass(old, task) || replacement.supersededBy !== undefined) {
+        throw new Error("Supersede requires distinct latest successful checks of the current task and same cwd; failures require a same-command rerun");
+      }
+      const snapshots = new Map([[replacement.cwd, await fingerprint(replacement.cwd, todo)]]);
+      const updated = { ...old, supersededBy: replacement.id, supersededReason: reason.trim() };
+      assertFreshChecks([updated, replacement], task, snapshots);
+      save(updated);
+      return updated;
     },
     async validate(ctx: ExtensionToolContext, todo: string, task: QueueTask) {
       const own = await this.inspect(ctx, todo, task);

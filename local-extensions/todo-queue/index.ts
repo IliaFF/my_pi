@@ -9,7 +9,7 @@ import { findTodoPath, mutateTodo } from "./store.ts";
 import { createQueuePanel } from "./panel.ts";
 
 const MAX_RUN_TASKS = 5;
-const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "check", "checks", "complete", "block", "release"] as const;
+const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "check", "checks", "supersede", "complete", "block", "release"] as const;
 
 const TaskQueueParams = Type.Object({
   action: StringEnum(ACTIONS),
@@ -17,7 +17,9 @@ const TaskQueueParams = Type.Object({
   text: Type.Optional(Type.String({ description: "Task text for add" })),
   summary: Type.Optional(Type.String({ description: "Completion summary" })),
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Passing checks or direct evidence" })),
-  reason: Type.Optional(Type.String({ description: "Concrete blocker reason" })),
+  reason: Type.Optional(Type.String({ description: "Concrete blocker or check supersession reason" })),
+  checkId: Type.Optional(Type.String({ description: "Obsolete successful check id for supersede" })),
+  replacementId: Type.Optional(Type.String({ description: "Fresh successful latest check id, same task and cwd" })),
   command: Type.Optional(Type.String({ maxLength: 8192, description: "Explicit local shell check; launched through bg_run with automatic completion follow-up" })),
   cwd: Type.Optional(Type.String({ description: "Project/check working directory, defaults to session cwd; snapshot covers the whole Git worktree or directory" })),
   timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86400, description: "Finite check deadline, default 600 seconds" })),
@@ -276,7 +278,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "task_queue",
     label: "TODO Queue",
-    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Use check (id, command, cwd) to launch a snapshot-bound local background check; wait for notification, never poll. checks inspects recorded jobs once. Complete only current matching id with current successful checks or direct evidence for tasks without recorded checks; block on concrete external impediments.",
+    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Use check (id, command, cwd) to launch a snapshot-bound local background check; wait for notification, never poll. checks inspects recorded jobs once. supersede links an obsolete passed checkId to a fresh passed replacementId of the same task/cwd with a reason; never bypass failed/running checks. Complete only current matching id with current successful checks or direct evidence for tasks without recorded checks; block on concrete external impediments.",
     reachesTools: () => ["bg_run", "bg_status"],
     parameters: TaskQueueParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -328,7 +330,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         return changed ? result(`Claimed ${formatTask(changed)}`, { task: changed }) : result("Queue is empty");
       }
       const id = requireText(params.id, "id");
-      if (params.action === "check" || params.action === "checks") {
+      if (params.action === "check" || params.action === "checks" || params.action === "supersede") {
         return mutateTodo(path, async (content) => {
           const task = inspectTodo(content).current;
           if (!task?.id || task.id !== id) throw new Error("Check requires the current matching task id");
@@ -336,8 +338,12 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
             const record = await checks.start(ctx, path, task, requireText(params.command, "command"), resolve(ctx.cwd, params.cwd ?? "."), params.timeoutSeconds ?? 600);
             return { text: content, value: result(`Check ${record.id} started as background job ${record.jobId}; wait for its notification. Do not change the tested scope.`, { check: record }) };
           }
+          if (params.action === "supersede") {
+            const record = await checks.supersede(ctx, path, task, requireText(params.checkId, "checkId"), requireText(params.replacementId, "replacementId"), requireText(params.reason, "reason"));
+            return { text: content, value: result(`Check ${record.id} superseded by ${record.supersededBy}: ${record.supersededReason}`, { check: record }) };
+          }
           const records = await checks.inspect(ctx, path, task);
-          return { text: content, value: result(records.map(r => `${r.id}: ${r.status}, exit=${r.exitCode ?? "unknown"}, job=${r.jobId ?? "unknown"}`).join("\n") || "No recorded checks; direct evidence only", { checks: records }) };
+          return { text: content, value: result(records.map(r => `${r.id}: ${r.status}, exit=${r.exitCode ?? "unknown"}, job=${r.jobId ?? "unknown"}${r.supersededBy ? `, supersededBy=${r.supersededBy}: ${r.supersededReason}` : ""}`).join("\n") || "No recorded checks; direct evidence only", { checks: records }) };
         });
       }
       if (params.action === "complete") {
