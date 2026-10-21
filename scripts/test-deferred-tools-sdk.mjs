@@ -151,3 +151,6 @@ try {
   for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   rmSync(sandbox, { recursive: true, force: true });
 }
+
+// Keep the actual web activation regression in the same native discovery gate.
+await import("./test-web-loader-sdk.mjs");

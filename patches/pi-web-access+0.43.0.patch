@@ -1,0 +1,52 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -23611,6 +23611,7 @@
+       }
+       try {
+         pi.setActiveTools([.../* @__PURE__ */ new Set([...pi.getActiveTools(), ...names])]);
++        syncLoader();
+       } catch (error) {
+         const message = error instanceof Error ? error.message : String(error);
+         return {
+@@ -23635,7 +23636,12 @@
+     return pi.getAllTools().some((tool) => tool.name === LOADER_NAME);
+   }
+   let warned = false;
+-  let loaderSelected = true;
++  function syncLoader() {
++    const active = pi.getActiveTools();
++    const needed = names.some((name) => !active.includes(name));
++    if (needed === active.includes(LOADER_NAME)) return;
++    pi.setActiveTools(needed ? [...active, LOADER_NAME] : active.filter((name) => name !== LOADER_NAME));
++  }
+   function selectFromSession(ctx) {
+     if (!loaderAvailable()) return;
+     try {
+@@ -23643,9 +23649,10 @@
+       const declared = transcriptToolNames(messages);
+       const eager = mode === "auto" && !declared && messages.length === 0 && !addsToolsWithoutCheckpoint(ctx.model);
+       const recorded = declared ?? new Set(messages.length > 0 || eager ? names : []);
+-      loaderSelected = !eager && (!declared || declared.has(LOADER_NAME));
++      const loaderSelected = !eager && (!declared || declared.has(LOADER_NAME));
+       const others = pi.getActiveTools().filter((name) => name !== LOADER_NAME && !names.includes(name));
+       pi.setActiveTools([.../* @__PURE__ */ new Set([...others, ...names.filter((name) => recorded.has(name)), ...loaderSelected ? [LOADER_NAME] : []])]);
++      syncLoader();
+     } catch (error) {
+       if (!warned) {
+         warned = true;
+@@ -23655,10 +23662,13 @@
+   }
+   pi.on("session_start", (_event, ctx) => selectFromSession(ctx));
+   pi.on("session_tree", (_event, ctx) => selectFromSession(ctx));
++  pi.on("tool_result", () => {
++    if (loaderAvailable()) syncLoader();
++  });
+   pi.on("before_agent_start", () => {
+-    if (!loaderSelected || !loaderAvailable() || pi.getActiveTools().includes(LOADER_NAME)) return;
++    if (!loaderAvailable()) return;
+     try {
+-      pi.setActiveTools([...pi.getActiveTools(), LOADER_NAME]);
++      syncLoader();
+     } catch {
+     }
+   });

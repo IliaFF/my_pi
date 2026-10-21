@@ -47,9 +47,12 @@
       "files": [
         "pi-extension/index.js",
         "skills/ponytail-review/SKILL.md",
-        "skills/ponytail-audit/SKILL.md"
+        "skills/ponytail-audit/SKILL.md",
+        "skills/ponytail-help/SKILL.md",
+        "skills/ponytail-gain/SKILL.md",
+        "skills/ponytail-debt/SKILL.md"
       ],
-      "reason": "Avoid repeat automatic base-skill reads while lite/full/ultra rules are injected; preserve off/standalone/manual commands and follow session language in review/audit."
+      "reason": "Avoid repeat automatic base-skill reads while lite/full/ultra rules are injected; preserve off/standalone/manual commands and follow session language in review/audit. Help/gain/debt use native command-only skill metadata without removing explicit commands."
     },
     {
       "package": "pi-ssh-remote",
@@ -95,6 +98,16 @@
         "dist/codex-api.d.ts"
       ],
       "reason": "Show explicitly labeled separate Codex-account quota for native OpenAI without changing inference or forwarding native credentials; reject unsafe OAuth origins/redirects and stale lifecycle results."
+    },
+    {
+      "package": "pi-web-access",
+      "version": "0.43.0",
+      "pinRequired": false,
+      "patch": "patches/pi-web-access+0.43.0.patch",
+      "files": [
+        "dist/index.js"
+      ],
+      "reason": "Declare web_enable only while configured web tools are missing; preserve lazy/eager activation, renamed/disabled tools, resume and registered executor."
     }
   ],
   "managedConfigs": [

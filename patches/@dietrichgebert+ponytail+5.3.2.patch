@@ -21,16 +21,16 @@
 +  explained in plain wording in the session language. Use for "review this", "code review", "review
    the last commit", "review my PR", "is this over-engineered", /ponytail-review.
  ---
-
+ 
 @@ -68,7 +68,8 @@
-
+ 
  ## 4. Output
-
+ 
 -Very simple English: short sentences, everyday words. Explain a technical
 +Use the session language for prose and headings, with short sentences and
 +everyday words. Translate example heading labels into that language. Explain a technical
  term the first time you use it. The reader may never have seen this code.
-
+ 
  Start with `What this change does:` in two or three sentences.
 --- a/skills/ponytail-audit/SKILL.md
 +++ b/skills/ponytail-audit/SKILL.md
@@ -44,12 +44,39 @@
    "find bloat", "what can I delete", /ponytail-audit.
  ---
 @@ -68,7 +68,8 @@
-
+ 
  ## 4. Output
-
+ 
 -Very simple English: short sentences, everyday words. Explain a technical
 +Use the session language for prose and headings, with short sentences and
 +everyday words. Translate example heading labels into that language. Explain a technical
  term the first time you use it. The reader may never have seen this code.
-
+ 
  Start with `What this repo does:` in two or three sentences, and the load
+--- a/skills/ponytail-help/SKILL.md
++++ b/skills/ponytail-help/SKILL.md
+@@ -1,5 +1,6 @@
+ ---
+ name: ponytail-help
++disable-model-invocation: true
+ description: >
+   Quick reference for ponytail levels, skills and commands. One-shot display.
+   Use for /ponytail-help, "ponytail help", "how do I use ponytail".
+--- a/skills/ponytail-gain/SKILL.md
++++ b/skills/ponytail-gain/SKILL.md
+@@ -1,5 +1,6 @@
+ ---
+ name: ponytail-gain
++disable-model-invocation: true
+ description: >
+   Show ponytail's measured savings (code, cost, speed) from the benchmark.
+   One-shot display. Use for /ponytail-gain, "what does ponytail save",
+--- a/skills/ponytail-debt/SKILL.md
++++ b/skills/ponytail-debt/SKILL.md
+@@ -1,5 +1,6 @@
+ ---
+ name: ponytail-debt
++disable-model-invocation: true
+ description: >
+   List every `shortcut:` comment (and older `ponytail:` ones) as a debt ledger. One-shot report,
+   changes nothing. Use for "ponytail debt", "what did ponytail defer", "list the

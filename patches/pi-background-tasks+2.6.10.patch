@@ -176,7 +176,7 @@
 -            'Treat <background-task-notification> as durable terminal truth. Do not call bg_status to reconfirm it; call bg_logs only when the task output is needed.',
 -            'Use bg_status/bg_logs only when the user explicitly requests an update, automatic notification or wake-up was deliberately disabled, there is concrete evidence the task is hung, or a terminal notification arrived and output details are needed.',
 -            'Do not set notifyOnCompletion:false or triggerOnCompletion:false unless intentionally opting out of automatic completion handling.',
-+            'Use only for ordinary local shell jobs; isAgent must be false. No delegates or Fusion. Completion wakes the agent by default; set triggerOnCompletion:false only when intentionally opting out.',
++            'Use only for ordinary local shell jobs; isAgent must be false. No delegates or Fusion.',
 +            'Keep working only on independent work; never modify the scope under test while its job runs. Associate exit evidence with that exact scope and the authoritative TODO task.',
 +            'Completion defaults to automatic follow-up after success, failure, timeout or cancellation. Explicit triggerOnCompletion:false keeps notification-only completion; notifyOnCompletion:false without explicit wake disables both. Never poll merely to wait.',
 +            'Use a short name and an explicit finite timeout when the 600s default is unsuitable. surviveReload is opt-in for same-process reload only; quit/restart stops the process.',
@@ -192,6 +192,28 @@
              };
              if (params.description !== undefined)
                  taskOptions.description = params.description;
+@@ -895,9 +865,7 @@
+         description: 'Inspect one background task or list all running/recent background tasks. This is a point-in-time inspection tool, not a waiting primitive.',
+         promptSnippet: 'Inspect point-in-time status for one or all background tasks; never poll it as a wait loop',
+         promptGuidelines: [
+-            'Use bg_status for deliberate point-in-time inspection, not as a waiting primitive.',
+-            'A running result is not an instruction to poll again. Do not repeatedly call bg_status while an automatic terminal notification is pending.',
+-            'Use bg_status when the user explicitly requests an update, automatic completion handling was disabled, or concrete evidence suggests a task is hung; terminal notifications do not need reconfirmation.',
++            'Inspect bg_status only for a user-requested update, disabled automatic completion handling, or concrete hang evidence; never reconfirm a terminal notification or poll a running result.',
+         ],
+         parameters: BgStatusParams,
+         execute(_toolCallId, params) {
+@@ -919,9 +887,7 @@
+         description: `Read bounded output from a background task for deliberate inspection; this is not a waiting primitive. Output is capped at ${formatSize(MAX_LOG_BYTES)} for model safety and points to the full output file when truncated.`,
+         promptSnippet: 'Read bounded task output when needed; never tail it repeatedly as a wait loop',
+         promptGuidelines: [
+-            'Use bg_logs with a modest maxBytes value only when task output is needed, without flooding context.',
+-            'Do not repeatedly call bg_logs to wait for completion while an automatic terminal notification is pending.',
+-            'Use bg_status first only when a deliberate inspection requires the current task state; do not reconfirm a terminal notification.',
++            'Read bg_logs only when output is needed, with modest maxBytes; use bg_status first only if current state is needed, never merely to wait or reconfirm completion.',
+         ],
+         parameters: BgLogsParams,
+         async execute(_toolCallId, params) {
 --- a/dist/src/core/reload-shell-owner.js
 +++ b/dist/src/core/reload-shell-owner.js
 @@ -798,9 +798,6 @@
