@@ -3,12 +3,12 @@
 import argparse
 import json
 import os
-from pathlib import Path
 import signal
 import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -38,6 +38,7 @@ def run_check(name, stage, args, *, env, output, timeout=120):
 
 
 def main():
+    """Validate contracts and run isolated unit, SDK and startup checks."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--agent", type=Path, help="Check installed dependencies read-only instead of repository test dependencies")
     args = parser.parse_args()
@@ -64,7 +65,8 @@ def main():
     report = {"schemaVersion": 1, "expectedCoreVersion": manifest["piCoreVersion"],
               "nodeVersion": subprocess.check_output(["node", "--version"], text=True).strip(),
               "pythonVersion": sys.version.split()[0], "versions": versions, "checks": []}
-    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+    revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                              capture_output=True, text=True, check=False)
     report["revision"] = revision.stdout.strip() if revision.returncode == 0 else None
 
     def save():
@@ -140,6 +142,9 @@ def main():
             check("queue-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-todo-queue-sdk.mjs", str(modules)], timeout=60)
             check("queue-checks-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-queue-checks-sdk.mjs", str(modules)], timeout=60)
             check("task-session-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-task-session-sdk.mjs", str(modules)], timeout=60)
+            check("herdr-ipc-sdk", "integration",
+                  ["node", "--require", "./scripts/no-network.cjs",
+                   "scripts/test-herdr-ipc-sdk.mjs", str(modules)], timeout=60)
             check("ponytail-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-ponytail-sdk.mjs", str(modules)], timeout=60)
             check("background-jobs", "integration", ["node", "scripts/test-background-jobs.mjs", str(modules)], timeout=60)
             check("loop-sdk", "integration", ["node", "scripts/test-loop-profiler-sdk.mjs", str(core)])

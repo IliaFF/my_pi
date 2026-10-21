@@ -169,3 +169,14 @@ The mandatory gate MUST exercise actual native SDK command-backed replacement wi
 #### Scenario: Native integration gate
 - **WHEN** npm test runs
 - **THEN** goal-continuity policy wiring, real session handoff and queue dispatch boundaries are checked with finite deadlines; semantic model quality is not claimed
+
+### Requirement: Optional status IPC failures are nonfatal
+A failed optional herdr status/session report MUST NOT cause an unhandled rejection or abort a native session. Existing successful delivery and ordinary retry behavior MUST remain. Mandatory tests MUST NOT inherit the live pane identity or socket, and MUST retain fail-closed network denial.
+
+#### Scenario: Transport throws synchronously
+- **WHEN** native session/agent events run with net.createConnection throwing NETWORK_BLOCKED
+- **THEN** the session still finishes using its faux provider without unhandled rejection, crash record or external IPC
+
+#### Scenario: Inherited live pane environment
+- **WHEN** mandatory tests construct their isolated environment
+- **THEN** live HERDR identity/socket variables are absent; a dedicated synthetic case still exercises denied IPC

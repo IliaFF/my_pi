@@ -48,10 +48,14 @@ function sendRequestAttempt(request: unknown, timeoutMs: number): Promise<boolea
 }
 
 async function sendRequest(request: unknown): Promise<void> {
-  if (await sendRequestAttempt(request, 500)) {
-    return;
+  try {
+    if (await sendRequestAttempt(request, 500)) {
+      return;
+    }
+    await sendRequestAttempt(request, 1500);
+  } catch {
+    // Optional status delivery must not abort Pi, including fire-and-forget calls.
   }
-  await sendRequestAttempt(request, 1500);
 }
 
 type AgentState = "working" | "blocked" | "idle";
