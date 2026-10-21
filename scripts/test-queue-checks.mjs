@@ -81,6 +81,27 @@ test('obsolete passed checks need explicit fresh same-scope replacement, with al
   assert.throws(() => assertFreshChecks([replaced, fresh, { ...old, id: 'unrelated', command: 'another required check' }], task, snapshots));
 });
 
+test('only an explicitly replaced never-launched preflight may change scope', () => {
+  const task = { id: 'task', text: 'Implement' };
+  const preflight = { id: 'preflight', taskId: task.id, taskText: task.text, command: 'old command',
+    cwd: '/unavailable', status: 'unknown', error: 'Snapshot traversal limit exceeded' };
+  const fresh = { id: 'fresh', taskId: task.id, taskText: task.text, command: 'final suite', cwd: '/project',
+    jobId: 'job', status: 'completed', exitCode: 0, before: 'hash', after: 'hash' };
+  const snapshots = new Map([['/project', 'hash']]);
+  assert.throws(() => assertFreshChecks([preflight, fresh], task, snapshots));
+  const linked = { ...preflight, supersededBy: fresh.id, supersededReason: 'Initial snapshot could not start; final suite covers the narrower project scope' };
+  assert.doesNotThrow(() => assertFreshChecks([linked, fresh], task, snapshots));
+  for (const invalid of [{ before: 'hash' }, { jobId: 'job' }, { error: undefined }, { error: '' },
+    { invalidated: true }, { taskText: 'other' }, { status: 'running' }, { status: 'failed' },
+    { supersededReason: '' }, { supersededBy: 'missing' }]) {
+    assert.throws(() => assertFreshChecks([{ ...linked, ...invalid }, fresh], task, snapshots));
+  }
+  assert.throws(() => assertFreshChecks([linked, { ...fresh, before: 'stale', after: 'stale' }], task, snapshots));
+  const executed = { ...fresh, id: 'executed', command: 'old executed', cwd: '/unavailable',
+    supersededBy: fresh.id, supersededReason: 'Different scope' };
+  assert.throws(() => assertFreshChecks([executed, fresh], task, snapshots));
+});
+
 test('async TODO mutation preserves lock, concurrent edit detection and cleanup', async () => {
   const root = await mkdtemp(join(tmpdir(), 'queue-lock-')), todo = join(root, 'TODO.md');
   try {

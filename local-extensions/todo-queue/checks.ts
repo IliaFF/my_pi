@@ -9,6 +9,7 @@ import type { QueueTask } from "./core.ts";
 
 const exec = promisify(execFile);
 const ENTRY = "todo-queue-check-v1";
+const REOPEN = "todo-queue-reopen-v1";
 const SKIP = new Set([".git", "node_modules", ".venv", "__pycache__", ".cache", "coverage", "test-results"]);
 
 export type CheckRecord = {
@@ -79,6 +80,13 @@ function stablePass(record: CheckRecord, task: Pick<QueueTask, "id" | "text">): 
     record.status === "completed" && record.exitCode === 0 && !!record.jobId && !!record.before && record.before === record.after;
 }
 
+function failedPreflight(record: CheckRecord, task: Pick<QueueTask, "id" | "text">): boolean {
+  // start() cannot launch a job until fingerprint() has assigned before.
+  return !record.invalidated && record.taskId === task.id && record.taskText === task.text &&
+    record.status === "unknown" && record.before === undefined && record.jobId === undefined &&
+    record.exitCode === undefined && !!record.error?.trim();
+}
+
 export function assertFreshChecks(records: CheckRecord[], task: Pick<QueueTask, "id" | "text">, snapshots: Map<string, string>): void {
   const own = records.filter(r => r.taskId === task.id);
   if (own.some(r => r.status === "running")) throw new Error("Required check is still running; wait for its notification");
@@ -88,7 +96,8 @@ export function assertFreshChecks(records: CheckRecord[], task: Pick<QueueTask, 
     let record = initial;
     const seen = new Set<string>();
     while (true) {
-      if (seen.has(record.id) || !stablePass(record, task) || record.cwd !== initial.cwd) {
+      const preflight = failedPreflight(record, task);
+      if (seen.has(record.id) || (!stablePass(record, task) && !(preflight && record.supersededBy))) {
         throw new Error(`Check ${record.id} is failed, stale or unknown; explicitly rerun: ${record.command}`);
       }
       seen.add(record.id);
@@ -97,16 +106,22 @@ export function assertFreshChecks(records: CheckRecord[], task: Pick<QueueTask, 
         break;
       }
       const replacement = byId.get(record.supersededBy);
-      if (!record.supersededReason?.trim() || record.supersededReason.length > 500 || !replacement) throw new Error(`Invalid supersession for check ${record.id}`);
+      if (!record.supersededReason?.trim() || record.supersededReason.length > 500 || !replacement ||
+        (preflight ? !stablePass(replacement, task) : replacement.cwd !== record.cwd)) throw new Error(`Invalid supersession for check ${record.id}`);
       record = replacement;
     }
   }
 }
 
 export function queueChecks(pi: ExtensionAPI) {
-  const records = (ctx: ExtensionContext): CheckRecord[] => {
+  const records = (ctx: ExtensionContext, includePrevious = false): CheckRecord[] => {
     const entries = new Map<string, CheckRecord>();
     for (const entry of ctx.sessionManager.getBranch()) {
+      if (entry.type === "custom" && entry.customType === REOPEN && !includePrevious) {
+        const data = entry.data as { taskId: string };
+        if (!data || typeof data.taskId !== "string") throw new Error("Invalid queue reopen history");
+        for (const [id, record] of entries) if (record.taskId === data.taskId) entries.delete(id);
+      }
       if (entry.type === "custom" && entry.customType === ENTRY) {
         const r = entry.data as CheckRecord;
         if (!r || typeof r.id !== "string" || typeof r.taskId !== "string" || typeof r.cwd !== "string" || typeof r.command !== "string") throw new Error("Invalid queue check history");
@@ -121,8 +136,11 @@ export function queueChecks(pi: ExtensionAPI) {
     invalidate(ctx: ExtensionContext, id: string) {
       for (const record of records(ctx).filter(r => r.taskId === id)) save({ ...record, invalidated: true });
     },
+    reopen(task: QueueTask, reason: string) {
+      pi.appendEntry(REOPEN, { taskId: task.id, taskText: task.text, reason });
+    },
     async start(ctx: ExtensionToolContext, todo: string, task: QueueTask, command: string, cwd: string, timeout: number) {
-      if (records(ctx).length >= 100) throw new Error("Session check limit reached (100); retain history and use a new session");
+      if (records(ctx, true).length >= 100) throw new Error("Session check limit reached (100); retain history and use a new session");
       const record: CheckRecord = { id: randomUUID(), taskId: task.id!, taskText: task.text, command, cwd: resolve(cwd), status: "unknown" };
       save(record);
       try {
@@ -159,8 +177,9 @@ export function queueChecks(pi: ExtensionAPI) {
       const latest = new Map(own.map(r => [JSON.stringify([r.cwd, r.command]), r]));
       const active = [...latest.values()];
       const old = active.find(r => r.id === checkId), replacement = active.find(r => r.id === replacementId);
-      if (!old || !replacement || old.id === replacement.id || old.cwd !== replacement.cwd || !stablePass(old, task) || replacement.supersededBy !== undefined) {
-        throw new Error("Supersede requires distinct latest successful checks of the current task and same cwd; failures require a same-command rerun");
+      if (!old || !replacement || old.id === replacement.id || replacement.supersededBy !== undefined ||
+        !stablePass(replacement, task) || !(failedPreflight(old, task) || (old.cwd === replacement.cwd && stablePass(old, task)))) {
+        throw new Error("Supersede requires latest stable successful checks of the same cwd, or an unstarted failed preflight; launched failures require a same-command rerun");
       }
       const snapshots = new Map([[replacement.cwd, await fingerprint(replacement.cwd, todo)]]);
       const updated = { ...old, supersededBy: replacement.id, supersededReason: reason.trim() };
@@ -170,8 +189,11 @@ export function queueChecks(pi: ExtensionAPI) {
     },
     async validate(ctx: ExtensionToolContext, todo: string, task: QueueTask) {
       const own = await this.inspect(ctx, todo, task);
+      if (!own.length && ctx.sessionManager.getBranch().some(entry => entry.type === "custom" && entry.customType === REOPEN &&
+        (entry.data as { taskId?: string })?.taskId === task.id)) throw new Error("Reopened task requires a fresh recorded check");
+      const latest = new Map(own.map(r => [JSON.stringify([r.cwd, r.command]), r]));
       const snapshots = new Map<string, string>();
-      for (const cwd of new Set(own.map(r => r.cwd))) snapshots.set(cwd, await fingerprint(cwd, todo));
+      for (const cwd of new Set([...latest.values()].filter(r => r.supersededBy === undefined).map(r => r.cwd))) snapshots.set(cwd, await fingerprint(cwd, todo));
       assertFreshChecks(own, task, snapshots);
       return own;
     },

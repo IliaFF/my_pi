@@ -127,6 +127,23 @@ test("block records reason and clears current", () => {
   assert.match(state.blocked[0].text, /Заблокировано: Need API access/);
 });
 
+test("reopen selects only Blocked, preserves identity/order and requires an empty current slot", async () => {
+  const { reopenBlocked } = await import("../local-extensions/todo-queue/core.ts");
+  let text = addTask(base, "Second", "second").text;
+  text = blockCurrent(claimNext(text, "blocked").text, "blocked", "Old blocker").text;
+  const before = inspectTodo(text);
+  const changed = reopenBlocked(text, "blocked");
+  assert.equal(changed.task.id, "blocked");
+  assert.equal(changed.task.text, before.blocked[0].text);
+  assert.equal(inspectTodo(changed.text).current.id, "blocked");
+  assert.deepEqual(inspectTodo(changed.text).pending, before.pending);
+  assert.deepEqual(inspectTodo(changed.text).completed, before.completed);
+  for (const id of ["missing", "second", ""]) assert.throws(() => reopenBlocked(text, id), /Blocked task/);
+  assert.throws(() => reopenBlocked(claimNext(text, undefined, "second").text, "blocked"), /already in progress/);
+  const crlf = reopenBlocked(text.replace(/\n/g, "\r\n"), "blocked").text;
+  assert.equal(/(^|[^\r])\n/.test(crlf), false);
+});
+
 test("release returns current task to front of Pending", () => {
   const seeded = addTask(base, "Second", "second").text;
   const first = claimNext(seeded, "first").text;

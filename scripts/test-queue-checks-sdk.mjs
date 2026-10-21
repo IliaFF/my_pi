@@ -148,8 +148,64 @@ try {
   const wakesBeforeInspection = continuations.size;
   assert.equal((await invoke({ action: 'complete', id: 'timeout', summary: 'Done', evidence: ['Timeout is not success'] })).isError, true);
   await invoke({ action: 'checks', id: 'timeout' }); assert.equal(continuations.size, wakesBeforeInspection);
+  // A failed preflight never launches a job, but remains an obligation until explicitly replaced.
+  writeFileSync(todo, original.replace('pi-task:task', 'pi-task:preflight'));
+  const jobsBeforePreflight = terminal.size;
+  const refused = await invoke({ action: 'check', id: 'preflight', command: finalCommand, cwd: join(root, 'missing-scope') });
+  assert.equal(refused.isError, true);
+  const failedPreflight = (await invoke({ action: 'checks', id: 'preflight' })).result.details.checks[0];
+  assert.equal(failedPreflight.status, 'unknown');
+  assert.equal(failedPreflight.before, undefined); assert.equal(failedPreflight.jobId, undefined);
+  assert.equal(terminal.size, jobsBeforePreflight, 'Preflight must not launch a shell');
+  assert.equal((await invoke({ action: 'complete', id: 'preflight', summary: 'Done', evidence: ['Not enough'] })).isError, true);
+  const finalPreflight = await invoke({ action: 'check', id: 'preflight', command: finalCommand, timeoutSeconds: 5 });
+  assert.equal(finalPreflight.isError, false); await wait(finalPreflight.result.details.check.jobId);
+  const replacement = await invoke({ action: 'supersede', id: 'preflight', checkId: failedPreflight.id,
+    replacementId: finalPreflight.result.details.check.id, reason: 'Initial directory is unavailable; actual final suite runs in the project scope' });
+  assert.equal(replacement.isError, false, JSON.stringify(replacement.result));
+  assert.equal((await invoke({ action: 'complete', id: 'preflight', summary: 'Done', evidence: ['Explicit checked scope'] })).isError, false,
+    'Completion must not rescan the missing replaced cwd');
+  const preflightHistory = session.sessionManager.getBranch().filter(e => e.type === 'custom' && e.customType === 'todo-queue-check-v1' && e.data.id === failedPreflight.id);
+  assert.ok(preflightHistory.some(e => !e.data.supersededBy) && preflightHistory.some(e => e.data.supersededBy), 'Append-only evidence survives');
+
+  // Reopen is explicit and cannot adopt old successful checks, even in the same branch.
+  writeFileSync(todo, original.replace('pi-task:task', 'pi-task:recovery').replace('## Pending\n', '## Pending\n- [ ] Keep pending <!-- pi-task:pending -->\n'));
+  const oldLifecycle = await invoke({ action: 'check', id: 'recovery', command, timeoutSeconds: 5 });
+  assert.equal(oldLifecycle.isError, false);
+  assert.equal((await invoke({ action: 'block', id: 'recovery', reason: 'Review later' })).isError, false);
+  const blockedTodo = readFileSync(todo, 'utf8');
+  const reopen = (id = 'recovery', reason = 'Blocker resolved; require fresh validation') => invoke({ action: 'reopen', id, reason });
+  assert.equal((await reopen()).isError, true, 'Running check must prevent reopening');
+  assert.equal(readFileSync(todo, 'utf8'), blockedTodo);
+  await wait(oldLifecycle.result.details.check.jobId);
+  for (const [id, reason] of [['recovery', ' '], ['missing', 'Missing'], ['pending', 'Not Blocked']]) {
+    assert.equal((await reopen(id, reason)).isError, true);
+    assert.equal(readFileSync(todo, 'utf8'), blockedTodo);
+  }
+  assert.equal((await reopen()).isError, false);
+  const reopenedTodo = readFileSync(todo, 'utf8');
+  assert.match(reopenedTodo, /## Pending\n- \[ \] Keep pending <!-- pi-task:pending -->/);
+  assert.equal((await reopen()).isError, true, 'Occupied current must reject reopen');
+  assert.equal(readFileSync(todo, 'utf8'), reopenedTodo);
+  assert.equal((await invoke({ action: 'complete', id: 'recovery', summary: 'Done', evidence: ['Old PASS'] })).isError, true,
+    'A fresh recorded check is mandatory after reopen');
+  const freshLifecycle = await invoke({ action: 'check', id: 'recovery', command: finalCommand, timeoutSeconds: 5 });
+  assert.equal(freshLifecycle.isError, false); await wait(freshLifecycle.result.details.check.jobId);
+  assert.equal((await invoke({ action: 'complete', id: 'recovery', summary: 'Done', evidence: ['Fresh recovery validation'] })).isError, false);
+  // A historical Blocked task has no check ledger in this session; reload must retain the fresh-check obligation.
+  writeFileSync(todo, '# TODO\n\n## In progress\n\n## Pending\n\n## Blocked\n- [ ] Historical task <!-- pi-task:historical -->\n\n## Completed\n');
+  assert.equal((await reopen('historical')).isError, false);
+  await session.reload();
+  assert.equal((await invoke({ action: 'complete', id: 'historical', summary: 'Done', evidence: ['No check ledger'] })).isError, true);
+  const historicalCheck = await invoke({ action: 'check', id: 'historical', command: finalCommand, timeoutSeconds: 5 });
+  assert.equal(historicalCheck.isError, false); await wait(historicalCheck.result.details.check.jobId);
+  assert.equal((await invoke({ action: 'complete', id: 'historical', summary: 'Done', evidence: ['Fresh historical check'] })).isError, false);
+  const branch = session.sessionManager.getBranch();
+  assert.ok(branch.some(e => e.type === 'custom' && e.customType === 'todo-queue-reopen-v1' && e.data.taskId === 'recovery' && e.data.reason));
+  assert.ok(branch.some(e => e.type === 'custom' && e.customType === 'todo-queue-check-v1' && e.data.id === oldLifecycle.result.details.check.id),
+    'Old lifecycle evidence is retained, not rewritten');
   assert.deepEqual(errors, []);
-  console.log('PASS actual queue/background SDK: snapshots, ownership, native completion wake on success/failure/timeout and no duplicate inspection wake');
+  console.log('PASS actual queue/background SDK: snapshots, guards, native wake, failed preflight scope recovery and checked Blocked reopen');
 } finally {
   unsub?.(); if (session) { try { await session._extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }); } catch {} session.dispose(); }
   for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key]; Object.assign(process.env, saved);

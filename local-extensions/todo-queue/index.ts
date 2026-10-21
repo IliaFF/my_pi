@@ -4,12 +4,12 @@ import { Type } from "typebox";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { queueChecks } from "./checks.ts";
-import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, type MoveDirection, type QueueTask } from "./core.ts";
+import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, reopenBlocked, type MoveDirection, type QueueTask } from "./core.ts";
 import { findTodoPath, mutateTodo } from "./store.ts";
 import { createQueuePanel } from "./panel.ts";
 
 const MAX_RUN_TASKS = 5;
-const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "check", "checks", "supersede", "complete", "block", "release"] as const;
+const ACTIONS = ["list", "add", "edit", "delete", "move", "claim", "reopen", "check", "checks", "supersede", "complete", "block", "release"] as const;
 
 const TaskQueueParams = Type.Object({
   action: StringEnum(ACTIONS),
@@ -17,9 +17,9 @@ const TaskQueueParams = Type.Object({
   text: Type.Optional(Type.String({ description: "Task text for add" })),
   summary: Type.Optional(Type.String({ description: "Completion summary" })),
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Passing checks or direct evidence" })),
-  reason: Type.Optional(Type.String({ description: "Concrete blocker or check supersession reason" })),
-  checkId: Type.Optional(Type.String({ description: "Obsolete successful check id for supersede" })),
-  replacementId: Type.Optional(Type.String({ description: "Fresh successful latest check id, same task and cwd" })),
+  reason: Type.Optional(Type.String({ description: "Concrete blocker, reopen or check supersession reason" })),
+  checkId: Type.Optional(Type.String({ description: "Obsolete successful check or unstarted failed preflight id for supersede" })),
+  replacementId: Type.Optional(Type.String({ description: "Fresh successful latest check id, same task; same cwd unless replacing an unstarted failed preflight" })),
   command: Type.Optional(Type.String({ maxLength: 8192, description: "Explicit local shell check; launched through bg_run with automatic completion follow-up" })),
   cwd: Type.Optional(Type.String({ description: "Project/check working directory, defaults to session cwd; snapshot covers the whole Git worktree or directory" })),
   timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86400, description: "Finite check deadline, default 600 seconds" })),
@@ -278,7 +278,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "task_queue",
     label: "TODO Queue",
-    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Use check (id, command, cwd) to launch a snapshot-bound local background check; wait for notification, never poll. checks inspects recorded jobs once. supersede links an obsolete passed checkId to a fresh passed replacementId of the same task/cwd with a reason; never bypass failed/running checks. Complete only current matching id with current successful checks or direct evidence for tasks without recorded checks; block on concrete external impediments.",
+    description: "Manage project TODO.md queue. Claim a specific pending id or omit id for FIFO; never reorder to select. Explicit reopen (blocked id, reason) requires an empty current slot and fresh recorded validation; never auto-reopen. Use check (id, command, cwd) for a snapshot-bound local background check; wait for notification, never poll. checks inspects jobs once. supersede links an obsolete stable passed check to a fresh passed check of the same task/cwd with a reason. Only a provably unstarted failed preflight may change cwd; never bypass launched failed/unknown/running checks. Complete only current matching id with current successful checks or direct evidence for tasks without recorded checks; complete does not change recorded cwd. Block on concrete external impediments.",
     reachesTools: () => ["bg_run", "bg_status"],
     parameters: TaskQueueParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
@@ -330,6 +330,23 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         return changed ? result(`Claimed ${formatTask(changed)}`, { task: changed }) : result("Queue is empty");
       }
       const id = requireText(params.id, "id");
+      if (params.action === "reopen") {
+        const reason = requireText(params.reason, "reason");
+        const changed = await mutateTodo(path, async (content) => {
+          const update = reopenBlocked(content, id);
+          if ((await checks.inspect(ctx, path, update.task)).some(record => record.status === "running")) {
+            throw new Error("Cannot reopen while a check is running; wait for its notification");
+          }
+          return { text: update.text, value: update.task };
+        });
+        checks.reopen(changed, reason);
+        activeTaskId = changed.id;
+        terminalHandled = false;
+        autoRun = false;
+        pendingAdvance = false;
+        recordRun();
+        return result(`Reopened ${formatTask(changed)}; fresh recorded check required; queue paused`, { task: changed, reason });
+      }
       if (params.action === "check" || params.action === "checks" || params.action === "supersede") {
         return mutateTodo(path, async (content) => {
           const task = inspectTodo(content).current;

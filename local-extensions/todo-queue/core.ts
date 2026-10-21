@@ -155,6 +155,17 @@ export function claimNext(text: string, forcedId?: string, targetId?: string): {
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 
+export function reopenBlocked(text: string, id: string): { text: string; task: QueueTask } {
+  const document = parseForMutation(text);
+  if (inspectTodo(text).current) throw new Error("A task is already in progress");
+  const row = sectionTasks(document.lines, document.headers, "Blocked").find(({ task }) => !task.checked && task.id === id);
+  if (!row) throw new Error(`Blocked task id not found: ${id}`);
+  const task: QueueTask = { ...row.task, section: "In progress" };
+  document.lines.splice(row.index, 1);
+  document.lines.splice(insertionIndex(document.lines, sectionHeaders(document.lines), "In progress"), 0, renderTask(task));
+  return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
+}
+
 function moveCurrent(text: string, id: string, target: SectionName, options: { checked: boolean; suffix?: string; front?: boolean }): { text: string; task: QueueTask } {
   const document = parseForMutation(text);
   const current = sectionTasks(document.lines, document.headers, "In progress").filter(({ task }) => !task.checked);
