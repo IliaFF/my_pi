@@ -18,7 +18,7 @@ const TaskQueueParams = Type.Object({
   summary: Type.Optional(Type.String({ description: "Completion summary" })),
   evidence: Type.Optional(Type.Array(Type.String(), { description: "Passing checks or direct evidence" })),
   reason: Type.Optional(Type.String({ description: "Concrete blocker reason" })),
-  command: Type.Optional(Type.String({ maxLength: 8192, description: "Explicit local shell check; launched through bg_run, no automatic wake" })),
+  command: Type.Optional(Type.String({ maxLength: 8192, description: "Explicit local shell check; launched through bg_run with automatic completion follow-up" })),
   cwd: Type.Optional(Type.String({ description: "Project/check working directory, defaults to session cwd; snapshot covers the whole Git worktree or directory" })),
   timeoutSeconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 86400, description: "Finite check deadline, default 600 seconds" })),
   position: Type.Optional(StringEnum(["up", "down", "top", "bottom"] as const, { description: "Pending reorder direction" })),

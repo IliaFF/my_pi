@@ -19,11 +19,14 @@ try {
   const provider = fauxProvider({ provider: 'queue-check-offline', api: 'faux', models: [{ id: 'faux', name: 'Offline', reasoning: false, input: ['text'], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 64000, maxTokens: 512 }] });
   const modelRuntime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false }); modelRuntime.registerNativeProvider(provider.provider);
   const { default: bg } = await import(url(join(modules, 'pi-background-tasks/dist/extensions/background-tasks.js')));
-  const terminal = new Map(), waiters = new Map();
+  const terminal = new Map(), waiters = new Map(), continuations = new Set();
   const settingsManager = SettingsManager.inMemory({ compaction: { enabled: false }, retry: { enabled: false } });
   const resourceLoader = new DefaultResourceLoader({ cwd: workspace, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager, noSkills: true, noThemes: true, noPromptTemplates: true,
     additionalExtensionPaths: [resolve('local-extensions/todo-queue/index.ts')], extensionFactories: [bg, pi => {
-      unsub = pi.events.on('pi-background-tasks:terminal:v1', e => { terminal.set(e.task.id, e.task); waiters.get(e.task.id)?.(e.task); });
+      unsub = pi.events.on('pi-background-tasks:terminal:v1', e => {
+        provider.appendResponses([fauxAssistantMessage(`Check continuation ${e.task.id}`)]);
+        terminal.set(e.task.id, e.task); waiters.get(e.task.id)?.(e.task);
+      });
     }] });
   await resourceLoader.reload(); assert.deepEqual(resourceLoader.getExtensions().errors, []);
   ({ session } = await createAgentSession({ cwd: workspace, agentDir: process.env.PI_CODING_AGENT_DIR, modelRuntime, model: provider.getModel(), resourceLoader, settingsManager, sessionManager: SessionManager.inMemory(workspace), tools: ['task_queue', 'bg_run', 'bg_status'] }));
@@ -31,17 +34,36 @@ try {
   const todo = join(workspace, 'TODO.md'), src = join(workspace, 'source.txt');
   writeFileSync(todo, '# TODO\n\n## In progress\n- [ ] Implement <!-- pi-task:task -->\n\n## Pending\n\n## Completed\n'); writeFileSync(src, 'v1');
   let last;
-  session.subscribe(e => { if (e.type === 'tool_execution_end' && e.toolName === 'task_queue') last = e; });
+  session.subscribe(e => {
+    if (e.type === 'tool_execution_end' && e.toolName === 'task_queue') last = e;
+    if (e.type === 'message_end' && e.message.role === 'assistant') {
+      for (const part of e.message.content) if (part.type === 'text' && part.text.startsWith('Check continuation ')) {
+        const id = part.text.slice('Check continuation '.length);
+        assert.ok(!continuations.has(id), 'Completion must not be duplicated'); continuations.add(id);
+      }
+    }
+  });
   const invoke = async args => {
     last = undefined;
     provider.setResponses([{ ...fauxAssistantMessage(''), content: [{ type: 'toolCall', id: `check-${Date.now()}`, name: 'task_queue', arguments: args }], stopReason: 'toolUse' }, fauxAssistantMessage('Finished')]);
     await session.prompt('Offline check'); await session.waitForIdle(); assert.ok(last); return last;
   };
-  const wait = async id => terminal.get(id) ?? await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error('Job deadline exceeded')), 10000); waiters.set(id, value => { clearTimeout(timer); waiters.delete(id); resolve(value); }); });
+  const wait = async id => {
+    const task = terminal.get(id) ?? await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error('Job deadline exceeded')), 10000); waiters.set(id, value => { clearTimeout(timer); waiters.delete(id); resolve(value); }); });
+    const deadline = Date.now() + 10000;
+    while (!continuations.has(id) || session.isStreaming) {
+      assert.ok(Date.now() < deadline, `Native completion did not resume for ${id}`);
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    await session.waitForIdle(); return task;
+  };
   const complete = () => invoke({ action: 'complete', id: 'task', summary: 'Done', evidence: ['Recorded checks'] });
   const start = async command => { const r = await invoke({ action: 'check', id: 'task', command, timeoutSeconds: 5 }); assert.equal(r.isError, false, JSON.stringify(r.result)); return r.result.details.check; };
   const command = `${JSON.stringify(process.execPath)} -e 'setTimeout(() => process.exit(0), 1500)'`;
   const first = await start(command), original = readFileSync(todo, 'utf8');
+  const statusTool = session.agent.state.tools.find(t => t.name === 'bg_status');
+  const status = await statusTool.execute('check-wake', { taskId: first.jobId }, new AbortController().signal);
+  assert.equal(status.details.tasks[0].triggerOnCompletion, true, 'Recorded checks must enable native completion wake');
   assert.equal((await complete()).isError, true, 'Running job must not complete task'); assert.equal(readFileSync(todo, 'utf8'), original);
   writeFileSync(src, 'edited while running');
   await wait(first.jobId);
@@ -67,8 +89,16 @@ try {
   assert.equal((await invoke({ action: 'complete', id: 'next', summary: 'Done', evidence: ['old lifecycle'] })).isError, true);
   const resumed = await invoke({ action: 'check', id: 'next', command: scriptCommand, timeoutSeconds: 5 }); assert.equal(resumed.isError, false); await wait(resumed.result.details.check.jobId);
   const done = await invoke({ action: 'complete', id: 'next', summary: 'Done', evidence: ['Real native check'] }); assert.equal(done.isError, false, JSON.stringify(done.result));
-  assert.match(readFileSync(todo, 'utf8'), /- \[x\] Implement/); assert.deepEqual(errors, []);
-  console.log('PASS actual queue/background SDK: pending, stale, real exit codes, task ownership and successful completion');
+  assert.match(readFileSync(todo, 'utf8'), /- \[x\] Implement/);
+  writeFileSync(todo, original.replace('pi-task:task', 'pi-task:timeout'));
+  const timeout = await invoke({ action: 'check', id: 'timeout', command: `${JSON.stringify(process.execPath)} -e 'setInterval(() => {}, 1000)'`, timeoutSeconds: 1 });
+  assert.equal(timeout.isError, false);
+  const timed = await wait(timeout.result.details.check.jobId); assert.equal(timed.status, 'failed'); assert.match(timed.error, /timed out/i);
+  const wakesBeforeInspection = continuations.size;
+  assert.equal((await invoke({ action: 'complete', id: 'timeout', summary: 'Done', evidence: ['Timeout is not success'] })).isError, true);
+  await invoke({ action: 'checks', id: 'timeout' }); assert.equal(continuations.size, wakesBeforeInspection);
+  assert.deepEqual(errors, []);
+  console.log('PASS actual queue/background SDK: snapshots, ownership, native completion wake on success/failure/timeout and no duplicate inspection wake');
 } finally {
   unsub?.(); if (session) { try { await session._extensionRunner.emit({ type: 'session_shutdown', reason: 'quit' }); } catch {} session.dispose(); }
   for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key]; Object.assign(process.env, saved);

@@ -108,7 +108,7 @@ export function queueChecks(pi: ExtensionAPI) {
       save(record);
       try {
         record.before = await fingerprint(record.cwd, todo);
-        const response = await ctx.executeTool("bg_run", { name: "Queue validation check", command: shell(record), isAgent: false, timeoutSeconds: timeout, notifyOnCompletion: true, triggerOnCompletion: false, surviveReload: false });
+        const response = await ctx.executeTool("bg_run", { name: "Queue validation check", command: shell(record), isAgent: false, timeoutSeconds: timeout, notifyOnCompletion: true, triggerOnCompletion: true, surviveReload: false });
         const job = (response.result.details as any)?.task;
         if (response.isError || !job || typeof job.id !== "string" || job.command !== shell(record)) throw new Error("Background launch returned no valid job identity");
         record.jobId = job.id; record.status = "running";
