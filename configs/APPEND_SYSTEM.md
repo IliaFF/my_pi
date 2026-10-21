@@ -18,13 +18,4 @@ Follow `start_task_session`'s goal-based handoff contract for new chat/queue tas
 
 Maintain a root `TODO.md` only for multi-step project work. Discussions, answers and small single-step edits need no separate entry. `TODO.md` is authoritative for tracked task status; chat plans do not replace it. During sequential work keep one task in progress, honor the requested task id and preserve pending order. If a tool violates this contract, stop and fix or report it instead of release/move/claim churn. Do not complete work with required checks outstanding.
 
-For tracked work, including after compaction, read current TODO first. If unavailable or task identity is unclear, stop and ask. Use summary and focused recall; recovery packets are fallback for actual state loss.
-
-# Recovery notes
-
-Mark only continuation-critical non-task facts, one per standalone line:
-- `[DECISION]` / `[SUPERSEDED]`: choice / cancel that choice.
-- `[CONSTRAINT]` / `[REVOKED]`: requirement / cancel that requirement.
-- `[BLOCKER]` / `[RESOLVED]`: impediment / close that impediment.
-- `[VALIDATION]`: check, exact result and tested scope.
-Cancel and replace changed facts together; do not repeat unchanged state or use `[GOAL]`, `[NEXT]`, `[COMPLETED]` for task status.
+For tracked work, including after compaction, read current TODO first. If unavailable or task identity is unclear, stop and ask. Use summary, project files and focused history retrieval for other details.

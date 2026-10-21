@@ -38,11 +38,11 @@ Portable policy MUST require assessing chat/queue task continuity before work: s
 - **THEN** the same continuity rule applies without creating a TODO entry for a discussion/small edit
 
 ### Requirement: Workflow prose has one owning layer
-The build MUST consolidate repeated background and task-session instructions while retaining safety, exact-scope evidence, authoritative TODO ordering, goal-based handoff and recovery marker rules. Compaction-specific restoration contracts MUST remain intact. Reports MUST measure bytes rather than infer speed or quality.
+The build MUST consolidate repeated background and task-session instructions while retaining safety, exact-scope evidence, authoritative TODO ordering and goal-based handoff. Restoration MUST use current TODO for tracked work and summary/focused history retrieval for other details, without requiring emergency packets or a recovery-marker protocol. Reports MUST measure bytes rather than infer speed or quality.
 
 #### Scenario: Reduced standing policy
 - **WHEN** APPEND and tool guidelines are assembled
-- **THEN** the handoff tool owns its detailed contract, background inspection rules are compact, and queue/recovery safety rules remain available
+- **THEN** the handoff tool owns its detailed contract, background inspection rules are compact, and task-conditional restoration remains available without packet/marker instructions
 
 #### Scenario: Background safety remains explicit
 - **WHEN** background tool instructions are assembled

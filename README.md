@@ -56,7 +56,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
 - детерминированное сжатие `context-fold@0.7.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
-- bounded recovery packet `auto-ultra-compact` как emergency fallback
+- `auto-ultra-compact` без дополнительного recovery snapshot: восстановление по TODO, индексу и истории
 - precise tool restoration после compaction добавляет `recall_folded` при наличии folded pointers
 - Contextimate для оценки статического context footprint
 - Cachemire для cache/turn cost diagnostics
@@ -124,7 +124,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 | Файл | Статус | Назначение |
 | --- | --- | --- |
-| `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
+| `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability и запускает continuation без записи recovery packets. |
 | `deferred-tools.ts` | активен | Сохраняет ранее объявленный managed loadout при startup старой ветки; новые сессии используют native deferred/tool_search. |
 | `task-session.ts` | активен | Перед новой задачей из чата/очереди агент оценивает общую цель. Связанная остаётся, при сомнении спрашивает; независимая переносится через `start_task_session` в новую native-сессию без старой переписки. Незавершённые TODO не бросаются, новая задача выполняется автоматически. |
 | `loop-profiler.ts` | активен | Последние 500 runs: model/tool timing без двойного счёта, медленные/ошибочные tools, native nested calls, context output, cache, стоимость из usage и stop reason. Pi 1.2 user/custom starts; legacy records читаются; raw trace только при `PI_PROFILE=1`. |
@@ -219,7 +219,7 @@ PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 
 Fold ladder начинает сворачивать stale `tool_result` и `thinking` blocks при 45% context window; user intent, assistant conclusions, tool calls и свежий tail не сворачиваются. Обычный fold требует экономию минимум 12% окна. Несжимаемый tail/roots остаётся честно обозначенным floor.
 
-Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRecentTokens: 12000`. `auto-ultra-compact` проверяет compactability, запускает threshold compaction и post-compaction usage check; recovery packet используется только как emergency fallback. Ручной `/compact` остаётся без automatic continuation. После восстановления агент перечитывает текущий проектный `TODO.md`: цели, статус и следующие шаги не переносятся в recovery packet как авторитетное состояние.
+Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRecentTokens: 12000`. `auto-ultra-compact` проверяет compactability, запускает threshold compaction и post-compaction usage check без дополнительного recovery-файла. Запись в `~/.pi/agent/recovery` не требуется; старые пользовательские packets не удаляются. Ручной `/compact` остаётся без automatic continuation. Перед продолжением многошаговой работы агент перечитывает текущий проектный `TODO.md`; прочие детали восстанавливаются из файлов проекта, deterministic summary и исходной истории через `recall_folded`. Это не гарантирует переноса всех договорённостей из чата.
 
 Настройка и статус:
 

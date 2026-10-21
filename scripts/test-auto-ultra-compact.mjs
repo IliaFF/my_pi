@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { join, resolve } from "node:path";
@@ -10,17 +10,10 @@ import { tmpdir } from "node:os";
 const root = resolve(process.argv[2] ?? new URL("..", import.meta.url).pathname);
 const source = resolve(root, "local-extensions/auto-ultra-compact/index.ts");
 const autoModule = await import(pathToFileURL(source).href);
-const { default: autoUltraCompact, SUMMARY_CONTRACT_ID, analyzeCompactability, authoritativeRecoveryEntries, estimateCompactionTokens, projectAuthoritativeState, validateProjectedAuthoritativeState } = autoModule;
+const { default: autoUltraCompact, analyzeCompactability, estimateCompactionTokens } = autoModule;
 const text = (length) => [{ type: "text", text: "x".repeat(length) }];
 const analyze = (messages) => analyzeCompactability(messages, 12_000);
 
-assert.match(autoModule.ULTRA_INSTRUCTIONS, /Before resuming multi-step project work/);
-assert.match(autoModule.ULTRA_INSTRUCTIONS, /small single-step edits need no separate task entry/);
-for (const details of [undefined, { contract: SUMMARY_CONTRACT_ID, validator: "passed" }]) {
-  const reminder = autoModule.recoveryFollowupMessage({ compactionEntry: { details } });
-  assert.ok(reminder.includes("если продолжаешь многошаговую проектную работу"));
-  assert.ok(reminder.includes("не требуют отдельной записи"));
-}
 const taskPolicy = readFileSync(resolve(root, "configs/APPEND_SYSTEM.md"), "utf8");
 assert.ok(taskPolicy.includes("Discussions, answers and small single-step edits need no separate entry."));
 assert.ok(taskPolicy.includes("report starts, blockers and outcomes, not bookkeeping"));
@@ -47,78 +40,6 @@ assert.equal(analyze([
   { role: "compactionSummary", summary: "old summary" },
   { role: "user", content: text(1000) },
 ]).compactable, false, "previous summary is boundary, not discardable history");
-
-const markerText = [
-  "[GOAL] Old goal",
-  "[GOAL] Current goal",
-  "[CONSTRAINT] Keep selected model",
-  "[CONSTRAINT] Reopened constraint",
-  "[REVOKED] Reopened constraint",
-  "[CONSTRAINT] Reopened constraint",
-  "[DECISION] Retired decision",
-  "[SUPERSEDED] Retired decision",
-  "[DECISION] Active decision",
-  "[DECISION] Reopened decision",
-  "[SUPERSEDED] Reopened decision",
-  "[DECISION] Reopened decision",
-  "[BLOCKER] Resolved blocker",
-  "[RESOLVED] Resolved blocker",
-  "[BLOCKER] Reopened blocker",
-  "[RESOLVED] Reopened blocker",
-  "[BLOCKER] Reopened blocker",
-  "[NEXT] Finished step",
-  "[COMPLETED] Finished step",
-  "[NEXT] Immediate step",
-  "[NEXT] Reopened step",
-  "[COMPLETED] Reopened step",
-  "[NEXT] Reopened step",
-  "[VALIDATION] focused test PASS",
-].join("\n");
-const preparation = { messagesToSummarize: [{ role: "assistant", content: [{ type: "text", text: markerText }] }] };
-const event = { preparation, branchEntries: [{ type: "message", message: { role: "assistant", content: [{ type: "text", text: "[SUPERSEDED] Reopened decision\n[COMPLETED] Reopened step" }] } }] };
-const summary = `## Goal
-Generated goal
-
-## Constraints & Preferences
-- Generated
-
-## Progress
-### Done
-- [x] Finished step
-
-### In Progress
-- [ ] Generated
-
-### Blocked
-- None
-
-## Key Decisions
-- [DECISION] Model invented state
-
-## Next Steps
-1. Generated
-
-## Critical Context
-[COMPLETED] Finished step`;
-const entries = authoritativeRecoveryEntries(event);
-assert.deepEqual(entries.map(({ marker, value }) => `${marker}:${value}`), [
-  "CONSTRAINT:Reopened constraint",
-  "CONSTRAINT:Keep selected model",
-  "DECISION:Reopened decision",
-  "DECISION:Active decision",
-  "BLOCKER:Reopened blocker",
-  "VALIDATION:focused test PASS",
-]);
-const projected = projectAuthoritativeState(summary, event);
-for (const value of ["[CONSTRAINT] Reopened constraint", "[CONSTRAINT] Keep selected model", "[DECISION] Reopened decision", "[DECISION] Active decision", "[BLOCKER] Reopened blocker", "[VALIDATION] focused test PASS"]) assert.ok(projected.includes(value));
-for (const closedMarker of ["[DECISION] Retired decision", "[BLOCKER] Resolved blocker", "[GOAL]", "[NEXT]", "[COMPLETED]"]) assert.ok(!projected.includes(closedMarker));
-assert.ok(projected.includes("- [x] Finished step"), "closed work must remain valid Done prose");
-assert.ok(!projected.includes("Model invented state"), "model-generated marker lines must be removed");
-assert.deepEqual(validateProjectedAuthoritativeState(projected, event), []);
-assert.ok(validateProjectedAuthoritativeState(projected.replace("<!-- authoritative-state:end -->", "[DECISION] Injected state\n<!-- authoritative-state:end -->"), event).length > 0);
-assert.ok(validateProjectedAuthoritativeState(`${projected}\n[NEXT] Outside marker`, event).length > 0);
-assert.equal(projectAuthoritativeState(projected, event), projected, "projection must be idempotent");
-assert.equal((projected.match(/<!-- authoritative-state:start -->/g) ?? []).length, 1);
 
 async function createContinuationHarness(home) {
   const handlers = new Map();
@@ -180,6 +101,18 @@ const testHome = mkdtempSync(join(tmpdir(), "pi-compaction-followup-"));
 process.env.HOME = testHome;
 process.env.PI_CODING_AGENT_DIR = testHome;
 try {
+  const blockedHome = join(testHome, "not-a-directory");
+  writeFileSync(blockedHome, "fixture blocks former recovery directory");
+  process.env.HOME = blockedHome;
+  const withoutRecovery = await createContinuationHarness(testHome);
+  try {
+    await withoutRecovery.emit("turn_end");
+  } finally {
+    process.env.HOME = testHome;
+  }
+  assert.equal(withoutRecovery.compactCalls(), 1,
+    "autocompaction must not depend on a writable emergency recovery location");
+
   const automatic = await createContinuationHarness(testHome);
   const preparation = { tokensBefore: 170_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
   automatic.setContextTokens(169_999);
@@ -188,13 +121,19 @@ try {
   automatic.setContextTokens(170_000);
   await automatic.emit("turn_end");
   assert.equal(automatic.compactCalls(), 1, "must compact at 170k");
+  assert.equal(existsSync(join(testHome, ".pi/agent/recovery")), false, "must not create recovery directory");
+  assert.equal(existsSync(join(testHome, ".pi-stack/recovery")), false, "must not create project recovery mirror");
+  assert.match(automatic.callbacks().customInstructions, /current TODO\.md/);
   await automatic.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
-  await automatic.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  await automatic.emit("session_compact", { reason: "manual", compactionEntry: {} });
   assert.equal(automatic.sent.length, 0, "extension continuation must wait until Pi unlocks manual compaction");
   automatic.completeCompaction();
   assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
   assert.match(automatic.sent[0].message, /^После автосжатия сначала прочитай текущий TODO\.md/);
+  assert.ok(automatic.sent[0].message.includes("не требуют отдельной записи"));
+  assert.doesNotMatch(automatic.sent[0].message, /recovery|packet/i);
+  assert.doesNotMatch(await automatic.status(), /lastRecovery|lastProjectRecovery|summaryContract/);
   automatic.setContextTokens(175_000);
   await automatic.emit("turn_end");
   assert.equal(automatic.compactCalls(), 2, "ineffective compaction must bypass cooldown and compact again after first real post-compaction usage");
@@ -202,7 +141,7 @@ try {
   const reduced = await createContinuationHarness(testHome);
   await reduced.emit("turn_end");
   await reduced.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
-  await reduced.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  await reduced.emit("session_compact", { reason: "manual", compactionEntry: {} });
   reduced.completeCompaction();
   reduced.setContextTokens(60_000);
   await reduced.emit("turn_end");
@@ -213,12 +152,12 @@ try {
 
   const builtin = await createContinuationHarness(testHome);
   await builtin.emit("session_before_compact", { reason: "threshold", preparation, branchEntries: [] });
-  await builtin.emit("session_compact", { reason: "threshold", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  await builtin.emit("session_compact", { reason: "threshold", compactionEntry: {} });
   assert.equal(builtin.sent.length, 1, "built-in threshold compaction must still enqueue continuation during its lifecycle");
 
   const manual = await createContinuationHarness(testHome);
   await manual.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
-  await manual.emit("session_compact", { reason: "manual", compactionEntry: { details: { contract: SUMMARY_CONTRACT_ID, validator: "passed" } } });
+  await manual.emit("session_compact", { reason: "manual", compactionEntry: {} });
   assert.equal(manual.sent.length, 0, "manual /compact must remain idle");
 
   for (const reason of ["new", "resume", "fork", "reload", "quit"]) {
@@ -250,6 +189,16 @@ try {
   assert.equal(failed.compactCalls(), 2, "failed compaction must not permanently block future attempts");
   await failed.emit("session_compact_failed", { reason: "manual", aborted: true });
   assert.match(await failed.status(), /lastError: Compaction cancelled/);
+
+  const legacyPackets = [join(testHome, ".pi/agent/recovery/legacy.md"),
+    join(testHome, ".pi-stack/recovery/legacy.md")];
+  for (const packet of legacyPackets) {
+    mkdirSync(resolve(packet, ".."), { recursive: true });
+    writeFileSync(packet, "existing private packet must remain unchanged\n");
+  }
+  const withLegacy = await createContinuationHarness(testHome);
+  await withLegacy.emit("turn_end");
+  assert.equal(withLegacy.compactCalls(), 1);
 
   // Run real Pi compaction with both extensions, never with a model provider.
   const coreRoot = resolve(realpathSync(execFileSync("which", ["pi"], { encoding: "utf8" }).trim()), "../../..");
@@ -306,6 +255,9 @@ try {
     } finally { session.dispose(); }
   }
   assert.ok(existsSync(join(testHome, "context-fold")), "compaction ledger must be inside fixture agent");
+  for (const packet of legacyPackets) {
+    assert.equal(readFileSync(packet, "utf8"), "existing private packet must remain unchanged\n");
+  }
 
 } finally {
   if (oldAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
@@ -315,4 +267,4 @@ try {
   rmSync(testHome, { recursive: true, force: true });
 }
 
-console.log("PASS auto-ultra-compact 12k retention, post-compaction verification, compactability, recovery projector, continuation lifecycle and single deterministic owner");
+console.log("PASS auto-ultra-compact 12k retention, post-compaction verification, compactability, no recovery filesystem dependency, continuation lifecycle and single deterministic owner");

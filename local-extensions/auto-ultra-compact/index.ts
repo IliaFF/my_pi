@@ -1,5 +1,3 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { basename, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 type CompactOptions = {
@@ -10,17 +8,6 @@ type CompactOptions = {
 
 type UnknownRecord = Record<string, unknown>;
 
-type RecoveryState = {
-	readFiles: string[];
-	modifiedFiles: string[];
-	commands: string[];
-	decisions: string[];
-	constraints: string[];
-	blockers: string[];
-	validationResults: string[];
-	recentUserMessages: string[];
-};
-
 type RuntimeState = {
 	active: boolean;
 	compactInFlight: boolean;
@@ -28,8 +15,6 @@ type RuntimeState = {
 	turn: number;
 	lastCompactTurn: number;
 	previousPercent?: number;
-	lastRecoveryPath?: string;
-	lastProjectRecoveryPath?: string;
 	lastError?: string;
 	lastTrigger?: string;
 	lastTokens?: number;
@@ -51,35 +36,10 @@ const DEFAULT_THRESHOLD_PERCENT = (DEFAULT_THRESHOLD_TOKENS / DEFAULT_EFFECTIVE_
 const DEFAULT_COOLDOWN_TURNS = 3;
 const DEFAULT_KEEP_RECENT_TOKENS = 12_000;
 const ESTIMATED_IMAGE_CHARS = 4_800;
-export const ULTRA_INSTRUCTIONS = `These rules override conflicting preservation guidance above.
-
-Hard output limit: 10,000 tokens. Prefer 2,000-6,000 tokens when sufficient for correct continuation. Density and recoverability matter more than narrative completeness.
-
-For multi-step project work, TODO.md is the only authority for tracked task goals, status, and next steps. Discussions, answers to questions, and small single-step edits need no separate task entry. Treat summary task sections as historical context, not instructions to resume. Do not carry forward [GOAL], [NEXT], or [COMPLETED] markers. Before resuming multi-step project work, reread the current TODO.md; if it is missing, unreadable, or has no clear active task, stop and ask instead of guessing.
-
-Treat standalone recovery markers for non-task state as authoritative, newer markers overriding older prose and previous summaries:
-- [DECISION] is a consequential choice; [SUPERSEDED] with the exact old description removes it.
-- [CONSTRAINT] is durable; [REVOKED] with the exact old description removes it.
-- [BLOCKER] is active only until a matching [RESOLVED] marker; never carry resolved blockers forward.
-- [VALIDATION] is exact evidence. Preserve command, exit status, test counts, diagnostics, and exact error text when relevant.
-
-Use the required structured checkpoint format, with these rules:
-- Keep only information needed to continue correctly.
-- Done: at most 10 recent or continuation-critical items. Collapse older completed history into one aggregate line only when still useful.
-- Constraints & Preferences: separate durable constraints from temporary implementation decisions.
-- Key Decisions: retain current decisions and brief rationale; remove superseded choices.
-- Blocked: include unresolved blockers only.
-- Goal, Progress, and Next Steps: for tracked project work, point to TODO.md; do not infer task status from conversation or invent tracked tasks for discussions.
-- Critical Context: include exact validation results and external artifact pointers, not bulky artifact contents.
-- Preserve exact file paths, symbols, commands, versions, test counts, exit codes, and unresolved error messages.
-- Omit raw logs, repeated explanations, stale exploration, abandoned branches, conversational filler, and details recoverable from cited files or artifact pointers.
-- Never claim unfinished or unvalidated work is complete.`;
-
-export const SUMMARY_CONTRACT_ID = "recovery-v4-chronological-10k";
 const TASK_RESTORE_INSTRUCTIONS =
 	"После автосжатия сначала прочитай текущий TODO.md в корне проекта, если продолжаешь многошаговую проектную работу: только он определяет отслеживаемую задачу и следующий шаг. Для такой работы, если файл недоступен или активная задача неясна — остановись и спроси. Обсуждения, ответы на вопросы и небольшие одношаговые правки не требуют отдельной записи.";
 const RESTORE_MESSAGE =
-	`${TASK_RESTORE_INSTRUCTIONS} Для прочих деталей используй compact summary и recall_folded; recovery packet — только при явной потере состояния.`;
+	`${TASK_RESTORE_INSTRUCTIONS} Для прочих деталей используй compact summary, файлы проекта и точечное восстановление истории через recall_folded.`;
 
 function envNumber(name: string, fallback: number): number {
 	const raw = process.env[name];
@@ -98,43 +58,8 @@ function notify(ctx: ExtensionContext, message: string, type: "info" | "warning"
 	if (ctx.hasUI) ctx.ui.notify(message, type);
 }
 
-function slug(value: string, fallback: string): string {
-	return value.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || fallback;
-}
-
-function yamlString(value: string): string {
-	return JSON.stringify(value);
-}
-
-function mdList(items: string[], empty = "- none"): string {
-	if (!items.length) return empty;
-	return items.map((item) => `- ${item}`).join("\n");
-}
-
-function truncate(value: string, max = 500): string {
-	const clean = value.replace(/\s+/g, " ").trim();
-	return clean.length <= max ? clean : `${clean.slice(0, max - 1)}…`;
-}
-
-function uniqueLimit(items: string[], limit: number): string[] {
-	const out: string[] = [];
-	const seen = new Set<string>();
-	for (const raw of items) {
-		const item = truncate(raw, 700);
-		if (!item || seen.has(item)) continue;
-		seen.add(item);
-		out.push(item);
-		if (out.length >= limit) break;
-	}
-	return out;
-}
-
 function asRecord(value: unknown): UnknownRecord | undefined {
 	return typeof value === "object" && value !== null ? value as UnknownRecord : undefined;
-}
-
-export function recoveryFollowupMessage(_event: unknown, recoveryPath?: string): string {
-	return recoveryPath ? `${RESTORE_MESSAGE}\n\nEmergency recovery packet: ${recoveryPath}` : RESTORE_MESSAGE;
 }
 
 function asArray(value: unknown): unknown[] {
@@ -217,26 +142,6 @@ export function analyzeCompactability(messagesInput: unknown[], keepRecentTokens
 	return { compactable, historyTokens, messages: messages.length, reason: compactable ? "discardable turn prefix available" : "session history has no discardable prefix" };
 }
 
-function setOrArrayToStrings(value: unknown): string[] {
-	if (value instanceof Set) return [...value].filter((v): v is string => typeof v === "string");
-	if (Array.isArray(value)) return value.filter((v): v is string => typeof v === "string");
-	return [];
-}
-
-function projectSlug(cwd: string): string {
-	return slug(basename(cwd || process.cwd()) || "project", "project");
-}
-
-function agentId(cwd: string): string {
-	return slug(
-		process.env.PI_AUTO_COMPACT_AGENT_ID
-			?? process.env.PI_STACK_AGENT_ID
-			?? process.env.PI_AGENT_NAME
-			?? `pi-${projectSlug(cwd)}`,
-		`pi-${projectSlug(cwd)}`,
-	);
-}
-
 function modelWindow(ctx: ExtensionContext): number {
 	const model = (ctx as unknown as { model?: Record<string, unknown> }).model ?? {};
 	const candidates = [model.contextWindow, model.context_window, model.maxInputTokens, model.maxTokens];
@@ -251,379 +156,7 @@ function effectiveWindow(ctx: ExtensionContext): number {
 	return Math.min(modelWindow(ctx), cap);
 }
 
-function safePathUnder(dir: string, file: string): string {
-	const path = resolve(dir, file);
-	const rel = relative(dir, path);
-	if (rel.startsWith("..") || rel.includes(sep) || resolve(dir) === path) throw new Error("Unsafe recovery path");
-	return path;
-}
-
-function globalRecoveryDir(): string {
-	const dir = resolve(process.env.HOME ?? process.cwd(), ".pi", "agent", "recovery");
-	mkdirSync(dir, { recursive: true });
-	return dir;
-}
-
-function globalRecoveryPath(ctx: ExtensionContext): string {
-	const cwd = (ctx as unknown as { cwd?: string }).cwd ?? process.cwd();
-	return safePathUnder(globalRecoveryDir(), `${projectSlug(cwd)}-${agentId(cwd)}-latest.md`);
-}
-
-function projectRecoveryPath(ctx: ExtensionContext): string | undefined {
-	if (!envBool("PI_AUTO_COMPACT_PROJECT_RECOVERY", false)) return undefined;
-	if (typeof ctx.isProjectTrusted === "function" && !ctx.isProjectTrusted()) return undefined;
-	const cwd = (ctx as unknown as { cwd?: string }).cwd ?? process.cwd();
-	const dir = resolve(cwd, ".pi-stack", "recovery");
-	mkdirSync(dir, { recursive: true });
-	return safePathUnder(dir, `${agentId(cwd)}-latest.md`);
-}
-
-function textFromContent(content: unknown): string {
-	if (typeof content === "string") return content;
-	const parts: string[] = [];
-	for (const block of asArray(content)) {
-		const rec = asRecord(block);
-		if (!rec) continue;
-		if (typeof rec.text === "string") parts.push(rec.text);
-		else if (rec.type === "toolCall" && typeof rec.name === "string") {
-			const args = asRecord(rec.arguments) ?? {};
-			parts.push(`tool:${rec.name} ${JSON.stringify(args).slice(0, 500)}`);
-		}
-	}
-	return parts.join("\n");
-}
-
-function entryMessage(entry: unknown): UnknownRecord | undefined {
-	const rec = asRecord(entry);
-	if (!rec) return undefined;
-	if (rec.type === "message") return asRecord(rec.message);
-	if (rec.type === "custom_message") return { role: "custom", content: typeof rec.content === "string" ? rec.content : JSON.stringify(rec.content ?? "") };
-	if (rec.type === "compaction" || rec.type === "branch_summary") return { role: rec.type, content: typeof rec.summary === "string" ? rec.summary : "" };
-	return undefined;
-}
-
-function collectToolDataFromMessage(message: UnknownRecord, readFiles: string[], modifiedFiles: string[], commands: string[]): void {
-	for (const block of asArray(message.content)) {
-		const rec = asRecord(block);
-		if (!rec || rec.type !== "toolCall" || typeof rec.name !== "string") continue;
-		const args = asRecord(rec.arguments) ?? {};
-		const path = typeof args.path === "string" ? args.path : undefined;
-		if (path && rec.name === "read") readFiles.push(path);
-		if (path && (rec.name === "write" || rec.name === "edit")) modifiedFiles.push(path);
-		if (rec.name === "bash" && typeof args.command === "string") commands.push(truncate(args.command, 300));
-	}
-}
-
-function lineMatches(text: string, pattern: RegExp): string[] {
-	return text
-		.split(/\n+/)
-		.map((line) => line.trim().replace(/^[-*]\s*/, ""))
-		.filter((line) => line.length >= 8 && pattern.test(line))
-		.map((line) => truncate(line, 500));
-}
-
-type RecoveryMarker = "DECISION" | "SUPERSEDED" | "CONSTRAINT" | "REVOKED" | "BLOCKER" | "RESOLVED" | "VALIDATION";
-
-const RECOVERY_MARKER_RE = /^\s*(?:[-*]\s*)?\[(DECISION|SUPERSEDED|CONSTRAINT|REVOKED|BLOCKER|RESOLVED|VALIDATION)\]\s*:?\s*(.+?)\s*$/i;
-const LEGACY_TASK_MARKER_RE = /^\s*(?:[-*]\s*)?\[(?:GOAL|NEXT|COMPLETED)\]\s*:?\s*.+/i;
-
-type RecoveryMarkerEvent = { marker: RecoveryMarker; value: string };
-
-type ReducedMarkedRecoveryState = {
-	decisions: string[];
-	constraints: string[];
-	blockers: string[];
-	validations: string[];
-};
-
-function markedRecoveryEvents(text: string): RecoveryMarkerEvent[] {
-	const events: RecoveryMarkerEvent[] = [];
-	for (const line of text.split(/\n+/)) {
-		const match = line.match(RECOVERY_MARKER_RE);
-		if (!match) continue;
-		const value = truncate(match[2], 700);
-		if (value) events.push({ marker: match[1].toUpperCase() as RecoveryMarker, value });
-	}
-	return events;
-}
-
-function reduceMarkedRecoveryState(events: RecoveryMarkerEvent[]): ReducedMarkedRecoveryState {
-	const validations: string[] = [];
-	const active = {
-		DECISION: new Map<string, string>(),
-		CONSTRAINT: new Map<string, string>(),
-		BLOCKER: new Map<string, string>(),
-	};
-	const reopen = (kind: keyof typeof active, value: string) => {
-		const key = markerIdentity(value);
-		active[kind].delete(key);
-		active[kind].set(key, value);
-	};
-	const close = (kind: keyof typeof active, value: string) => active[kind].delete(markerIdentity(value));
-	for (const event of events) {
-		switch (event.marker) {
-			case "DECISION": reopen("DECISION", event.value); break;
-			case "SUPERSEDED": close("DECISION", event.value); break;
-			case "CONSTRAINT": reopen("CONSTRAINT", event.value); break;
-			case "REVOKED": close("CONSTRAINT", event.value); break;
-			case "BLOCKER": reopen("BLOCKER", event.value); break;
-			case "RESOLVED": close("BLOCKER", event.value); break;
-			case "VALIDATION": validations.push(event.value); break;
-		}
-	}
-	return {
-		decisions: [...active.DECISION.values()],
-		constraints: [...active.CONSTRAINT.values()],
-		blockers: [...active.BLOCKER.values()],
-		validations,
-	};
-}
-
-function markerIdentity(value: string): string {
-	return value.toLowerCase().replace(/\s+/g, " ").trim();
-}
-
-function sessionBranchEntries(ctx?: ExtensionContext): unknown[] {
-	try {
-		const sm = (ctx as unknown as { sessionManager?: { getBranch?: () => unknown[] } })?.sessionManager;
-		const branch = sm?.getBranch?.();
-		return Array.isArray(branch) ? branch : [];
-	} catch {
-		return [];
-	}
-}
-
-export function extractRecoveryState(event?: unknown, ctx?: ExtensionContext): RecoveryState {
-	const ev = asRecord(event) ?? {};
-	const prep = asRecord(ev.preparation) ?? {};
-	const fileOps = asRecord(prep.fileOps) ?? {};
-	const readFiles: string[] = [...setOrArrayToStrings(fileOps.read)];
-	const modifiedFiles: string[] = [...setOrArrayToStrings(fileOps.written), ...setOrArrayToStrings(fileOps.edited)];
-	const commands: string[] = [];
-	const decisions: string[] = [];
-	const constraints: string[] = [];
-	const blockers: string[] = [];
-	const validationResults: string[] = [];
-	const recentUserMessages: string[] = [];
-	const texts: string[] = [];
-	const preparationMessages = [
-		...asArray(prep.messagesToSummarize),
-		...asArray(prep.turnPrefixMessages),
-	] as UnknownRecord[];
-	const branchEntries = asArray(ev.branchEntries).length ? asArray(ev.branchEntries) : sessionBranchEntries(ctx);
-	const branchMessages = branchEntries.map(entryMessage).filter(Boolean) as UnknownRecord[];
-	const allMessages = [...preparationMessages, ...branchMessages];
-	const markerMessages = preparationMessages.length ? preparationMessages : branchMessages;
-	// Carry only the canonical state from the previous checkpoint, not stale summary prose.
-	const previousBlock = typeof prep.previousSummary === "string"
-		? prep.previousSummary.match(/<!-- authoritative-state:start -->\s*\n### Authoritative State\s*\n([\s\S]*?)\n<!-- authoritative-state:end -->/i)?.[1]
-		: undefined;
-	const markerEvents: RecoveryMarkerEvent[] = markedRecoveryEvents(previousBlock ?? "");
-
-	for (const message of allMessages) {
-		collectToolDataFromMessage(message, readFiles, modifiedFiles, commands);
-		const text = textFromContent(message.content);
-		if (!text) continue;
-		texts.push(text);
-		if (message.role === "user") recentUserMessages.push(truncate(text, 700));
-	}
-	for (const message of markerMessages) {
-		if (message.role !== "assistant") continue;
-		markerEvents.push(...markedRecoveryEvents(textFromContent(message.content)));
-	}
-
-	const combined = texts.join("\n");
-	const hasMarkedState = markerEvents.length > 0;
-	const marked = reduceMarkedRecoveryState(markerEvents);
-	decisions.push(...(hasMarkedState
-		? marked.decisions
-		: lineMatches(combined, /\b(decision|decided|choose|chosen|accept|selected|use|must|should)\b|решил|решили|выбор|будем|нужно|надо|обязательно/i)));
-	constraints.push(...marked.constraints);
-	blockers.push(...(hasMarkedState
-		? marked.blockers
-		: lineMatches(combined, /error|failed|exception|cannot|enoent|syntaxerror|typeerror|blocked|blocker|risk|ошиб|падает|не работает|блок|риск/i)));
-	validationResults.push(...marked.validations);
-
-	return {
-		readFiles: uniqueLimit(readFiles.sort(), 8),
-		modifiedFiles: uniqueLimit(modifiedFiles.sort(), 15),
-		commands: uniqueLimit(commands.reverse(), 5),
-		decisions: uniqueLimit(decisions.reverse(), 12),
-		constraints: uniqueLimit(constraints.reverse(), 12),
-		blockers: uniqueLimit(blockers.reverse(), 12),
-		validationResults: uniqueLimit(validationResults.reverse(), 12),
-		recentUserMessages: uniqueLimit(recentUserMessages.reverse(), 3),
-	};
-}
-
-type AuthoritativeRecoveryMarker = "CONSTRAINT" | "DECISION" | "BLOCKER" | "VALIDATION";
-type AuthoritativeRecoveryEntry = { marker: AuthoritativeRecoveryMarker; value: string };
-
-const AUTHORITATIVE_STATE_START = "<!-- authoritative-state:start -->";
-const AUTHORITATIVE_STATE_END = "<!-- authoritative-state:end -->";
-
-function oneLine(value: string): string {
-	return value.replace(/\s+/g, " ").trim();
-}
-
-export function authoritativeRecoveryEntries(event?: unknown): AuthoritativeRecoveryEntry[] {
-	const state = extractRecoveryState(event);
-	const entries: AuthoritativeRecoveryEntry[] = [];
-	const add = (marker: AuthoritativeRecoveryMarker, values: string[]) => {
-		for (const raw of values) {
-			const value = oneLine(raw);
-			if (!value || value.startsWith("Captured automatically")) continue;
-			entries.push({ marker, value });
-		}
-	};
-	add("CONSTRAINT", state.constraints);
-	add("DECISION", state.decisions);
-	add("BLOCKER", state.blockers);
-	add("VALIDATION", state.validationResults.slice(0, 4));
-	return entries.filter((entry, index, all) => all.findIndex((candidate) => candidate.marker === entry.marker && markerIdentity(candidate.value) === markerIdentity(entry.value)) === index);
-}
-
-/** Add canonical active recovery markers after model generation, before strict validation. */
-export function projectAuthoritativeState(summary: string, event?: unknown): string {
-	const base = summary
-		.replace(/\n?<!-- authoritative-state:start -->[\s\S]*?<!-- authoritative-state:end -->\n?/gi, "\n")
-		.split("\n")
-		.filter((line) => !RECOVERY_MARKER_RE.test(line) && !LEGACY_TASK_MARKER_RE.test(line))
-		.join("\n")
-		.trim();
-	const entries = authoritativeRecoveryEntries(event);
-	if (!entries.length) return base;
-	const block = [
-		AUTHORITATIVE_STATE_START,
-		"### Authoritative State",
-		...entries.map((entry) => `[${entry.marker}] ${entry.value}`),
-		AUTHORITATIVE_STATE_END,
-	].join("\n");
-	return `${base}\n\n${block}`;
-}
-
-function sameAuthoritativeEntries(actual: RecoveryMarkerEvent[], expected: AuthoritativeRecoveryEntry[]): boolean {
-	return actual.length === expected.length && actual.every((entry, index) => {
-		const wanted = expected[index];
-		return entry.marker === wanted.marker && markerIdentity(entry.value) === markerIdentity(wanted.value);
-	});
-}
-
-/** Validate exact canonical marker ledger, while allowing closed work to remain ordinary Done prose. */
-export function validateProjectedAuthoritativeState(summary: string, event?: unknown): string[] {
-	const expected = authoritativeRecoveryEntries(event);
-	const starts = summary.split(AUTHORITATIVE_STATE_START).length - 1;
-	const ends = summary.split(AUTHORITATIVE_STATE_END).length - 1;
-	const allMarkers = markedRecoveryEvents(summary);
-	if (summary.split("\n").some((line) => LEGACY_TASK_MARKER_RE.test(line))) return ["legacy task marker outside TODO.md"];
-	if (!expected.length) return starts || ends || allMarkers.length ? ["unexpected authoritative state block"] : [];
-	const block = summary.match(/<!-- authoritative-state:start -->\s*\n### Authoritative State\s*\n([\s\S]*?)\n<!-- authoritative-state:end -->/i);
-	const errors: string[] = [];
-	if (starts !== 1 || ends !== 1 || !block) errors.push("authoritative state block must appear exactly once");
-	const blockMarkers = block ? markedRecoveryEvents(block[1]) : [];
-	if (!sameAuthoritativeEntries(blockMarkers, expected)) errors.push("canonical authoritative state does not match chronological ledger");
-	if (allMarkers.length !== blockMarkers.length || !sameAuthoritativeEntries(allMarkers, expected)) errors.push("recovery marker found outside canonical authoritative state block");
-	return errors;
-}
-
-function recoveryBody(ctx: ExtensionContext, reason: string, usagePercent: number, tokens: number, window: number, event?: unknown): string {
-	const cwd = (ctx as unknown as { cwd?: string }).cwd ?? process.cwd();
-	const now = new Date().toISOString();
-	const state = extractRecoveryState(event, ctx);
-	const summaryModel = "none (deterministic context-fold)";
-	return `---
-agent_id: ${yamlString(agentId(cwd))}
-project: ${yamlString(projectSlug(cwd))}
-cwd: ${yamlString(cwd)}
-timestamp: ${yamlString(now)}
-source: auto-ultra-compact
-reason: ${yamlString(reason)}
-context_tokens: ${tokens}
-effective_window: ${window}
-context_usage_percent: ${usagePercent.toFixed(1)}
-summary_engine: context-fold-deterministic
-summary_model: ${yamlString(summaryModel)}
-summary_contract: ${yamlString(SUMMARY_CONTRACT_ID)}
-summary_contract_source: "~/.pi/agent/extensions/auto-ultra-compact/index.ts#ULTRA_INSTRUCTIONS"
----
-
-# Recovery Packet: ${agentId(cwd)}
-
-## Restore sequence
-
-1. Before resuming multi-step project work, read the current TODO.md at \`${cwd}/TODO.md\`. It alone defines tracked task goals, status, and next steps; ignore stale task state in this packet or compact summary.
-2. For such work, if TODO.md is missing, unreadable, or has no clear active task, stop and ask; never guess from conversation.
-3. Use this packet and compact summary only for durable constraints, decisions, validation evidence, changed files, and unresolved blockers.
-4. Read project AGENTS.md / CLAUDE.md only if present and needed.
-5. Continue the current tracked TODO.md task, or answer the current user request if it is a discussion, question, or small single-step edit; do not invent a tracked task.
-
-## Recent user messages
-
-${mdList(state.recentUserMessages)}
-
-## Durable constraints
-
-${mdList(state.constraints)}
-
-## Current decisions
-
-${mdList(state.decisions)}
-
-## Validation results
-
-${mdList(state.validationResults)}
-
-## Unresolved blockers / errors / risks
-
-${mdList(state.blockers)}
-
-## Changed files
-
-${mdList(state.modifiedFiles)}
-
-## Read files
-
-${mdList(state.readFiles)}
-
-## Recent commands
-
-${mdList(state.commands)}
-
-## State pointers
-
-- CWD: \`${cwd}\`
-- Task ledger: \`${cwd}/TODO.md\` (read live; not snapshotted)
-- Recovery packet: \`${globalRecoveryPath(ctx)}\`
-- Project recovery mirror: \`${projectRecoveryPath(ctx) ?? "disabled"}\`
-- Context usage: ${tokens}/${window} tokens (${usagePercent.toFixed(1)}%)
-- Trigger reason: ${reason}
-- Summary owner: context-fold renders the deterministic seed index without a model call. This packet is emergency recovery only.
-
-## Do not reread by default
-
-- Full raw logs.
-- Full large directories.
-- Full command outputs or artifacts.
-- Broad files when grep/search/slices suffice.
-`;
-}
-
-function writeRecoveryFiles(ctx: ExtensionContext, state: RuntimeState, reason: string, usagePercent: number, tokens: number, window: number, event?: unknown): string {
-	const body = recoveryBody(ctx, reason, usagePercent, tokens, window, event);
-	const globalPath = globalRecoveryPath(ctx);
-	writeFileSync(globalPath, body, "utf8");
-	state.lastRecoveryPath = globalPath;
-	state.lastProjectRecoveryPath = undefined;
-	const mirrorPath = projectRecoveryPath(ctx);
-	if (mirrorPath) {
-		writeFileSync(mirrorPath, body, "utf8");
-		state.lastProjectRecoveryPath = mirrorPath;
-	}
-	state.lastError = undefined;
-	return globalPath;
-}
-
-function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeState, recoveryPath: string): void {
+function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeState): void {
 	const compactFn = (ctx as unknown as { compact?: (options: CompactOptions) => void }).compact;
 	if (typeof compactFn !== "function") {
 		runtime.compactInFlight = false;
@@ -635,7 +168,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 	}
 	try {
 		compactFn({
-			customInstructions: ULTRA_INSTRUCTIONS,
+			customInstructions: "For multi-step project work, current TODO.md alone defines task status and next steps; reread it before resuming and ask if unclear. Discussions and small single-step edits need no task entry. Preserve exact evidence and unresolved constraints without inventing task state.",
 			onComplete: () => {
 				if (!runtime.active) return;
 				const continuationMessage = runtime.continuationMessage;
@@ -644,7 +177,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 				runtime.lastCompletedAt = new Date().toISOString();
 				runtime.lastError = undefined;
 				runtime.postCompactCheckPending = true;
-				notify(ctx, `auto-ultra-compact complete; recovery: ${recoveryPath}`, "info");
+				notify(ctx, "auto-ultra-compact complete", "info");
 				// `session_compact` fires while Pi's manual-compaction controller is
 				// still active. Sending there is rejected. `onComplete` runs after
 				// controller cleanup, so extension-triggered continuation is safe here.
@@ -658,7 +191,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 				if (/already compacted/i.test(error.message)) {
 					runtime.lastCompletedAt = new Date().toISOString();
 					runtime.lastError = undefined;
-					notify(ctx, `auto-ultra-compact skipped; Pi already compacted: ${recoveryPath}`, "info");
+					notify(ctx, "auto-ultra-compact skipped; Pi already compacted", "info");
 					return;
 				}
 				if (/nothing to compact|session too small/i.test(error.message)) {
@@ -703,8 +236,6 @@ function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: num
 		`lastTokens: ${runtime.lastTokens ?? "unknown"}`,
 		`lastWindow: ${runtime.lastWindow ?? "unknown"}`,
 		`lastPercent: ${runtime.lastPercent?.toFixed(1) ?? "unknown"}`,
-		`lastRecovery: ${runtime.lastRecoveryPath ?? "none"}`,
-		`lastProjectRecovery: ${runtime.lastProjectRecoveryPath ?? "disabled"}`,
 		`lastCompletedAt: ${runtime.lastCompletedAt ?? "none"}`,
 		`lastSkippedAt: ${runtime.lastSkippedAt ?? "none"}`,
 		`lastSkipReason: ${runtime.lastSkipReason ?? "none"}`,
@@ -713,7 +244,6 @@ function statusText(ctx: ExtensionContext, runtime: RuntimeState, threshold: num
 		`lastError: ${runtime.lastError ?? "none"}`,
 		`summaryEngine: context-fold-deterministic`,
 		`summaryModel: ${summaryModel}`,
-		`summaryContract: ${SUMMARY_CONTRACT_ID}`,
 		`untrustedCodeExecution: disabled`,
 	].join("\n");
 }
@@ -784,18 +314,8 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		runtime.followupPending = true;
 		runtime.lastCompactTurn = runtime.turn;
 		runtime.lastTrigger = reason;
-		let recoveryPath: string;
-		try {
-			recoveryPath = writeRecoveryFiles(ctx, runtime, reason, percent, tokens, window);
-		} catch (error) {
-			runtime.compactInFlight = false;
-			runtime.followupPending = false;
-			runtime.lastError = `recovery write failed: ${error instanceof Error ? error.message : String(error)}`;
-			notify(ctx, `auto-ultra-compact recovery write failed; compact skipped: ${runtime.lastError}`, "error");
-			return;
-		}
-		notify(ctx, `auto-ultra-compact threshold ${percent.toFixed(1)}% >= ${threshold}%; recovery: ${recoveryPath}`, "info");
-		runCompact(pi, ctx, runtime, recoveryPath);
+		notify(ctx, `auto-ultra-compact threshold ${percent.toFixed(1)}% >= ${threshold}%`, "info");
+		runCompact(pi, ctx, runtime);
 	}
 
 	pi.on("turn_end", (_event, ctx) => {
@@ -819,7 +339,7 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 		const automatic = event.reason !== "manual" || extensionTriggered;
 		if (automatic) runtime.postCompactCheckPending = true;
 		if (!followup || !shouldFollowUp) return;
-		const message = recoveryFollowupMessage(event, runtime.lastRecoveryPath);
+		const message = RESTORE_MESSAGE;
 		if (event.reason === "manual") {
 			// ctx.compact() uses manual lifecycle. Pi rejects prompts until its
 			// compaction controller is cleared after this event.
@@ -833,7 +353,7 @@ export default function autoUltraCompact(pi: ExtensionAPI): void {
 
 	function registerStatusCommand(name: string): void {
 		pi.registerCommand(name, {
-			description: "Show auto-ultra-compact diagnostics and last recovery packet.",
+			description: "Show auto-ultra-compact diagnostics.",
 			handler: async (_args, ctx) => {
 				const text = statusText(ctx, runtime, threshold, cooldownTurns, followup);
 				notify(ctx, text, runtime.lastError ? "warning" : "info");
