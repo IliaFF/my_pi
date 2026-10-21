@@ -85,7 +85,7 @@ def main() -> int:
     if any(path.exists() for path in retired_surface) or "pi-canary" in package_json["dependencies"] or any("node_modules/pi-canary" in path for path in package_lock["packages"]):
         fail("retired tools/Canary artifacts remain in release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
-    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status"]:
+    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "Ask the user if uncertain"]:
         if required not in append_system:
             fail(f"tool routing / task policy missing: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:
@@ -96,6 +96,12 @@ def main() -> int:
     for required in ['registerCommand("queue"', 'name: "task_queue"', 'pi.on("agent_settled"']:
         if required not in todo_source:
             fail(f"todo-queue wiring missing: {required}")
+    session_source = ROOT / "local-extensions/task-session.ts"
+    if not session_source.is_file() or 'name: "start_task_session"' not in session_source.read_text():
+        fail("native task session handoff tool missing")
+    for required in ['"extensions/task-session.ts"', 'cp "$ROOT/local-extensions/task-session.ts"']:
+        if required not in (ROOT / "install.sh").read_text():
+            fail(f"task-session installer/backup wiring missing: {required}")
     terminal = json.loads((ROOT / "windows-terminal/settings.json").read_text())
     background = terminal.get("profiles", {}).get("defaults", {}).get("backgroundImage", "")
     if not background.startswith("%USERPROFILE%") or "C:\\Users\\" in background:

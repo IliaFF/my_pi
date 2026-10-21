@@ -50,7 +50,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.7.0 and @spences10/pi-context@0.1.16"
   echo "DRY-RUN preserve personal configuration: $PRESERVE_SETTINGS"
-  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + seven local extensions + OpenAlex skill"
+  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + local extensions (including task-session handoff) + OpenAlex skill"
   echo "DRY-RUN patches: manifest exact-version patches"
   exit 0
 fi
@@ -62,7 +62,7 @@ fi
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "my-pi-settings.json" "fabric.json"
   "mcp.json" "train-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
-  "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts"
+  "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts" "extensions/task-session.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
   "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
@@ -195,6 +195,7 @@ rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/con
 rm -f "$AGENT_DIR/extensions/tools.ts"
 rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
+cp "$ROOT/local-extensions/task-session.ts" "$AGENT_DIR/extensions/task-session.ts"
 cp "$ROOT/local-extensions/deferred-tools.ts" "$AGENT_DIR/extensions/deferred-tools.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
 rm -f "$AGENT_DIR/extensions/reader-pane.ts"

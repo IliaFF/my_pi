@@ -73,7 +73,17 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   let dispatching = false;
   const panel = createQueuePanel();
   const checks = queueChecks(pi);
-  pi.on("session_start", (_event, ctx) => panel.start(ctx));
+  const recordRun = () => pi.appendEntry("todo-queue-run", { autoRun, completedThisRun });
+  pi.on("session_start", (_event, ctx) => {
+    const entry = ctx.sessionManager.getBranch().findLast(item => item.type === "custom" && item.customType === "todo-queue-run");
+    const data = entry?.type === "custom" ? entry.data as { handoff?: boolean; autoRun?: boolean; completedThisRun?: number } : undefined;
+    if (data?.handoff === true && data.autoRun === true && Number.isInteger(data.completedThisRun) && data.completedThisRun! >= 0 && data.completedThisRun! < MAX_RUN_TASKS) {
+      autoRun = true;
+      completedThisRun = data.completedThisRun!;
+    }
+    recordRun(); // Consume handoff markers and clear stale state on reload/resume.
+    return panel.start(ctx);
+  });
   pi.registerShortcut("ctrl+shift+t", {
     description: "Collapse/expand project TODO panel",
     handler: (ctx) => panel.toggle(ctx),
@@ -93,12 +103,12 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
   };
 
   const dispatchPrompt = (task: QueueTask, resume: boolean): string => [
-    `[TODO QUEUE ${task.id}]`,
-    resume ? "Продолжи текущую задачу и доведи её до проверенного результата." : "Возьми эту задачу и доведи её до проверенного результата.",
+    `[TODO QUEUE ${task.id ?? "FIFO candidate without id"}]`,
+    resume ? "Продолжи текущую задачу и доведи её до проверенного результата." : "Это кандидат из Pending, ещё не взятый в работу. Сначала оцени связь с предыдущей общей целью: связанную задачу оставь здесь; при сомнении спроси пользователя; для независимой вызови start_task_session до claim. Затем вызови task_queue action=claim с указанным id (без id для FIFO, если его нет) и работай в выбранной сессии.",
     "",
     task.text,
     "",
-    "Не перемещай этот пункт между разделами TODO.md вручную.",
+    "После claim используй настоящий id из результата инструмента, не placeholder кандидата. Не перемещай этот пункт между разделами TODO.md вручную.",
     "Для проверок кода используй task_queue action=check с id, command и cwd проекта; это фоновая проверка со снимком файлов. Жди уведомления, не опрашивай статус циклически.",
     "После успешных проверок вызови task_queue action=complete с этим id, кратким summary и непустым evidence. Устаревшие/неуспешные записанные проверки не засчитываются.",
     "Если есть устойчивое внешнее препятствие — вызови task_queue action=block с этим id и reason.",
@@ -116,18 +126,19 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         task = inspectTodo(await readFile(path, "utf8")).current;
         if (!task?.id) throw new Error("Current task has no queue id; release it or assign it through /queue next");
       } else {
-        task = await mutateTodo(path, (text) => {
-          const changed = claimNext(text);
-          return { text: changed.text, value: changed.task };
-        });
+        const state = inspectTodo(await readFile(path, "utf8"));
+        if (state.current) throw new Error("A task is already in progress; use /queue resume or /queue skip");
+        task = state.pending[0];
       }
       if (!task) {
         autoRun = false;
+        recordRun();
         ctx.ui.notify("TODO queue is empty", "info");
         return undefined;
       }
-      checks.invalidate(ctx, task.id!);
-      activeTaskId = task.id;
+      recordRun();
+      if (resume) checks.invalidate(ctx, task.id!);
+      activeTaskId = resume ? task.id : undefined;
       terminalHandled = false;
       pi.sendUserMessage(dispatchPrompt(task, resume));
       return task;
@@ -212,6 +223,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         }
         if (command === "next") {
           autoRun = false;
+          recordRun();
           await dispatch(ctx);
           return;
         }
@@ -220,19 +232,20 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
           autoRun = true;
           completedThisRun = 0;
           pendingAdvance = false;
-          try { await dispatch(ctx); } catch (error) { autoRun = false; throw error; }
+          try { await dispatch(ctx); } catch (error) { autoRun = false; recordRun(); throw error; }
           return;
         }
         if (command === "resume") {
           autoRun = true;
           completedThisRun = 0;
           pendingAdvance = false;
-          try { await dispatch(ctx, true); } catch (error) { autoRun = false; throw error; }
+          try { await dispatch(ctx, true); } catch (error) { autoRun = false; recordRun(); throw error; }
           return;
         }
         if (command === "pause") {
           autoRun = false;
           pendingAdvance = false;
+          recordRun();
           ctx.ui.notify("TODO queue paused", "info");
           return;
         }
@@ -248,6 +261,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
           autoRun = false;
           pendingAdvance = false;
           activeTaskId = undefined;
+          recordRun();
           ctx.ui.notify("Current task returned to Pending; queue paused", "info");
           return;
         }
@@ -306,7 +320,11 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
           const update = claimNext(content, undefined, params.id === undefined ? undefined : requireText(params.id, "id"));
           return { text: update.text, value: update.task };
         });
-        if (changed?.id) checks.invalidate(ctx, changed.id);
+        if (changed?.id) {
+          checks.invalidate(ctx, changed.id);
+          activeTaskId = changed.id;
+          terminalHandled = false;
+        }
         return changed ? result(`Claimed ${formatTask(changed)}`, { task: changed }) : result("Queue is empty");
       }
       const id = requireText(params.id, "id");
@@ -334,6 +352,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         terminalHandled = activeTaskId === id;
         pendingAdvance = autoRun;
         if (terminalHandled) completedThisRun += 1;
+        recordRun();
         return result(`Completed ${formatTask(changed)}\nEvidence: ${evidence.join("; ")}`, { task: changed, summary: params.summary, evidence });
       }
       if (params.action === "block") {
@@ -344,6 +363,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         terminalHandled = activeTaskId === id;
         autoRun = false;
         pendingAdvance = false;
+        recordRun();
         return result(`Blocked ${formatTask(changed)}; queue paused`, { task: changed, reason: params.reason });
       }
       const changed = await mutateTodo(path, (content) => {
@@ -354,6 +374,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
       terminalHandled = activeTaskId === id;
       autoRun = false;
       pendingAdvance = false;
+      recordRun();
       return result(`Released ${formatTask(changed)}; queue paused`, { task: changed });
     },
   });
@@ -365,6 +386,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
       terminalHandled = false;
       if (completedThisRun >= MAX_RUN_TASKS) {
         autoRun = false;
+        recordRun();
         ctx.ui.notify(`TODO queue paused at safety limit ${MAX_RUN_TASKS}`, "warning");
         return;
       }
@@ -372,6 +394,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         await dispatch(ctx);
       } catch (error) {
         autoRun = false;
+        recordRun();
         notifyError(ctx, error);
       }
       return;
@@ -379,6 +402,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
     if (autoRun && activeTaskId && !terminalHandled) {
       autoRun = false;
       pendingAdvance = false;
+      recordRun();
       ctx.ui.notify("Agent settled without task_queue.complete/block; queue paused and task remains In progress", "warning");
     }
     activeTaskId = undefined;

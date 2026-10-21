@@ -165,6 +165,12 @@
       "reason": "Persistent bounded direct-tool loop baseline with externalized-output metrics and /loop-report; raw trace remains opt-in."
     },
     {
+      "source": "extensions/task-session.ts",
+      "snapshot": "local-extensions/task-session.ts",
+      "restore": true,
+      "reason": "Native fresh-session handoff for unrelated goals from chat and TODO queue; shared goals stay and ambiguity asks."
+    },
+    {
       "source": "extensions/todo-queue/README.md",
       "snapshot": "local-extensions/todo-queue/README.md",
       "restore": true,
