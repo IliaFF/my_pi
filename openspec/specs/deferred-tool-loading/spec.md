@@ -35,11 +35,11 @@ Reports MUST include tool-search overhead in before/after serialized schema byte
 - **THEN** results describe request-prefix invariants and measured schema sizes only, leaving live endpoint/cache behavior unverified
 
 ### Requirement: Updated Preview retains deferred exposure
-The approved Preview 0.23.0 baseline MUST register preview_export with native deferred exposure without changing its schema or executor.
+The approved Preview 0.24.0 baseline MUST register preview_export with native deferred exposure without changing its schema or executor.
 
 #### Scenario: Fresh Preview after stock package update
-- **WHEN** the versioned patch is applied to a pristine Preview 0.23.0 installation
-- **THEN** the actual SDK deferred-tool regression passes with core 1.3.0 and safe discovery remains additive
+- **WHEN** the versioned patch is applied to a pristine Preview 0.24.0 installation
+- **THEN** the actual SDK deferred-tool regression passes with core 1.4.0 and safe discovery remains additive
 
 ### Requirement: Web loader is declared only while needed
 The build MUST omit web_enable from current declarations when every configured pi-web-access tool is active, preserve its registered executor, and restore its declaration if a configured tool becomes inactive. It MUST preserve renamed tools, disabled capabilities, native lazy/eager adapter selection and session restoration. It MUST NOT remove unrelated tools or claim control of external harness schemas.

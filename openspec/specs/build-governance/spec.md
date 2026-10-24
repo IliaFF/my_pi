@@ -104,3 +104,10 @@ A targeted transitive advisory fix MUST retain direct dependency pins and declar
 #### Scenario: Hono static-middleware advisory
 - **WHEN** vulnerable Hono is resolved through the existing MCP SDK dependency
 - **THEN** the compatible patched lock is used without adding a direct package or blind audit fix, and no unrelated dependency updates are accepted
+
+### Requirement: Approved stable stack updates preserve each runtime scope
+An explicitly requested stable stack update MUST validate the exact source candidate with the full offline gate and preserve private configuration, credentials, sessions and unrelated dependencies in each approved installation. Active project overrides and actual CLI entry points MUST be checked separately from managed SDK pins. Deployment MUST have a recoverable verified backup, and failures or untested live behavior MUST be reported honestly.
+
+#### Scenario: Local and VPS update requested
+- **WHEN** the user approves updating source, local runtime and VPS
+- **THEN** exact stable pins and version-gated patches pass source and host validation, local extra dependencies/overrides survive, and unrelated VPS applications and provider credentials remain unchanged

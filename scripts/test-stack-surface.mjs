@@ -52,7 +52,7 @@ try {
     process.env.HOME = state;
     process.chdir(state);
     mkdirSync(join(state, ".pi/agent"), { recursive: true });
-    writeFileSync(join(state, ".pi/agent/pi-meantime.json"), '{"enabled":true}');
+    writeFileSync(join(state, "pi-meantime.json"), '{"enabled":true}');
     globalThis.setInterval = (fn, ms) => { assert.equal(ms, 1000); timers.set(++nextTimer, fn); return nextTimer; };
     globalThis.clearInterval = id => { cleared.add(id); };
     (await jiti.import(join(modules, "pine-of-glass/extensions/pi-meantime/index.ts"), { default: true }))(meantime.pi);

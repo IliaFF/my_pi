@@ -34,7 +34,7 @@ npm test -- --agent "$HOME/.pi/agent"  # реальные dependencies + drift, 
 npm run verify:host                  # только patches/snapshots integrity
 ```
 
-Новый source закрепляет Pi core/pi-tui **1.3.0**, совпадающий с фактически активным ядром. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
+Новый source закрепляет Pi core/pi-tui **1.4.0**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
 
 Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
 
@@ -42,7 +42,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 ---
 
-Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.3.0; текущие результаты — в OpenSpec evidence и `test-results/`.
+Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.4.0; текущие результаты — в OpenSpec evidence и `test-results/`.
 
 # my_pi
 
@@ -50,7 +50,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@1.3.0`
+- Pi core `@earendil-works/pi-coding-agent@1.4.0`
 - Node.js `>=24.0.0`
 - 19 прямых npm dependencies с точными версиями: 16 settings entries и exact runtime peers; полный `package-lock.json`
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
@@ -64,29 +64,29 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
 - глобальный OpenAlex skill с dependency-free Node helper для поиска научных публикаций и OA-ссылок
 
-Репозиторий содержит семь version-gated patches: `pi-train-agents@0.2.7` для глобального `APPEND_SYSTEM.md` и истории всех проектов, `@juicesharp/rpiv-ask-user-question@2.13.9` для первого хода без UI, Ponytail для request-local skill discovery и три native-deferred patches для SSH, preview и context. `pi-background-tasks@2.6.10` ограничен process-only политикой в общей точке запуска. Caveman и его patch удалены по запросу пользователя; правила понятных объяснений находятся в `configs/APPEND_SYSTEM.md`, Ponytail сохранён. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает обработку optional Codex quota windows.
+Репозиторий содержит десять version-gated patches: `pi-train-agents@0.2.7` для глобального `APPEND_SYSTEM.md` и истории всех проектов, `@juicesharp/rpiv-ask-user-question@2.15.0` для первого хода без UI, Ponytail для request-local skill discovery и три native-deferred patches для SSH, preview и context. `pi-background-tasks@2.6.10` ограничен process-only политикой в общей точке запуска. Caveman и его patch удалены по запросу пользователя; правила понятных объяснений находятся в `configs/APPEND_SYSTEM.md`, Ponytail сохранён. `pi-zai-usage@1.1.0` сохраняет локальный native-quota fallback patch; web-access и context-fold также имеют version-gated patches.
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 19 прямых dependency. В `configs/settings.json` перечислены 16 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.2`/`1.3.0`/`1.3.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 19 прямых dependency. В `configs/settings.json` перечислены 16 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.11.0` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.11.2` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `@monotykamary/pi-retry` | `0.11.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
 | `context-fold` | `0.7.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
-| `pi-web-access` | `0.42.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
+| `pi-web-access` | `0.44.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
 | `@dietrichgebert/ponytail` | `5.3.2` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
-| `@juicesharp/rpiv-ask-user-question` | `2.13.9` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
-| `pi-token-speed` | `0.11.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
+| `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
+| `pi-token-speed` | `0.12.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; completion wake по умолчанию с явным opt-out; без agent telemetry, delegates, Fusion и attribution. |
 | `pi-fast-resume` | `1.4.18` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
-| `pine-of-glass` | `0.18.0` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
-| `pi-markdown-preview` | `0.23.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pine-of-glass` | `0.18.3` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
+| `pi-markdown-preview` | `0.24.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
-| `@amaster.ai/pi-browser-use` | `0.1.28` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
+| `@amaster.ai/pi-browser-use` | `0.1.31` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
 
 | `pi-ssh-remote` | `0.1.15` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
 
@@ -181,7 +181,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --install-core
 ```
 
-Если Pi `1.3.0` уже доступен через `PATH`:
+Если Pi `1.4.0` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -326,11 +326,11 @@ Update script создаёт backup npm tree, обновляет расшире�
 
 Обычный `pi update --extensions` заменяет npm-пакеты и **не восстанавливает наши патчи**, включая отдельные project overrides. Для user runtime используйте safe updater **вне проекта с собственными packages**, как в примерах выше: его gate проверяет user runtime, не project overrides. Проектный Ponytail обновляется отдельно с backup/patch/actual SDK gate. Перенос на новую patched version делается сначала в source с полным gate.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.3.0`; обновление core нужно сначала проверить и зафиксировать здесь.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.4.0`; обновление core нужно сначала проверить и зафиксировать здесь.
 
-После обновления ядро и пять изменившихся расширений выровнены с согласованным runtime; остальные прямые версии сохранены. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
+Stable baseline обновлён до Pi 1.4.0; актуальные direct версии приведены в таблице выше и exact lock. Установка каждого runtime подтверждается отдельно в OpenSpec evidence. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
 
-Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. Актуальный `npm audit` ядра 1.3.0 отдельно не запускался; прежние результаты для ядра 1.0.0 не описывают этот baseline.
+Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. `npm audit --omit=dev --legacy-peer-deps` для candidate 1.4.0 отметил 8 affected packages (5 high, 3 moderate); часть цепочек закреплена upstream exact pins/ranges. Автоматический downgrade/major override не применялся. Это известный риск dependency tree, не подтверждение эксплуатации; подробности в evidence `update-stack-1-4-0`.
 
 ## Откат
 

@@ -1,17 +1,17 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "1.3.0",
+  "piCoreVersion": "1.4.0",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.13.9",
+      "version": "2.15.0",
       "pinRequired": false,
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.13.9.patch",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.15.0.patch",
       "files": [
         "reconcile.ts"
       ],
-      "reason": "Reconcile UI availability at session_start; stock 2.13.9 fails first-turn tool availability regression."
+      "reason": "Reconcile UI availability at session_start; stock 2.15.0 fails first-turn tool availability regression."
     },
     {
       "package": "pi-train-agents",
@@ -66,9 +66,9 @@
     },
     {
       "package": "pi-markdown-preview",
-      "version": "0.23.0",
+      "version": "0.24.0",
       "pinRequired": false,
-      "patch": "patches/pi-markdown-preview+0.23.0.patch",
+      "patch": "patches/pi-markdown-preview+0.24.0.patch",
       "files": [
         "index.ts"
       ],
@@ -101,9 +101,9 @@
     },
     {
       "package": "pi-web-access",
-      "version": "0.43.0",
+      "version": "0.44.0",
       "pinRequired": false,
-      "patch": "patches/pi-web-access+0.43.0.patch",
+      "patch": "patches/pi-web-access+0.44.0.patch",
       "files": [
         "dist/index.js"
       ],

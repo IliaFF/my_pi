@@ -8,7 +8,7 @@
 
 `pi-build/` — Git-источник: код, portable configs, exact locks, patches, OpenSpec, тесты. `~/.pi/agent/` — личный установленный runtime. `~/.pi/agent/maintenance` — установленная копия исходников. Source не устанавливается автоматически; в change align-latest-stable-runtime пользователь отдельно разрешил установку latest stable с backup и сохранением личных настроек.
 
-Baseline закрепляет фактически используемое ядро Pi **1.3.0** и pi-tui **1.3.0**. Ponytail5.3.0/Preview0.23.0 имеют перенесённые патчи; retry0.11.1, fast-resume1.4.17 и web-access0.41.0 выровнены с обновлённым runtime. Остальные direct версии сохранены. SDK peers были1.2.0; после согласованного исправления они выровнены с core1.3.0 и в source, и на диске runtime. Stock RPIV 2.13.8 провалил проверку first-turn UI availability; однострочный patch перенесён на 2.13.8 и проверяется fresh replay. У старого maintenance было ядро 1.0.0; его инструкции/API-проверки частично отстали от рабочего окружения.
+Baseline закрепляет ядро Pi и pi-tui **1.4.0**. Direct extension pins и version-gated patches находятся в `npm/package.json` и `manifest.json`. Обновление stable stack описано в change `update-stack-1-4-0`; результаты source/host gates и установки записываются в его evidence. Номер SDK в dependencies сам по себе не подтверждает версию CLI из PATH: проверяйте оба entry point.
 
 ## При поломке
 

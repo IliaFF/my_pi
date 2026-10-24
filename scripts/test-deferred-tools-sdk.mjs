@@ -92,14 +92,18 @@ try {
     assert.ok(body); assert.match(end.errorMessage, /OFFLINE_CAPTURE/); return body;
   }
   const initial = await payload(contexts[0]), loaded = await payload(contexts[1]);
+  assert.equal(initial.tools, undefined, "Native changes mode declares initial tools in history");
+  const initialTools = initial.input.find(m => m.type === "additional_tools")?.tools;
+  assert.ok(initialTools?.some(t => t.name === "tool_search"));
+  assert.ok(rare.every(name => !initialTools.some(t => t.name === name)));
   assert.deepEqual(loaded.tools, initial.tools); assert.equal(loaded.instructions, initial.instructions); assert.equal(loaded.prompt_cache_key, initial.prompt_cache_key);
   assert.deepEqual(loaded.input.slice(0, initial.input.length), initial.input);
   assert.ok(loaded.input.some(m => m.type === "additional_tools" && m.tools.some(t => t.name === "context_stats")));
   const fallback = await payload(contexts[1], { ...nativeModel, compat: { ...nativeModel.compat, supportsAdditionalTools: false, supportsToolSearch: true } });
-  assert.deepEqual(fallback.tools, initial.tools); assert.ok(fallback.input.some(m => m.type === "tool_search_output" && m.tools.some(t => t.name === "context_stats" && t.defer_loading)));
+  assert.deepEqual(fallback.tools, initialTools); assert.ok(fallback.input.some(m => m.type === "tool_search_output" && m.tools.some(t => t.name === "context_stats" && t.defer_loading)));
   const unsupported = await payload(contexts[1], { ...nativeModel, compat: { ...nativeModel.compat, supportsAdditionalTools: false, supportsToolSearch: false } });
   assert.ok(unsupported.tools.some(t => t.name === "context_stats"));
-  assert.equal(resolveTranscriptTools(contexts[1].messages, true).anchorsAdditions, true);
+  assert.equal(resolveTranscriptTools(contexts[1].messages, "changes").foldedSystemMessages, 0);
 
   // Persist a real pre-change-style SDK transcript and reopen under the new defaults/exposure.
   const legacy = await open({ legacy: true, manager: SessionManager.create(cwd, join(sandbox, "sessions")) });
@@ -108,7 +112,9 @@ try {
   await legacy.prompt("Record legacy tools.");
   const file = legacy.sessionManager.getSessionFile(); assert.ok(file && existsSync(file));
   const legacyBody = await payload(legacyContext);
-  assert.ok(rare.every(n => legacyBody.tools.some(t => t.name === n)));
+  const legacyTools = legacyBody.input.find(m => m.type === "additional_tools")?.tools;
+  assert.ok(legacyTools?.length);
+  assert.ok(rare.every(n => legacyTools.some(t => t.name === n)));
   assert.ok(!legacy.getActiveToolNames().includes("tool_search"));
   const unchangedFile = join(sandbox, "legacy-unchanged.jsonl"); copyFileSync(file, unchangedFile);
   const unchanged = await open({ manager: SessionManager.open(unchangedFile) });
@@ -120,7 +126,7 @@ try {
   const unchangedBody = await payload(unchangedContext);
   assert.deepEqual(unchangedBody.tools, legacyBody.tools); assert.equal(unchangedBody.instructions, legacyBody.instructions);
   assert.deepEqual(unchangedBody.input.slice(0, legacyBody.input.length), legacyBody.input);
-  assert.equal(resolveTranscriptTools(unchangedContext.messages, true).anchorsAdditions, true);
+  assert.equal(resolveTranscriptTools(unchangedContext.messages, "changes").foldedSystemMessages, 0);
   legacy.setActiveToolsByName(legacy.getActiveToolNames().filter(n => n !== "context_stats"));
   let removedContext;
   provider.setResponses([ctx => { removedContext = JSON.parse(JSON.stringify(ctx)); return fauxAssistantMessage("Keep stats removed"); }]);
@@ -137,12 +143,13 @@ try {
   const resumedBody = await payload(resumedContext);
   assert.deepEqual(resumedBody.tools, removedBody.tools); assert.equal(resumedBody.instructions, removedBody.instructions);
   assert.deepEqual(resumedBody.input.slice(0, removedBody.input.length), removedBody.input);
-  assert.equal(resolveTranscriptTools(resumedContext.messages, true).anchorsAdditions, false);
-  const oldBytes = Buffer.byteLength(JSON.stringify(legacyBody.tools)), freshBytes = Buffer.byteLength(JSON.stringify(initial.tools));
+  assert.equal(resolveTranscriptTools(resumedContext.messages, "changes").foldedSystemMessages, 0);
+  assert.ok(removedBody.input.some(m => m.role === "developer" && String(m.content).includes("context_stats") && String(m.content).includes("no longer available")));
+  const oldBytes = Buffer.byteLength(JSON.stringify(legacyTools)), freshBytes = Buffer.byteLength(JSON.stringify(initialTools));
   assert.ok(freshBytes < oldBytes, "Fresh schemas including search overhead must be smaller");
   const nameDiff = (a, b) => a.filter(t => !b.some(x => x.name === t.name)).map(t => t.name).sort();
-  assert.deepEqual(nameDiff(legacyBody.tools, initial.tools), [...rare].sort());
-  assert.deepEqual(nameDiff(initial.tools, legacyBody.tools), ["tool_search"]);
+  assert.deepEqual(nameDiff(legacyTools, initialTools), [...rare].sort());
+  assert.deepEqual(nameDiff(initialTools, legacyTools), ["tool_search"]);
   assert.deepEqual(errors, []); assert.equal(networkAttempts, 0);
   console.log(JSON.stringify({ passed: true, initialSchemaBytes: freshBytes, legacySchemaBytes: oldBytes, savedBytes: oldBytes - freshBytes, removedInitial: rare, addedInitial: ["tool_search"], scope: "Actual remote/preview/context SDK fixture; bytes not tokens and not full personal footer", nativeDiscovery: true, safeExecutors: ["context_stats", "remote status", "context_list"], resumedPrefixStable: true, additivePayloadStable: true, networkAttempts, limitations: "No real cache hits/TTL, live endpoint, SSH connect, rendering/purge, latency or quality measured" }));
 } finally {
