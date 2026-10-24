@@ -128,6 +128,12 @@
       "reason": "Optional Herdr TUI status integration; inactive without explicit Herdr environment."
     },
     {
+      "source": "herdr-agents/config.json",
+      "snapshot": "configs/herdr-agents/config.json",
+      "restore": false,
+      "reason": "Conservative Herdr sidebar/persistent defaults; initialize only when missing and preserve later user preferences."
+    },
+    {
       "source": "train-agents/config.json",
       "snapshot": "configs/train-agents/config.json",
       "restore": false,

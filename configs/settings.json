@@ -37,6 +37,7 @@
       "extensions": []
     },
     "npm:pi-ssh-remote@0.1.15",
+    "npm:pi-herdr-agents@3.3.1",
     {
       "source": "npm:pi-background-tasks@2.6.10",
       "extensions": [

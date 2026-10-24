@@ -61,7 +61,7 @@ fi
 
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "my-pi-settings.json" "fabric.json"
-  "mcp.json" "train-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
+  "mcp.json" "train-agents/config.json" "herdr-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts" "extensions/task-session.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
@@ -164,6 +164,10 @@ train = agent / "train-agents/config.json"
 train.parent.mkdir(parents=True, exist_ok=True)
 if not train.exists():
     train.write_bytes((configs / "train-agents/config.json").read_bytes())
+herdr = agent / "herdr-agents/config.json"
+herdr.parent.mkdir(parents=True, exist_ok=True)
+if not herdr.exists():
+    herdr.write_bytes((configs / "herdr-agents/config.json").read_bytes())
 PY
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$CONTEXT_SETTINGS" ]]; then
 python3 - "$CONTEXT_SETTINGS" "$ROOT/configs/pi-context.json" <<'PY'

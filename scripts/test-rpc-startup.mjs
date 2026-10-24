@@ -9,10 +9,10 @@ const agent = resolve(process.argv[2]);
 const core = join(agent, "npm/node_modules/@earendil-works/pi-coding-agent");
 const { RpcClient } = await import(pathToFileURL(join(core, "dist/index.js")));
 const pkg = JSON.parse(readFileSync(join(core, "package.json"), "utf8"));
-const client = new RpcClient({ cliPath: join(core, pkg.bin.pi), cwd: agent,
+const client = new RpcClient({ cliPath: join(core, pkg.bin.pi), cwd: resolve(process.argv[3] ?? agent),
   env: { PI_CODING_AGENT_DIR: agent, PI_OFFLINE: "1",
     NODE_OPTIONS: `--unhandled-rejections=strict --require=${resolve("scripts/no-network.cjs")}` },
-  args: ["--no-session", "--offline"] });
+  args: ["--no-session", "--offline", "--no-mcp"] });
 const errors = [];
 client.onEvent((event) => {
   if (event.type === "extension_error" || event.type === "agent_start") errors.push(event);
@@ -22,8 +22,12 @@ try {
   const state = await client.getState();
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
-  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace", "bg", "jobs", "logs", "kill", "tasks"]) {
+  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace", "bg", "jobs", "logs", "kill", "tasks", "subagent", "subagents-init", "worktree"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
+  }
+  for (const name of ["subagent", "subagents-init", "worktree"]) {
+    assert.equal(commands.filter(command => command.name === name).length, 1, `duplicate Herdr command: ${name}`);
+    assert.equal(commands.find(command => command.name === name).sourceInfo?.source, "npm:pi-herdr-agents@3.3.1", `wrong Herdr command owner: ${name}`);
   }
   for (const name of ["bg", "jobs", "logs", "kill", "tasks"]) {
     assert.equal(commands.find(command => command.name === name).sourceInfo?.source, "npm:pi-background-tasks@2.6.10", `wrong background command owner: ${name}`);

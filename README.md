@@ -29,7 +29,7 @@ npm test
 
 ## Долгоживущие исполнители
 
-Делегировать только независимые задачи, прогнозируемо требующие более одного управляемого окна контекста после folding, recall и compaction. Малые исследования и прототипы остаются у родителя. [Проверка Herdr и Durable](docs/multiwindow-agent-evaluation.md) описывает pinned offline evidence, разные контекстные системы и ограничения recovery; ни один кандидат пока не активирован. [Реальная Herdr/sidebar интеграция](docs/herdr-sidebar-integration.md) прошла в отдельном контекстном профиле без внешних model calls; production-установка остаётся отдельным действием.
+Делегировать только независимые задачи, прогнозируемо требующие более одного управляемого окна контекста после folding, recall и compaction. Малые исследования и прототипы остаются у родителя. [Проверка Herdr и Durable](docs/multiwindow-agent-evaluation.md) описывает pinned offline evidence, разные контекстные системы и ограничения recovery; Herdr принят в состав сборки после [реальной изолированной Herdr/sidebar проверки](docs/herdr-sidebar-integration.md). [Установка и rollback](docs/herdr-agents-installation.md) описывают exact package, bundled sidebar, scoped backup и необходимость reload для существующих сессий; Durable не активирован.
 
 ## Установленный runtime
 
@@ -56,7 +56,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 - Pi core `@earendil-works/pi-coding-agent@1.4.0`
 - Node.js `>=24.0.0`
-- 19 прямых npm dependencies с точными версиями: 16 settings entries и exact runtime peers; полный `package-lock.json`
+- 20 прямых npm dependencies с точными версиями: 17 settings entries и exact runtime peers; полный `package-lock.json`
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
 - детерминированное сжатие `context-fold@0.7.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
@@ -72,7 +72,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 19 прямых dependency. В `configs/settings.json` перечислены 16 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
@@ -85,6 +85,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 | `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `pi-token-speed` | `0.12.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; completion wake по умолчанию с явным opt-out; без agent telemetry, delegates, Fusion и attribution. |
+| `pi-herdr-agents` | `3.3.1` | pinned, Herdr | Долгоживущие самостоятельные исполнители для задач >1 управляемого окна; bundled sidebar с ручными Focus/All, лимит одного persistent specialist по умолчанию. |
 | `pi-fast-resume` | `1.4.18` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
 | `pine-of-glass` | `0.18.3` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |

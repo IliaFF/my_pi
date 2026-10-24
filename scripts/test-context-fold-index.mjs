@@ -25,7 +25,7 @@ for (const index of [extractIndex({ masked: [result, end], all: [...blocks, resu
 }
 assert.equal(inputs[0], request, 'Index extraction must not modify original messages');
 execFileSync(process.execPath, ['--require', './scripts/no-network.cjs', 'scripts/test-auto-ultra-compact.mjs'], {
-  env: { ...process.env, PI_CODING_AGENT_DIR: resolve(modules, '../..'), PI_TEST_EXPECT_INDEX_PATCH: '1' },
+  env: { ...process.env, PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR ?? resolve(modules, '../..'), PI_TEST_EXPECT_INDEX_PATCH: '1' },
   timeout: 20000, stdio: 'inherit',
 });
 console.log('PASS soft/hard user intents and actual SDK both load orders: owned control envelopes, queue body, ordinary lookalikes; multiline truncation explicitly characterized');

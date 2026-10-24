@@ -52,6 +52,7 @@ class InstallerRestoreTest(unittest.TestCase):
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
         if legacy:
+            managed.remove("herdr-agents/config.json")
             managed.remove("extensions/task-session.ts")
             present.remove("extensions/task-session.ts")
             entries = [e for e in entries if e[0]
@@ -93,6 +94,26 @@ class InstallerRestoreTest(unittest.TestCase):
         self.assertEqual(
             (self.agent / "auth.json").read_text(), "private fixture")
         self.assertTrue((self.agent / ".my-pi-last-backup").exists())
+
+    def test_pre_herdr_backup_is_accepted(self):
+        """Retain the exact previous managed set with task-session present."""
+        self.managed.remove("herdr-agents/config.json")
+        self.write_backup()
+        self.assertEqual(self.invoke(dry_run=True).returncode, 0)
+        self.assert_current_unchanged()
+
+    def test_herdr_config_restore(self):
+        """Restore new config bytes alongside the current managed set."""
+        config = self.agent / "herdr-agents/config.json"
+        config.parent.mkdir()
+        config.write_text("current Herdr config")
+        self.present.append("herdr-agents/config.json")
+        self.entries.append(("herdr-agents/config.json",
+                            "saved Herdr config", None))
+        self.write_backup()
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(config.read_text(), "saved Herdr config")
 
     def test_current_backup_dry_run(self):
         """Accept task-session and normal relative npm links without restoring."""

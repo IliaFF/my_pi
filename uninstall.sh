@@ -53,8 +53,10 @@ previous = allowed.copy()
 allowed.add("extensions/deferred-tools.ts")
 deferred = allowed.copy()
 allowed.add("extensions/task-session.ts")
+task_session = allowed.copy()
+allowed.add("herdr-agents/config.json")
 managed = s.get("agentManaged", [])
-if set(managed) not in (legacy, previous, deferred, allowed):
+if set(managed) not in (legacy, previous, deferred, task_session, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 present = s["agentPresent"]
 if not set(present).issubset(managed):
