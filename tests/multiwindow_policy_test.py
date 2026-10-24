@@ -30,7 +30,8 @@ class MultiwindowPolicyTests(unittest.TestCase):
     def test_offline_probe_syntax_and_network_denials(self):
         """Validate optional harnesses without requiring candidate installations."""
         for script in ("evaluate-long-lived-agents.mjs",
-                       "evaluate-durable-child.mjs"):
+                       "evaluate-durable-child.mjs",
+                       "evaluate-herdr-spawn.mjs"):
             with self.subTest(script=script):
                 subprocess.run(
                     ["node", "--check", str(ROOT / "scripts" / script)],
