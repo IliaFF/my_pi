@@ -27,6 +27,10 @@ npm test
 4. `/opsx-apply` → `npm test` → review полного diff → запись результатов и ограничений.
 5. `/opsx-archive` только после PASS и завершения tasks; commit specs/code/tests вместе. Не писать, что CI прошёл, без реального job.
 
+## Долгоживущие исполнители
+
+Делегировать только независимые задачи, прогнозируемо требующие более одного управляемого окна контекста после folding, recall и compaction. Малые исследования и прототипы остаются у родителя. [Проверка Herdr и Durable](docs/multiwindow-agent-evaluation.md) описывает pinned offline evidence, разные контекстные системы и ограничения recovery; ни один кандидат пока не активирован.
+
 ## Установленный runtime
 
 ```bash
