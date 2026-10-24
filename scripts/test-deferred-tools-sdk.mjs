@@ -57,8 +57,11 @@ try {
     // Simulate only old registration exposure; real package executors/schemas and SDK are unchanged.
     const direct = legacy ? rare : baseline ? herdrNames : [];
     const factories = [remote, preview, context, herdr].map(factory => direct.length ? pi => factory({ ...pi, registerTool: definition => pi.registerTool(direct.includes(definition.name) ? { ...definition, exposure: "direct", ...(["subagent", "subagent_resume"].includes(definition.name) ? { promptSnippet: definition.description } : {}) } : definition) }) : factory);
-    const loader = new DefaultResourceLoader({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager, noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, appendSystemPrompt: [readFileSync(join(source, "configs/APPEND_SYSTEM.md"), "utf8")], extensionFactories: [createCodemodeExtension({ mode: "on" }), createToolSearchExtension(), ...factories, forbidLaunch, ...(legacy ? [] : [restoreLoadout])] });
+    const loader = new DefaultResourceLoader({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager, noExtensions: true, noSkills: true, additionalSkillPaths: [join(modules, "pi-herdr-agents/skills/pi-herdr-agents")], noThemes: true, noPromptTemplates: true, appendSystemPrompt: [readFileSync(join(source, "configs/APPEND_SYSTEM.md"), "utf8")], extensionFactories: [createCodemodeExtension({ mode: "on" }), createToolSearchExtension(), ...factories, forbidLaunch, ...(legacy ? [] : [restoreLoadout])] });
     await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
+    const operatingSkill = loader.getSkills().skills.find(skill => skill.name === "pi-herdr-agents");
+    assert.ok(operatingSkill, "Explicit Herdr help must remain available");
+    assert.equal(operatingSkill.disableModelInvocation, true, "Herdr skill must not be advertised before discovery");
     const { session } = await createAgentSession({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, modelRuntime: runtime, model, thinkingLevel: "off", settingsManager, resourceLoader: loader, sessionManager: manager });
     sessions.push(session); await session.bindExtensions({ onError: e => errors.push(String(e)) }); return session;
   }
@@ -69,7 +72,9 @@ try {
     assert.ok(fresh.getCallableToolNames().includes(name), `${name} must remain callable`);
   }
   assert.ok(fresh.getActiveToolNames().includes("tool_search"), "Native tool_search must be active");
-  assert.ok(!fresh.systemPrompt.includes("Authenticated subagent models"));
+  for (const text of ["Authenticated subagent models", "Act as the coordinator:", "Before launching a new group", "<name>pi-herdr-agents</name>", "Operate the pi-herdr-agents host.", "After spawning, either end your turn"]) {
+    assert.ok(!fresh.systemPrompt.includes(text), `Inactive Herdr detail leaked: ${text}`);
+  }
   for (const rule of ["more than one context window", "folding, recall and compaction", "remaining work", "do not wait for an overflow", "Small scouts and prototypes stay in the parent", "Clarify unclear user intent", "unknown solution may qualify at the same threshold", "parent inspects results, verifies and integrates", "goal, constraints, progress and evidence across context cycles", "does not authorize agent launches", "not a substitute for native sequential task handoff", "alone does not prove multi-window continuity", "never poll", "Do not complete work with required checks outstanding"]) {
     assert.ok(fresh.systemPrompt.includes(rule), `Permanent prompt lost ${rule}`);
   }
@@ -87,6 +92,11 @@ try {
   ]);
   await fresh.prompt("Discover and call only empty context stats/list and disconnected remote status.");
   assert.equal(contexts.length, 7, "Actual tool calls must finish");
+  for (const context of contexts) {
+    const messages = JSON.stringify(context.messages);
+    assert.ok(!messages.includes("Authenticated subagent models"), "Unrelated discovery exposed the Herdr catalog");
+    assert.ok(!messages.includes("Act as the coordinator:"), "Unrelated discovery exposed routing instructions");
+  }
   const results = contexts.at(-1).messages.filter(m => m.role === "toolResult");
   for (const name of ["context_stats", "remote", "context_list"]) assert.ok(results.some(r => r.toolName === name && !r.isError), `${name} real executor failed`);
   assert.deepEqual(fresh.getActiveToolNames().filter(n => rare.includes(n)).sort(), ["context_list", "context_stats", "remote"]);
@@ -234,7 +244,7 @@ try {
   const baselineBytes = Buffer.byteLength(JSON.stringify(baselineTools));
   assert.ok(freshBytes < baselineBytes);
   assert.deepEqual(errors, []); assert.equal(networkAttempts, 0);
-  console.log(JSON.stringify({ passed: true, initialSchemaBytes: freshBytes, legacySchemaBytes: oldBytes, savedBytes: oldBytes - freshBytes, removedInitial: rare, addedInitial: ["tool_search"], scope: "Actual remote/preview/context/Herdr SDK fixture; empty credentials, no skills/MCP; bytes not tokens or full personal runtime", sourceBaselineSchemaBytes: baselineBytes, sourceSavedSchemaBytes: baselineBytes - freshBytes, sourceRemovedInitial: herdrNames, sourceBaselinePromptSections: promptSize(baselineContext), candidatePromptSections: promptSize(contexts[0]), sameCandidateAppendInBoth: true, nativeDiscovery: true, safeExecutors: ["context_stats", "remote status", "context_list", "subagents_list"], permissionAndValidationRefusals: true, resumedPrefixStable: true, additivePayloadStable: true, networkAttempts, limitations: "No real cache hits/TTL, live endpoint, SSH connect, rendering/purge, latency or quality measured" }));
+  console.log(JSON.stringify({ passed: true, initialSchemaBytes: freshBytes, legacySchemaBytes: oldBytes, savedBytes: oldBytes - freshBytes, removedInitial: rare, addedInitial: ["tool_search"], scope: "Actual remote/preview/context/Herdr SDK fixture; empty credentials, one hidden Herdr skill, no MCP; bytes not tokens or full personal runtime", sourceBaselineSchemaBytes: baselineBytes, sourceSavedSchemaBytes: baselineBytes - freshBytes, sourceRemovedInitial: herdrNames, sourceBaselinePromptSections: promptSize(baselineContext), candidatePromptSections: promptSize(contexts[0]), sameCandidateAppendInBoth: true, nativeDiscovery: true, safeExecutors: ["context_stats", "remote status", "context_list", "subagents_list"], permissionAndValidationRefusals: true, resumedPrefixStable: true, additivePayloadStable: true, networkAttempts, limitations: "No real cache hits/TTL, live endpoint, SSH connect, rendering/purge, latency or quality measured" }));
 } finally {
   for (const session of sessions) session.dispose();
   globalThis.fetch = previousFetch;

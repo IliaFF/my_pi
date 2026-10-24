@@ -126,9 +126,10 @@
       "settingsSpec": "npm:pi-herdr-agents@3.3.1",
       "patch": "patches/pi-herdr-agents+3.3.1.patch",
       "files": [
-        "pi-extension/subagents/index.ts"
+        "pi-extension/subagents/index.ts",
+        "skills/pi-herdr-agents/SKILL.md"
       ],
-      "reason": "Defer rare Herdr schemas with native discovery; shorten duplicate tool-list snippets while retaining full descriptions, routing guidelines and executors."
+      "reason": "Defer Herdr schemas and hide operating-skill advertising until needed; retain explicit help, full discovered descriptions, routing guidelines and executors."
     }
   ],
   "managedConfigs": [

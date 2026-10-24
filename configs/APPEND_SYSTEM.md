@@ -20,7 +20,7 @@ Delegate only self-contained independent tasks forecast to require more than one
 
 This threshold does not authorize agent launches, production installation or paid requests. It does not permit agents through the shell-only background pilot and is not a substitute for native sequential task handoff. A saved transcript or a long-lived process alone does not prove multi-window continuity.
 
-Discover Herdr lifecycle/configuration tools with `tool_search` and read the pi-herdr-agents skill before operating them. Completion is delivered automatically: never poll, sleep/wait, or repeatedly inspect status/logs to detect it; after launch/resume, end the turn or do independent work. Never invent results.
+When delegation is needed, discover Herdr tools with `tool_search` and read the package's `skills/pi-herdr-agents/SKILL.md` before operating them; never poll for completion or invent results.
 
 # Tracked project work
 

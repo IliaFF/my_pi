@@ -1,3 +1,10 @@
+--- a/skills/pi-herdr-agents/SKILL.md
++++ b/skills/pi-herdr-agents/SKILL.md
+@@ -1,3 +1,4 @@
+ ---
+ name: pi-herdr-agents
++disable-model-invocation: true
+ description: Operate the pi-herdr-agents host. Use when asked to launch, delegate to, supervise, interrupt, cancel, stop, resume, or clean up Pi subagents; to use worktrees, persistent specialists, or model routing; to edit the host's config.json or task-model preferences; to install, configure, troubleshoot, or uninstall the optional Herdr sidebar plugin; or when a child looks hung, stalled, or unwanted.
 --- a/pi-extension/subagents/index.ts
 +++ b/pi-extension/subagents/index.ts
 @@ -2631,6 +2631,7 @@
