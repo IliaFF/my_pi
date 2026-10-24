@@ -1,0 +1,10 @@
+## Context
+Herdr 3.3.1 registers 10 direct tools; subagent/resume descriptions are repeated verbatim as promptSnippet, and subagent guidelines include routing instructions and authenticated catalog. Existing native deferred exposure and transcript restoration already support rare tools. Build dependencies resolve to a dedicated cache, not personal runtime.
+
+## Decisions
+Use native exposure: deferred for Herdr tools, not a new loader or prompt rewriter. Keep native tool_search direct and all tools callable. Extend the existing managed-name restore to preserve recorded active/removal states, including old direct sessions. Leave permission, validation, cancellation, launch and model selection implementations untouched. Shorten only duplicate subagent/resume tool-list snippets; detailed descriptions and guidelines remain on discovery. Existing pi-herdr-agents skill owns operating details. The SDK snapshots guidelines before Herdr updates the catalog at session_start; re-register only the same subagent definition afterward to refresh its snapshot without activating a deferred tool. The actual-provider-context regression must see the refreshed catalog after discovery.
+
+Permanent APPEND retains all delegation eligibility, authorization, no-polling and parent-integration rules. A clear research goal with unknown solution is not ambiguous intent; it still needs the same independent >1 managed-window forecast. This policy does not grant launch permission or prove executor continuity.
+
+## Validation
+Actual SDK faux-provider sessions with empty credentials and isolated HOME/cwd: fresh declarations/callability, discovery of every Herdr tool without launching/destructive calls, safe subagents_list executor, validation and permission hook, native additive payload, legacy/partial removed loadout replay. Compare baseline direct exposure/old snippets against candidate using identical SDK, fixtures and normalized paths. Inventory current recorded prompt without exporting private text. Full npm test, strict specs, owned diff review, evidence, archive and commit. No live performance/quality claim.

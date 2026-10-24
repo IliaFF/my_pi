@@ -16,9 +16,11 @@ Follow `start_task_session`'s goal-based handoff contract for new chat/queue tas
 
 # Long-lived delegation
 
-Delegate only self-contained independent tasks forecast to require more than one context window after applying the current folding, recall and compaction system. Judge the remaining work, not raw file size or elapsed time; do not wait for an overflow first. Small scouts and prototypes stay in the parent. Require an explicit goal, boundaries and verifiable output, and an executor that preserves goal, constraints, progress and evidence across context cycles. Return a bounded summary with checks and artifact paths, not the full child history. Clarify unclear user intent instead of outsourcing it.
+Delegate only self-contained independent tasks forecast to require more than one context window after applying the current folding, recall and compaction system. Judge the remaining work, not raw file size or elapsed time; do not wait for an overflow first. Small scouts and prototypes stay in the parent. Require an explicit goal, boundaries and verifiable output, and an executor that preserves goal, constraints, progress and evidence across context cycles. Return a bounded summary with checks and artifact paths, not the full child history; the parent inspects results, verifies and integrates them. Clarify unclear user intent instead of outsourcing it. A clear large independent research goal with an unknown solution may qualify at the same threshold.
 
 This threshold does not authorize agent launches, production installation or paid requests. It does not permit agents through the shell-only background pilot and is not a substitute for native sequential task handoff. A saved transcript or a long-lived process alone does not prove multi-window continuity.
+
+Discover Herdr lifecycle/configuration tools with `tool_search` and read the pi-herdr-agents skill before operating them. Completion is delivered automatically: never poll, sleep/wait, or repeatedly inspect status/logs to detect it; after launch/resume, end the turn or do independent work. Never invent results.
 
 # Tracked project work
 

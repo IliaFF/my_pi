@@ -1,0 +1,206 @@
+{
+  "observedAt": "2026-10-24",
+  "sourceBaseline": "d5557a7bb990a6efea422ec99a52efdad4bdf288",
+  "liveSessionInitial": {
+    "sections": {
+      "preamble": {
+        "chars": 169,
+        "bytes": 169
+      },
+      "tools": {
+        "chars": 5215,
+        "bytes": 5227
+      },
+      "rules": {
+        "chars": 10218,
+        "bytes": 10284
+      },
+      "docs": {
+        "chars": 1457,
+        "bytes": 1457
+      },
+      "addendum": {
+        "chars": 3816,
+        "bytes": 3816
+      },
+      "project_context": {
+        "chars": 1996,
+        "bytes": 3195
+      },
+      "skills": {
+        "chars": 4002,
+        "bytes": 4391
+      },
+      "cwd": {
+        "chars": 42,
+        "bytes": 42
+      },
+      "ponytail": {
+        "chars": 2882,
+        "bytes": 2884
+      },
+      "ssh_remote_connection": {
+        "chars": 174,
+        "bytes": 174
+      },
+      "pi_background_shell_policy": {
+        "chars": 480,
+        "bytes": 480
+      },
+      "mcp_servers": {
+        "chars": 620,
+        "bytes": 620
+      }
+    },
+    "activeNames": [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "codemode",
+      "tool_search",
+      "start_task_session",
+      "task_queue",
+      "context_search",
+      "context_get",
+      "context_export",
+      "ask_user_question",
+      "recall_folded",
+      "unfold",
+      "bg_run",
+      "bg_status",
+      "bg_logs",
+      "bg_kill",
+      "worktree_list",
+      "worktree_remove",
+      "subagents_write_task_models",
+      "subagent",
+      "subagent_send",
+      "subagent_stop",
+      "subagent_interrupt",
+      "subagent_cancel",
+      "subagents_list",
+      "subagent_resume",
+      "grep",
+      "find",
+      "web_enable"
+    ],
+    "activeCount": 31,
+    "schemasJsonBytes": 38909,
+    "codemodeCallableInventoryCount": 135,
+    "externalHarnessExcluded": [
+      "multi_tool_use.parallel"
+    ],
+    "note": "Initial recorded state before discovery; callable inventory measured later, not total registered count. No raw prompt, session content or credentials exported."
+  },
+  "controlledSdkComparison": {
+    "passed": true,
+    "initialSchemaBytes": 9238,
+    "legacySchemaBytes": 29055,
+    "savedBytes": 19817,
+    "removedInitial": [
+      "remote",
+      "preview_export",
+      "context_list",
+      "context_stats",
+      "context_purge",
+      "worktree_list",
+      "worktree_remove",
+      "subagents_write_task_models",
+      "subagent",
+      "subagent_send",
+      "subagent_stop",
+      "subagent_interrupt",
+      "subagent_cancel",
+      "subagents_list",
+      "subagent_resume"
+    ],
+    "addedInitial": [
+      "tool_search"
+    ],
+    "scope": "Actual remote/preview/context/Herdr SDK fixture; empty credentials, no skills/MCP; bytes not tokens or full personal runtime",
+    "sourceBaselineSchemaBytes": 23537,
+    "sourceSavedSchemaBytes": 14299,
+    "sourceRemovedInitial": [
+      "worktree_list",
+      "worktree_remove",
+      "subagents_write_task_models",
+      "subagent",
+      "subagent_send",
+      "subagent_stop",
+      "subagent_interrupt",
+      "subagent_cancel",
+      "subagents_list",
+      "subagent_resume"
+    ],
+    "sourceBaselinePromptSections": {
+      "preamble": {
+        "chars": 169,
+        "bytes": 169
+      },
+      "tools": {
+        "chars": 4269,
+        "bytes": 4281
+      },
+      "rules": {
+        "chars": 3518,
+        "bytes": 3522
+      },
+      "docs": {
+        "chars": 1400,
+        "bytes": 1400
+      },
+      "addendum": {
+        "chars": 4289,
+        "bytes": 4289
+      },
+      "cwd": {
+        "chars": 26,
+        "bytes": 26
+      }
+    },
+    "candidatePromptSections": {
+      "preamble": {
+        "chars": 169,
+        "bytes": 169
+      },
+      "tools": {
+        "chars": 714,
+        "bytes": 714
+      },
+      "rules": {
+        "chars": 564,
+        "bytes": 564
+      },
+      "docs": {
+        "chars": 1400,
+        "bytes": 1400
+      },
+      "addendum": {
+        "chars": 4289,
+        "bytes": 4289
+      },
+      "cwd": {
+        "chars": 26,
+        "bytes": 26
+      }
+    },
+    "sameCandidateAppendInBoth": true,
+    "nativeDiscovery": true,
+    "safeExecutors": [
+      "context_stats",
+      "remote status",
+      "context_list",
+      "subagents_list"
+    ],
+    "permissionAndValidationRefusals": true,
+    "resumedPrefixStable": true,
+    "additivePayloadStable": true,
+    "networkAttempts": 0,
+    "limitations": "No real cache hits/TTL, live endpoint, SSH connect, rendering/purge, latency or quality measured"
+  },
+  "sourceAppend": {
+    "beforeBytes": 3793,
+    "afterBytes": 4266
+  }
+}

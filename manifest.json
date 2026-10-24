@@ -118,6 +118,17 @@
         "src/core/index/seed-index.ts"
       ],
       "reason": "Exclude exact owned restore envelopes and index queue task bodies in soft/hard user intents; retain ordinary text and explicitly tested multiline truncation."
+    },
+    {
+      "package": "pi-herdr-agents",
+      "version": "3.3.1",
+      "pinRequired": true,
+      "settingsSpec": "npm:pi-herdr-agents@3.3.1",
+      "patch": "patches/pi-herdr-agents+3.3.1.patch",
+      "files": [
+        "pi-extension/subagents/index.ts"
+      ],
+      "reason": "Defer rare Herdr schemas with native discovery; shorten duplicate tool-list snippets while retaining full descriptions, routing guidelines and executors."
     }
   ],
   "managedConfigs": [
