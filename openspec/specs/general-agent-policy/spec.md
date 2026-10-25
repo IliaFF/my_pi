@@ -61,3 +61,14 @@ The permanent delegation section MUST retain eligibility, authorization, continu
 #### Scenario: No lifecycle tool requested
 - **WHEN** the standing prompt is built
 - **THEN** it explains when delegation qualifies and how to discover help without embedding lifecycle, naming, routing or model-catalog details
+
+### Requirement: SSH work uses the available Pi tool
+Permanent policy MUST direct SSH work to Pi's `remote` tool, discovered through `tool_search` when absent from current declarations. It MUST state that read/write/edit/bash use active SSH routing without duplicating the tool's detailed contract.
+
+#### Scenario: Deferred SSH tool
+- **WHEN** SSH work is needed and remote is not declared yet
+- **THEN** the standing prompt points to native discovery and remote, while its executor and authorization remain unchanged
+
+#### Scenario: Offline prompt verification
+- **WHEN** the SDK regression assembles the permanent prompt
+- **THEN** the SSH discovery/routing reminder is present without making a live connection
