@@ -119,6 +119,7 @@ def main():
         check("ci-config", "contract", ["node", "scripts/test-ci-config.mjs"])
         check("harness", "unit", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "*_test.py"])
         check("release", "unit", [sys.executable, "scripts/test-release.py", str(ROOT)], timeout=180)
+        check("install-rollback", "integration", [sys.executable, "scripts/test-install-rollback.py"])
         check("loop-pilot", "unit", ["node", "scripts/test-loop-pilot.mjs", "local-extensions/loop-profiler.ts"])
         if args.agent:
             host_env = dict(env, PI_CODING_AGENT_DIR=str(args.agent.resolve()))

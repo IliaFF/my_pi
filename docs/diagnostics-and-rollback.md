@@ -23,6 +23,10 @@ Git откатывает source, **не установленный runtime**. Н
 
 Перед явной установкой installer сохраняет backup и сообщает путь. `uninstall.sh` принимает созданный installer backup: прочитать `./uninstall.sh --help` и проверить принадлежность agent directory. Путь последнего install backup хранится локально в `~/.pi/agent/.my-pi-last-backup`.
 
+Manual и automatic installer rollback используют один `uninstall.sh`. Он полностью распаковывает archive в приватный staging, проверяет разрешённые managed пути/типы и ссылки до удаления текущих файлов. Обычные внутренние npm-ссылки с `..` допустимы; выход за agent или managed scope, опасные destination parents, missing/corrupt payload отклоняются до замены. Staging требует дополнительного места. После копирования проверяются bytes, link targets и executable bits; исходный backup сохраняется. Замена нескольких директорий не является общей атомарной транзакцией: при ошибке копирования восстановление не подтверждено, нужно остановиться и проверить состояние.
+
+Installer backup — state.json и agent-files.tar.gz; legacy state не содержит криптографической подписи или hashes каждого payload. Безопасная распаковка не доказывает происхождение backup. Не смешивать её с hash-проверками maintenance backup ниже. Перед полным installer сравните source lock с личными версиями: preserve-settings сохраняет private config, но managed npm pins всё равно выравниваются, включая понижения. Для отдельно согласованного patch-only deployment нельзя заодно менять остальные версии.
+
 Maintenance update имеет другой формат backup (`backup-manifest.json`, hashes и npm-tree archive):
 
 ```bash

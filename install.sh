@@ -86,14 +86,19 @@ state = {
 (backup / "state.json").write_text(json.dumps(state, indent=2) + "\n")
 PY
 mapfile -t present < <(python3 -c 'import json,sys; sys.stdout.write("\n".join(json.load(open(sys.argv[1]))["agentPresent"]))' "$state")
-if ((${#present[@]})); then tar -C "$AGENT_DIR" -czf "$backup/agent-files.tar.gz" -- "${present[@]}"; fi
+if ((${#present[@]})); then
+  tar -C "$AGENT_DIR" -czf "$backup/agent-files.tar.gz" -- "${present[@]}"
+else
+  tar -czf "$backup/agent-files.tar.gz" --files-from /dev/null
+fi
 
 core_changed=0
 rollback_install() {
   local rc="$?"; trap - ERR; set +e
   echo "FAIL install interrupted. Restoring backup: $backup" >&2
-  for item in "${managed[@]}"; do rm -rf "$AGENT_DIR/$item"; done
-  [[ ! -f "$backup/agent-files.tar.gz" ]] || tar -C "$AGENT_DIR" -xzf "$backup/agent-files.tar.gz"
+  if ! PI_CODING_AGENT_DIR="$AGENT_DIR" bash "$ROOT/uninstall.sh" --backup "$backup"; then
+    echo "FAIL rollback not confirmed; backup retained: $backup" >&2
+  fi
   if ((core_changed)); then
     if [[ "$current_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9._-]+)?$ ]]; then
       npm install --global --ignore-scripts "@earendil-works/pi-coding-agent@$current_version" >&2

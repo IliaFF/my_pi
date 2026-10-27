@@ -29,11 +29,20 @@ fi
 state="$BACKUP/state.json"
 [[ -f "$state" ]] || { echo "FAIL state missing: $state" >&2; exit 1; }
 
-python3 - "$state" "$AGENT_DIR" <<'PY'
-import json, sys
-from pathlib import Path
-s = json.loads(Path(sys.argv[1]).read_text())
-if Path(s.get("agentDir", "")).resolve() != Path(sys.argv[2]).resolve():
+python3 - "$state" "$AGENT_DIR" "$BACKUP" "$DRY_RUN" <<'PY'
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import shutil
+import sys
+import tarfile
+import tempfile
+
+state, agent_arg, backup_arg, dry_run = sys.argv[1:]
+s = json.loads(Path(state).read_text())
+agent, backup = Path(agent_arg).resolve(), Path(backup_arg).resolve()
+if Path(s.get("agentDir", "")).resolve() != agent:
     raise SystemExit("FAIL backup belongs to another agent directory")
 allowed = {
  "settings.json", "APPEND_SYSTEM.md", "my-pi-settings.json", "fabric.json", "extensions/tools.ts", "extensions/lean-tools.ts",
@@ -44,33 +53,103 @@ legacy = allowed.copy()
 allowed.update({"mcp.json", "train-agents/config.json", "extensions/jev-review", "extensions/herdr-agent-state.ts"})
 previous = allowed.copy()
 allowed.add("extensions/deferred-tools.ts")
-if set(s.get("agentManaged", [])) not in (legacy, previous, allowed):
+managed = s.get("agentManaged", [])
+if not isinstance(managed, list) or set(managed) not in (legacy, previous, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
-PY
-mapfile -t managed < <(python3 -c 'import json,sys; sys.stdout.write("\n".join(json.load(open(sys.argv[1]))["agentManaged"]))' "$state")
-if ((DRY_RUN)); then
-  echo "DRY-RUN restore from: $BACKUP"
-  printf 'DRY-RUN replace agent: %s\n' "${managed[@]}"
-  echo "DRY-RUN Pi core is unchanged"
-  exit 0
-fi
+if dry_run == "1":
+    print(f"DRY-RUN restore from: {backup}")
+    for name in managed:
+        print(f"DRY-RUN replace agent: {name}")
+    print("DRY-RUN Pi core is unchanged")
+    raise SystemExit(0)
 
-python3 - "$BACKUP/agent-files.tar.gz" <<'PY'
-import sys, tarfile
-from pathlib import PurePosixPath
-try: archive = tarfile.open(sys.argv[1], "r:gz")
-except FileNotFoundError: raise SystemExit(0)
-with archive:
-    for member in archive.getmembers():
-        p = PurePosixPath(member.name)
-        if p.is_absolute() or ".." in p.parts or member.ischr() or member.isblk() or member.isfifo():
-            raise SystemExit(f"FAIL unsafe backup member: {member.name}")
-        if member.issym() and (member.linkname.startswith("/") or ".." in PurePosixPath(member.linkname).parts):
-            raise SystemExit(f"FAIL unsafe backup symlink: {member.name}")
+present = s.get("agentPresent")
+if not isinstance(present, list) or not all(isinstance(name, str) and name in managed for name in present):
+    raise SystemExit("FAIL backup contains unexpected present paths")
+owned = [PurePosixPath(name) for name in managed]
+backed = [PurePosixPath(name) for name in present]
+def permitted(path, roots, directory=False):
+    return any(path == base or base in path.parents or (directory and path in base.parents) for base in roots)
+
+def fingerprint(path):
+    if path.is_symlink():
+        return ("link", os.readlink(path))
+    mode = path.stat().st_mode & 0o111
+    if path.is_dir():
+        return ("directory", mode)
+    with path.open("rb") as stream:
+        return ("file", hashlib.file_digest(stream, "sha256").hexdigest(), mode)
+
+try:
+    with tempfile.TemporaryDirectory(prefix="pi-install-restore-") as temp:
+        stage = Path(temp)
+        with tarfile.open(backup / "agent-files.tar.gz", "r:gz") as archive:
+            for member in archive.getmembers():
+                path = PurePosixPath(member.name)
+                if path.is_absolute() or ".." in path.parts or not permitted(path, backed, member.isdir()):
+                    raise ValueError(f"unsafe backup member: {member.name}")
+                if not (member.isfile() or member.isdir() or member.issym() or member.islnk()):
+                    raise ValueError(f"unsafe backup type: {member.name}")
+            archive.extractall(stage, filter="data")
+            while archive.fileobj.read(1024 * 1024):
+                pass  # Read the gzip trailer too, before touching the agent.
+            for member in archive.getmembers():
+                if member.isdir():
+                    (stage / member.name).chmod(member.mode & 0o777)
+        for name in present:
+            if not (stage / name).exists() and not (stage / name).is_symlink():
+                raise ValueError(f"backup is missing expected path: {name}")
+        expected = {}
+        for path in stage.rglob("*"):
+            relative = path.relative_to(stage)
+            if not permitted(PurePosixPath(relative.as_posix()), backed, path.is_dir() and not path.is_symlink()):
+                raise ValueError(f"unmanaged backup path: {relative}")
+            if path.is_symlink():
+                target = path.resolve().relative_to(stage)
+                if not permitted(PurePosixPath(target.as_posix()), owned):
+                    raise ValueError(f"unmanaged backup link: {relative}")
+            if permitted(PurePosixPath(relative.as_posix()), owned):
+                expected[relative] = fingerprint(path)
+        # Existing destination parents must not redirect writes through symlinks.
+        if agent.exists() and not agent.is_dir():
+            raise ValueError("agent destination is not a directory")
+        for name in managed:
+            destination = agent / name
+            for parent in destination.relative_to(agent).parents:
+                target = agent / parent
+                if parent != Path(".") and (target.is_symlink() or (target.exists() and not target.is_dir())):
+                    raise ValueError(f"unsafe destination parent: {parent}")
+        for name in managed:
+            path = agent / name
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.exists():
+                shutil.rmtree(path)
+        agent.mkdir(parents=True, exist_ok=True)
+        copied = {}
+        def copy_file(source, destination):
+            stat = Path(source).stat()
+            key = (stat.st_dev, stat.st_ino)
+            if key in copied:
+                os.link(copied[key], destination)
+            else:
+                shutil.copy2(source, destination)
+                copied[key] = destination
+        for name in present:
+            source, destination = stage / name, agent / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source.is_symlink():
+                destination.symlink_to(os.readlink(source))
+            elif source.is_dir():
+                shutil.copytree(source, destination, symlinks=True, copy_function=copy_file)
+            else:
+                copy_file(source, destination)
+        for relative, before in expected.items():
+            if fingerprint(agent / relative) != before:
+                raise ValueError(f"restored content differs: {relative}")
+        (agent / ".my-pi-last-backup").unlink(missing_ok=True)
+except Exception as error:
+    raise SystemExit(f"FAIL restore not confirmed; backup retained at {backup}: {error}")
+print(f"PASS restored pre-install agent files from {backup}")
+print("Pi core unchanged. Restart Pi before use.")
 PY
-for item in "${managed[@]}"; do rm -rf "$AGENT_DIR/$item"; done
-mkdir -p "$AGENT_DIR"
-[[ ! -f "$BACKUP/agent-files.tar.gz" ]] || tar -C "$AGENT_DIR" -xzf "$BACKUP/agent-files.tar.gz"
-rm -f "$AGENT_DIR/.my-pi-last-backup"
-echo "PASS restored pre-install agent files from $BACKUP"
-echo "Pi core unchanged. Restart Pi before use."
