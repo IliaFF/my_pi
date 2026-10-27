@@ -12,7 +12,7 @@
 
 ## 3. Approved runtime recovery and patch-only deployment
 
-- [ ] 3.1 Исправленным rollback восстановить согласованный pre-install backup; подтвердить исходные config/package-lock/package hashes и dependency versions. Если восстановление/проверка неуспешны, явно остановиться без следующей задачи; личные данные не включать в source evidence.
+- [x] 3.1 Исправленным rollback восстановить согласованный pre-install backup; подтвердить исходные config/package-lock/package hashes и dependency versions. Если восстановление/проверка неуспешны, явно остановиться без следующей задачи; личные данные не включать в source evidence.
 - [ ] 3.2 С отдельным backup применить только source SSH delta к соответствующему pi-ssh-remote 0.1.15 baseline и его точечным maintenance metadata; подтвердить unchanged hashes/pins остальных dependencies и private settings, настоящий installed SDK regression, live whoami/hostname и disconnect. Записать границы проверки и необходимость reload/restart; завершить текущую TODO-задачу только после PASS.
 
 ## Workflow follow-up
