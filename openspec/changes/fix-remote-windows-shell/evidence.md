@@ -22,9 +22,20 @@ Local artifacts: `test-results/results.json`, bounded per-stage logs and `/tmp/p
 
 Syntax checks (`node --check` regression script, Python compile of test-build.py), strict change validation and `git diff --check`: PASS. Full owned source patch, callers, documentation, new regression and planning artifacts reviewed against initial state; unrelated TODO entries and generated task logs remain outside the source commit. Post-gate changes are evidence/task metadata only, validated separately; executable code and tests are unchanged from the passing full gate.
 
-## Limitations
+## Limitations at offline acceptance
 
 - Windows fixture responses are emulated; SSH channels and Pi SDK execution are real. No patched live connection to Ильяз's Windows PC, interactive rendering or Windows Unicode/code-page validation was performed. Earlier successful direct SSH identity is not proof that this patch works on the live host.
 - Windows local deadline/abort closes the SSH channel and bounds local waiting, but may leave a remote process running. Standard tools and `!` stay local; full Windows filesystem adapters and PowerShell default shell are outside scope.
 - Arbitrary ProxyCommand and CLI `-o IdentitiesOnly` parsing remain unsupported; existing ProxyJump/per-hop SSH config behavior is unchanged.
-- No production installation, Windows settings change, user-key copy/read, provider request, CI job, push or archive performed. Activation needs separately approved backup/install and reload/restart. Source change remains active until archival is requested.
+- At offline acceptance, no production installation, Windows settings change, user-key copy/read, provider request, CI job, push or archive was performed. Activation needs separately approved backup/install and reload/restart. Source change remains active until archival is requested.
+
+## Authorized isolated live attempt
+
+The user separately selected isolated live validation without runtime installation. A temporary process loaded the exact patched repository package through real Pi SDK and faux provider; temporary HOME/agent config referenced existing absolute key paths and the saved public host fingerprints. Keys were used only by SSH authentication, not copied or printed; unknown/changed host fingerprints were rejected. Temporary local state was removed on exit.
+
+- Patched remote connect: **FAIL before Windows shell detection**, destination handshake returned `Connection lost before handshake`. No whoami/hostname command ran through the patched extension.
+- Control check using the original ordinary SSH ProxyCommand route: **FAIL**, exit 255, `Connection closed by UNKNOWN port 65535`.
+- First-hop SSH to Moscow: **PASS**. Read-only listener check showed reverse-tunnel port 22240 listening on loopback. A listening socket does not prove that the tunnel's Windows endpoint or sshd is healthy.
+- This attempt does not establish a patch regression or successful Windows compatibility. Live acceptance is blocked until the Windows SSH endpoint responds through the tunnel; PC power, sshd and tunnel health are not proven. No Windows command/settings change or production installation occurred.
+- After recording the live failure, repeated `npm test`: **PASS, 17/17**, exit 0 (job `b9f7c84a9`); strict change validation and diff checks PASS. This offline result does not resolve the live handshake failure.
+- Private local diagnostic artifacts: `/tmp/pi-remote-live-check.mjs` and `/tmp/pi-remote-live-check.log`; not committed. No live identity or private SSH config is copied into source. Executable source/tests are unchanged from commit `6d4a438` and its passing 17/17 offline gate.
