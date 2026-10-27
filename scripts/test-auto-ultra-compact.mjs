@@ -48,7 +48,7 @@ async function createContinuationHarness(home) {
   const notices = [];
   let compactOptions;
   let compactionLocked = false;
-  let contextTokens = 170_000;
+  let contextTokens = 500_000;
   let compactCalls = 0;
   const api = {
     on(name, handler) {
@@ -72,7 +72,7 @@ async function createContinuationHarness(home) {
   const ctx = {
     cwd: home,
     hasUI: true,
-    model: { contextWindow: 200_000, provider: "test", id: "model" },
+    model: { contextWindow: 1_000_000, provider: "test", id: "model" },
     getContextUsage: () => ({ tokens: contextTokens }),
     compact(options) { compactOptions = options; compactCalls++; compactionLocked = true; },
     sessionManager: {
@@ -115,13 +115,16 @@ try {
     "autocompaction must not depend on a writable emergency recovery location");
 
   const automatic = await createContinuationHarness(testHome);
-  const preparation = { tokensBefore: 170_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
-  automatic.setContextTokens(169_999);
-  await automatic.emit("turn_end");
-  assert.equal(automatic.compactCalls(), 0, "must not compact below 170k");
+  const preparation = { tokensBefore: 500_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
   automatic.setContextTokens(170_000);
   await automatic.emit("turn_end");
-  assert.equal(automatic.compactCalls(), 1, "must compact at 170k");
+  assert.equal(automatic.compactCalls(), 0, "old 170k cap must be inactive for large-window models");
+  automatic.setContextTokens(499_999);
+  await automatic.emit("turn_end");
+  assert.equal(automatic.compactCalls(), 0, "must not compact below 500k");
+  automatic.setContextTokens(500_000);
+  await automatic.emit("turn_end");
+  assert.equal(automatic.compactCalls(), 1, "must compact at 500k");
   assert.equal(existsSync(join(testHome, ".pi/agent/recovery")), false, "must not create recovery directory");
   assert.equal(existsSync(join(testHome, ".pi-stack/recovery")), false, "must not create project recovery mirror");
   assert.match(automatic.callbacks().customInstructions, /current TODO\.md/);
@@ -136,7 +139,7 @@ try {
   assert.doesNotMatch(automatic.sent[0].message, /recovery|packet/i);
   nativeRestoreMessage = automatic.sent[0].message;
   assert.doesNotMatch(await automatic.status(), /lastRecovery|lastProjectRecovery|summaryContract/);
-  automatic.setContextTokens(175_000);
+  automatic.setContextTokens(505_000);
   await automatic.emit("turn_end");
   assert.equal(automatic.compactCalls(), 2, "ineffective compaction must bypass cooldown and compact again after first real post-compaction usage");
 

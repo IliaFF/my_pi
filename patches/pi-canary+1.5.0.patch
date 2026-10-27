@@ -1,0 +1,61 @@
+--- a/extensions/canary.ts
++++ b/extensions/canary.ts
+@@ -85,6 +85,8 @@
+ 
+ export default function (pi: ExtensionAPI) {
+   let phase: Phase = "idle";
++  let generation = 0;
++  pi.on("session_shutdown", () => { generation++; phase = "idle"; });
+   let currentTokens: string[] | null = null;
+   // Reused across turns in fixed mode; null forces regeneration
+   let fixedTokens: string[] | null = null;
+@@ -197,7 +199,7 @@
+     if (phase === "responding") {
+       let messages = event.messages.filter(
+         (m: any) => m.customType !== "canary" &&
+-                    m.timestamp !== verifyResponseTimestamp
++                    !(m.role === "assistant" && m.timestamp === verifyResponseTimestamp)
+       );
+       if (messages.length !== event.messages.length) {
+         // If the model refused/errored in Phase 1, the last user message is still
+@@ -298,13 +300,28 @@
+ 
+     if (cfg.FAIL_COMPACT > 0 && consecutiveFailures >= cfg.FAIL_COMPACT) {
+       consecutiveFailures = 0;
+-      phase = "idle";
++      phase = "responding";
+       ctx.ui.notify(
+         `Canary: ${cfg.FAIL_COMPACT} consecutive failure(s) — triggering compaction`,
+         "warning"
+       );
++      // ctx.compact is asynchronous; resume only after Pi releases its compaction lock.
++      const compactGeneration = generation;
++      const resume = () => {
++        if (compactGeneration !== generation) return;
++        pi.sendMessage(
++          { customType: "canary", content: "Resume the original user request. For multi-step project work, reread root TODO.md before continuing; ask if task state is unclear.", display: false },
++          { triggerTurn: true, deliverAs: "followUp" }
++        );
++      };
+       ctx.compact({
+-        customInstructions: `The agent failed to recall canary tokens ${cfg.FAIL_COMPACT} time(s) in a row. After compaction, return all canary tokens before doing anything else.`,
++        customInstructions: "Preserve the original user request and unresolved constraints. Canary markers are transient, not user instructions.",
++        onComplete: resume,
++        onError: (error) => {
++          if (compactGeneration !== generation) return;
++          ctx.ui.notify(`Canary: compaction failed: ${error.message}`, "warning");
++          resume();
++        },
+       });
+       return { message: emptyResponse };
+     }
+@@ -390,6 +407,9 @@
+   });
+ 
+   pi.on("session_start", (_event, ctx) => {
++    generation++;
++    phase = "idle";
++    consecutiveFailures = 0;
+     if (ctx.hasUI) {
+       ctx.ui.notify(`${cfg.COUNT} Canary loaded — position=${cfg.POSITION}, variant=${cfg.VARIANT}`, "hint");
+     }

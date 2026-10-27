@@ -81,9 +81,14 @@ def main() -> int:
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
     if any(path.exists() for path in retired_compactor):
         fail("retired local output-compactor remains in release")
-    retired_surface = [ROOT / "local-extensions/tools.ts", ROOT / "scripts/test-tools.mjs", ROOT / "configs/pi-canary.json", ROOT / "patches/pi-canary+1.5.0.patch"]
-    if any(path.exists() for path in retired_surface) or "pi-canary" in package_json["dependencies"] or any("node_modules/pi-canary" in path for path in package_lock["packages"]):
-        fail("retired tools/Canary artifacts remain in release")
+    retired_surface = [ROOT / "local-extensions/tools.ts",
+                       ROOT / "scripts/test-tools.mjs"]
+    if any(path.exists() for path in retired_surface):
+        fail("retired tools artifacts remain in release")
+    canary_config = json.loads((ROOT / "configs/pi-canary.json").read_text())
+    if canary_config != {"COUNT": 3, "POSITION": "equidistant",
+                         "VARIANT": "fixed", "FAIL_COMPACT": 3}:
+        fail("Canary must use three consecutive distributed recall failures")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
     for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "Ask the user if uncertain"]:
         if required not in append_system:
@@ -153,8 +158,8 @@ def main() -> int:
         if bg is None or bg.get("extensions") != ["dist/extensions/background-tasks.js"]:
             fail("background shell pilot must load only pinned process entry, never attribution")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
-        if any(source.startswith("npm:pi-canary") for source in active_sources):
-            fail("pi-canary must not be configured")
+        if "npm:pi-canary@1.5.0" not in active_sources:
+            fail("Canary must be explicitly pinned and enabled")
         for package, version in package_json["dependencies"].items():
             if package in {"typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
                 continue
