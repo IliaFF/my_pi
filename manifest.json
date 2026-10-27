@@ -59,7 +59,7 @@
       "files": [
         "index.ts"
       ],
-      "reason": "Register rare tools as native deferred; keep executors/schemas/hooks and recorded-session declarations unchanged, no auto-unloading."
+      "reason": "Native deferred registration plus shell-aware POSIX/Windows cmd.exe connect/cwd/exec, bounded local Windows deadlines and explicit local-only Windows standard-tool routing; preserve SSH trust/auth and POSIX adapters."
     },
     {
       "package": "pi-markdown-preview",

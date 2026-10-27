@@ -38,6 +38,14 @@ npm run verify:host                  # только patches/snapshots integrity
 
 Ponytail 5.2.0 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
 
+### SSH remote на Windows
+
+Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows с default shell `cmd.exe`: connect/reconnect, cwd/chdir и tool/slash exec не требуют Unix `timeout`, `bash` или `pwd` на Windows. Например: `remote(action="exec", remoteCommand='cmd.exe /c "whoami & hostname"', timeout=20)`. PowerShell как default shell не поддержан; менять Windows-настройки ради расширения не требуется.
+
+На Windows стандартные `read/write/edit/bash` и `!` остаются **локальными**, что указано в connect/status и model context. Для удалённых команд используйте `remote exec`. Windows cwd с пробелами поддержан; кавычки, управляющие символы и `% ! ^ & | < > ( )` в cwd отклоняются до исполнения. Локальный deadline/отмена закрывает SSH-канал и ограничивает ожидание, но **не гарантирует остановку Windows-процесса**. Кодировка Unicode отдельно не проверена. Парсер SSH по-прежнему принимает `-i`, `-J`/`-o ProxyJump`, но не произвольный ProxyCommand или `-o IdentitiesOnly`; ключи hop можно задать существующим SSH config.
+
+Обязательный `remote-shell-sdk` gate проверяет настоящий package через Pi SDK и loopback SSH fixture: Windows-ответы эмулированы, POSIX-команды реально выполняются в sandbox. Это не live Windows-проверка. Source patch не устанавливается в текущий Pi автоматически: нужна отдельно согласованная установка с backup и reload/restart.
+
 Диагностика и откат: [docs/diagnostics-and-rollback.md](docs/diagnostics-and-rollback.md). Git rollback не равен runtime rollback. Не коммитить секреты, пользовательские настройки, npm trees, базы, logs или backups.
 
 ---
