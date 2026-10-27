@@ -239,13 +239,14 @@ try {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
     manager.appendMessage({ role: "user", content: nativeRestoreMessage, timestamp: -2 });
     manager.appendMessage({ role: "user", content: "[TODO QUEUE sdk-fixture]\nЭто кандидат из Pending, ещё не взятый в работу.\n\nValidate archived SDK fixture.\nDo not publish yet.\n\nПосле claim используй настоящий id из результата инструмента, не placeholder кандидата.", timestamp: -1 });
+    const restriction = "SDK_HISTORY_APPROVAL: do not deploy without approval.";
     for (let i = 0; i < 4; i++) {
-      manager.appendMessage({ role: "user", content: `Keep exact intent ${i}`, timestamp: i * 2 });
+      manager.appendMessage({ role: "user", content: `Keep exact intent ${i}${i === 0 ? `\n${restriction}` : ""}`, timestamp: i * 2 });
       manager.appendMessage({ role: "assistant", content: text(20000), api: model.api, provider: model.provider,
         model: model.id, stopReason: "stop", usage, timestamp: i * 2 + 1 });
     }
     const { session } = await createAgentSession({ cwd: testHome, agentDir: testHome, model,
-      modelRuntime: runtime, resourceLoader, tools: [], sessionManager: manager,
+      modelRuntime: runtime, resourceLoader, sessionManager: manager,
       settingsManager: SettingsManager.inMemory({ compaction: { enabled: true, reserveTokens: 12500, keepRecentTokens: 12000 } }) });
     const errors = [];
     try {
@@ -259,11 +260,26 @@ try {
         assert.match(intents, /Validate archived SDK fixture\./);
         assert.doesNotMatch(intents, /После автосжатия|\[TODO QUEUE/);
       }
+      assert.ok(result.summary.includes(manager.getSessionFile()), "summary must identify the native ledger");
+      assert.ok(!result.summary.includes(restriction), "first-line index omits the later-line restriction");
+      assert.ok(!JSON.stringify(session.messages).includes(restriction), "restriction must leave active context");
+      assert.ok(session.getActiveToolNames().includes("recall_folded"));
+      const recall = session.agent.state.tools.find((tool) => tool.name === "recall_folded");
+      const found = await recall.execute("history-fixture", { search: "SDK_HISTORY_APPROVAL" }, new AbortController().signal);
+      assert.deepEqual(found.details.hits, [], "user messages are not registered foldable blocks");
+      // Native branch traversal excludes abandoned alternatives; never print the synthetic transcript.
+      for (const ledger of [manager, SessionManager.open(manager.getSessionFile())]) {
+        const entry = ledger.getBranch().find((item) => item.type === "message" &&
+          item.message.role === "user" && typeof item.message.content === "string" &&
+          item.message.content.startsWith("Keep exact intent 0\n"));
+        const selected = entry?.message.content.split("\n").filter((line) => line.startsWith("SDK_HISTORY_APPROVAL:"));
+        assert.deepEqual(selected, [restriction], "exact user restriction survives in the active-branch ledger");
+      }
       assert.equal(manager.getEntries().filter((entry) => entry.type === "compaction").length, 1);
       assert.equal(session.isCompacting, false);
       assert.equal(modelCalls, 0, "deterministic compaction must not authenticate or call a provider");
       assert.deepEqual(errors, []);
-      console.log(`PASS SDK deterministic /compact (${paths[0] === source ? "auto first" : "fold first"}): ${(performance.now() - started).toFixed(0)}ms, 0 model/auth calls`);
+      console.log(`PASS SDK deterministic /compact (${paths[0] === source ? "auto first" : "fold first"}): ${(performance.now() - started).toFixed(0)}ms, raw active-branch restriction recovery before/after reopen, recall limitation, 0 model/auth calls`);
     } finally { session.dispose(); }
   }
   assert.ok(existsSync(join(testHome, "context-fold")), "compaction ledger must be inside fixture agent");

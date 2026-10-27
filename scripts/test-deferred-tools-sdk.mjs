@@ -78,6 +78,12 @@ try {
   for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "more than one context window", "folding, recall and compaction", "remaining work", "do not wait for an overflow", "Small scouts and prototypes stay in the parent", "Clarify unclear user intent", "unknown solution may qualify at the same threshold", "parent inspects results, verifies and integrates", "goal, constraints, progress and evidence across context cycles", "does not authorize agent launches", "not a substitute for native sequential task handoff", "alone does not prove multi-window continuity", "never poll", "Do not complete work with required checks outstanding"]) {
     assert.ok(fresh.systemPrompt.includes(rule), `Permanent prompt lost ${rule}`);
   }
+  for (const rule of ["If an agreement or restriction is missing or contradictory", "recall_folded",
+    "session ledger path in the summary", "selected messages on its active branch",
+    "User messages may not be covered by recall", "Never dump a whole session or expose secrets",
+    "Current instructions and TODO remain authoritative", "ask rather than guess"]) {
+    assert.ok(fresh.systemPrompt.includes(rule), `Recovery policy lost ${rule}`);
+  }
   for (const name of ["read", "bash", "write", "edit", "context_search", "context_get", "context_export"]) assert.ok(fresh.getActiveToolNames().includes(name), `${name} must remain direct`);
   const contexts = [];
   const save = ctx => contexts.push(JSON.parse(JSON.stringify(ctx)));

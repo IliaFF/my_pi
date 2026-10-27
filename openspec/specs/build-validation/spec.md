@@ -194,3 +194,10 @@ The mandatory gate MUST exercise Meantime using the sandbox agent directory sele
 #### Scenario: Core and Meantime upstream contract updates
 - **WHEN** the stable candidate uses SDK getAgentDir and in-history initial tool declarations
 - **THEN** the same lifecycle and tool-preservation regressions run against actual packages without relying on obsolete HOME-only or anchorsAdditions assumptions
+
+### Requirement: Session recovery fallback has offline SDK coverage
+The mandatory gate MUST assert effective permanent recovery instructions with actual SDK assembly and characterize raw active-branch history access after real deterministic compaction using temporary synthetic sessions. It MUST demonstrate that a second-line user constraint can be absent from summary/recall yet remain recoverable from the exact native ledger before and after reopen, without personal sessions, model/auth calls or whole-transcript output.
+
+#### Scenario: Raw user restriction survives hard compaction
+- **WHEN** the real SDK compacts the temporary conversation
+- **THEN** focused raw-history recovery returns the exact restriction from the current branch before and after reopening, while effective-policy checks retain TODO authority and bounded sensitive retrieval
