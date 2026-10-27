@@ -29,7 +29,7 @@ Syntax checks (`node --check` regression script, Python compile of test-build.py
 - Arbitrary ProxyCommand and CLI `-o IdentitiesOnly` parsing remain unsupported; existing ProxyJump/per-hop SSH config behavior is unchanged.
 - At offline acceptance, no production installation, Windows settings change, user-key copy/read, provider request, CI job, push or archive was performed. Activation needs separately approved backup/install and reload/restart. Source change remains active until archival is requested.
 
-## Authorized isolated live attempt
+## Initial authorized isolated live attempt (blocked)
 
 The user separately selected isolated live validation without runtime installation. A temporary process loaded the exact patched repository package through real Pi SDK and faux provider; temporary HOME/agent config referenced existing absolute key paths and the saved public host fingerprints. Keys were used only by SSH authentication, not copied or printed; unknown/changed host fingerprints were rejected. Temporary local state was removed on exit.
 
@@ -39,3 +39,16 @@ The user separately selected isolated live validation without runtime installati
 - This attempt does not establish a patch regression or successful Windows compatibility. Live acceptance is blocked until the Windows SSH endpoint responds through the tunnel; PC power, sshd and tunnel health are not proven. No Windows command/settings change or production installation occurred.
 - After recording the live failure, repeated `npm test`: **PASS, 17/17**, exit 0 (job `b9f7c84a9`); strict change validation and diff checks PASS. This offline result does not resolve the live handshake failure.
 - Private local diagnostic artifacts: `/tmp/pi-remote-live-check.mjs` and `/tmp/pi-remote-live-check.log`; not committed. No live identity or private SSH config is copied into source. Executable source/tests are unchanged from commit `6d4a438` and its passing 17/17 offline gate.
+
+## Successful isolated live verification after user repair
+
+This result supersedes the live-connect blocker above. The user reported that Windows had no sshd service and loopback port 22 was unavailable. The official GitHub MSI attempt failed with 1603 at SetPrivilegesOnSshd (1060: missing service); MSI maintenance nevertheless reported Server Installed: Local. The user ran server-component repair with `REINSTALL=Server REINSTALLMODE=amus`, then reported exit 0 and sshd Running. The origin of the earlier MSI/service inconsistency was not established.
+
+A fresh run of `/tmp/pi-remote-live-check.mjs` through the exact repository-patched extension and actual Pi SDK completed with **exit 0**:
+
+- Live remote connect **PASS** through the configured jump host and reverse tunnel; default shell detected as `cmd`, toolRouting reported `local`.
+- Live remote exec **PASS**: `cmd.exe /c "whoami & hostname"` returned the expected account and hostname, asserted exactly by the private local harness. Identity output was reported to the user, not copied into Git.
+- Disconnect **PASS**; temporary local HOME/agent state removed. Existing keys were referenced only for authentication, never copied or printed; saved public host fingerprints were enforced.
+- Private output artifact: `/tmp/pi-remote-live-check-after-repair.log`. No production Pi installation, Windows configuration change by the agent, provider request, push or archive. Windows service installation/repair was performed by the user, not by the isolated verification process.
+
+This proves live connect and identity exec on this host, not long-lived session stability, Windows file adapters, Unicode/code-page behavior, arbitrary commands or reliable remote process termination on timeout. The installed Pi runtime still needs separately approved installation/reload to use the patch in ordinary sessions.
