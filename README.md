@@ -72,7 +72,7 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 21 прямую dependency. В `configs/settings.json` перечислены 18 Pi packages; `pi-canary@1.5.0` включён по явному запросу пользователя. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` удалён и не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
@@ -80,7 +80,6 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 | `@monotykamary/pi-retry` | `0.11.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
 | `context-fold` | `0.7.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
-| `pi-canary` | `1.5.0` | pinned/patched | Проверяет три фиксированных маркера в начале/середине/конце истории; после трёх провалов подряд сжимает и продолжает исходный запрос. |
 | `pi-web-access` | `0.44.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
 | `@dietrichgebert/ponytail` | `5.3.2` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
 | `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
@@ -96,11 +95,11 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 
 | `pi-ssh-remote` | `0.1.15` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
 
-### Сжатие и Canary
+### Автоматическое сжатие
 
 `auto-ultra-compact` больше не ограничивает большие модели порогом 170к: extension cap — 500000 tokens. Штатное сжатие Pi остаётся включено с `reserveTokens=12500`, `keepRecentTokens=12000`: для меньшего окна оно сработает раньше (`contextTokens > contextWindow - reserveTokens`). Метаданные модели и выбранный провайдер не меняются. Например, при окне 272000 штатный порог — выше 259500, а при окне 500000 — выше 487500, не 500000.
 
-Canary добавляет один модельный запрос перед ответом. `configs/pi-canary.json` задаёт `COUNT=3`, `POSITION=equidistant`, `VARIANT=fixed`, `FAIL_COMPACT=3`; распределённые маркеры могут нарушать prefix cache. Успешное воспроизведение маркеров не доказывает качество ответа. Патч продолжает исходный запрос после успешного или неудачного сжатия, не требует возвращать исчезнувшие маркеры; `context-fold` остаётся единственным владельцем summary. `/canary` показывает состояние, `/canary set COUNT=0` временно отключает проверки. Сохранение через `/canary save` меняет управляемый config; maintenance может вернуть snapshot.
+Canary не устанавливается и не выполняет дополнительные recall-запросы. `context-fold` остаётся единственным владельцем summary.
 
 Offline gate проверяет настоящий SDK с faux provider, но не реальную деградацию recall, стоимость или интерактивный UI. После установки требуется `/reload` либо перезапуск Pi.
 

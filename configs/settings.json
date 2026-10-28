@@ -43,8 +43,7 @@
       "extensions": [
         "dist/extensions/background-tasks.js"
       ]
-    },
-    "npm:pi-canary@1.5.0"
+    }
   ],
   "readseek": {
     "replacedTools": [

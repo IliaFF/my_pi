@@ -130,17 +130,6 @@
         "skills/pi-herdr-agents/SKILL.md"
       ],
       "reason": "Defer Herdr schemas and hide operating-skill advertising until needed; retain explicit help, full discovered descriptions, routing guidelines and executors."
-    },
-    {
-      "package": "pi-canary",
-      "version": "1.5.0",
-      "pinRequired": true,
-      "settingsSpec": "npm:pi-canary@1.5.0",
-      "patch": "patches/pi-canary+1.5.0.patch",
-      "files": [
-        "extensions/canary.ts"
-      ],
-      "reason": "Resume the original request after three failed recalls and successful/cancelled compaction; context-fold remains the sole summary owner."
     }
   ],
   "managedConfigs": [
@@ -269,12 +258,6 @@
       "snapshot": "local-extensions/deferred-tools.ts",
       "restore": true,
       "reason": "Preserve the rollout-managed tool loadout on recorded-session startup; fresh defaults use native deferred/tool_search."
-    },
-    {
-      "source": "npm/node_modules/pi-canary/extensions/canary.json",
-      "snapshot": "configs/pi-canary.json",
-      "restore": true,
-      "reason": "Three consecutive failures trigger compaction; fixed distributed recall markers."
     }
   ]
 }

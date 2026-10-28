@@ -85,10 +85,12 @@ def main() -> int:
                        ROOT / "scripts/test-tools.mjs"]
     if any(path.exists() for path in retired_surface):
         fail("retired tools artifacts remain in release")
-    canary_config = json.loads((ROOT / "configs/pi-canary.json").read_text())
-    if canary_config != {"COUNT": 3, "POSITION": "equidistant",
-                         "VARIANT": "fixed", "FAIL_COMPACT": 3}:
-        fail("Canary must use three consecutive distributed recall failures")
+    if ("pi-canary" in package_json["dependencies"]
+            or (ROOT / "configs/pi-canary.json").exists()
+            or list((ROOT / "patches").glob("pi-canary+*.patch"))
+            or "pi-canary" in json.dumps(manifest)
+            or "pi-canary" in (ROOT / "npm/package-lock.json").read_text()):
+        fail("Canary must be absent from the release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
     for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "Ask the user if uncertain"]:
         if required not in append_system:
@@ -158,8 +160,8 @@ def main() -> int:
         if bg is None or bg.get("extensions") != ["dist/extensions/background-tasks.js"]:
             fail("background shell pilot must load only pinned process entry, never attribution")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
-        if "npm:pi-canary@1.5.0" not in active_sources:
-            fail("Canary must be explicitly pinned and enabled")
+        if any(source.startswith("npm:pi-canary") for source in active_sources):
+            fail("Canary must not be activated")
         for package, version in package_json["dependencies"].items():
             if package in {"typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
                 continue

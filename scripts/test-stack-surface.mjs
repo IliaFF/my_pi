@@ -33,7 +33,7 @@ const host = () => {
   };
 };
 try {
-  assert.ok(existsSync(join(modules, "pi-canary/extensions/canary.json")), "Canary must have managed configuration");
+  assert.ok(!existsSync(join(modules, "pi-canary")), "Canary must be uninstalled");
   assert.ok(!existsSync(join(agent, "extensions/tools.ts")), "legacy tools owner must be removed");
 
   assert.ok(!existsSync(join(modules, "pi-caveman")), "Caveman must be uninstalled");
