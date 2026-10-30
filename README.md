@@ -40,7 +40,7 @@ npm run verify:host                  # только patches/snapshots integrity
 
 Новый source закрепляет Pi core/pi-tui **1.4.0**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
 
-Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
+Ponytail 5.3.3 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
 
 Диагностика и откат: [docs/diagnostics-and-rollback.md](docs/diagnostics-and-rollback.md). Git rollback не равен runtime rollback. Не коммитить секреты, пользовательские настройки, npm trees, базы, logs или backups.
 
@@ -80,18 +80,18 @@ Ponytail 5.3.2 имеет versioned patch: в lite/full/ultra базовые п�
 | `@monotykamary/pi-retry` | `0.11.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
 | `context-fold` | `0.7.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
-| `pi-web-access` | `0.44.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
-| `@dietrichgebert/ponytail` | `5.3.2` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
+| `pi-web-access` | `0.45.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
+| `@dietrichgebert/ponytail` | `5.3.3` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
 | `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `pi-token-speed` | `0.12.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; completion wake по умолчанию с явным opt-out; без agent telemetry, delegates, Fusion и attribution. |
-| `pi-herdr-agents` | `3.3.1` | pinned, Herdr | Долгоживущие самостоятельные исполнители для задач >1 управляемого окна; bundled sidebar с ручными Focus/All, лимит одного persistent specialist по умолчанию. |
+| `pi-workspace-history` | `0.5.2` | pinned | История workspace; retired default `pi-herdr-agents@3.3.1` не переустанавливается. Herdr backend сохранён в отдельном Firstmate стеке. |
 | `pi-fast-resume` | `1.4.18` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
-| `pine-of-glass` | `0.18.3` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
-| `pi-markdown-preview` | `0.24.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pine-of-glass` | `0.18.4` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
+| `pi-markdown-preview` | `0.25.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
-| `@amaster.ai/pi-browser-use` | `0.1.31` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
+| `@amaster.ai/pi-browser-use` | `0.1.32` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
 
 | `pi-ssh-remote` | `0.1.15` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
 
@@ -121,7 +121,7 @@ Offline gate проверяет настоящий SDK с faux provider, но н
 
 На рабочем Pi1.0.0 подтверждены real Chrome150/MCP1.10.1 и 9 nested browser calls через настоящий codemode/AgentSession: snapshot, fill, click, DOM, image и закрытие страницы. В каждой scripted model request: 0 браузерных schemas; прежний wrapper объявлял 16 schemas/15 263 JSON characters. Description codemode остался 1 059 characters в изолированном сравнении. Это символы, не измеренные provider tokens. Fresh полный RPC: stderr0, native `/mcp` присутствует, `/browser-tools` отсутствует, 0 messages/model runs. LLM planning, произвольные сайты, полный interacting tool loop всех extensions и Windows CDP этим не сертифицируются; произвольные сайты требуют отдельной проверки.
 
-`configs/mcp.json` — переносимый baseline. Installer добавляет отсутствующий entry `chrome`, сохраняя существующие servers и пользовательский entry с тем же именем; путь MCP адаптируется к agent directory. Maintenance не перезаписывает пользовательский `mcp.json`. После изменения — `/reload`; состояние — `pi mcp list` или `/mcp`. Браузерные schemas из уже записанной истории сессии задним числом не исчезают.
+`configs/mcp.json` — переносимый baseline. Installer добавляет отсутствующие `chrome`, `jev-browser` и `paper-search`, сохраняя существующие servers и записи с теми же именами; пути MCP адаптируются к agent directory. Новый Jev entry выключен до отдельной настройки ключа и включения; paper-search и Jev используют private stack wrappers. Состав, credentials и ограничения описаны в [portable stack](docs/portable-stack.md). Maintenance не перезаписывает пользовательский `mcp.json`. После изменения — `/reload`; состояние — `pi mcp list` или `/mcp`. Браузерные schemas из уже записанной истории сессии задним числом не исчезают.
 
 ### pi-train-agents: глобальные правила
 
@@ -142,7 +142,7 @@ Offline gate проверяет настоящий SDK с faux provider, но н
 | `task-session.ts` | активен | Перед новой задачей из чата/очереди агент оценивает общую цель. Связанная остаётся, при сомнении спрашивает; независимая переносится через `start_task_session` в новую native-сессию без старой переписки. Незавершённые TODO не бросаются, новая задача выполняется автоматически. |
 | `loop-profiler.ts` | активен | Последние 500 runs: model/tool timing без двойного счёта, медленные/ошибочные tools, native nested calls, context output, cache, стоимость из usage и stop reason. Pi 1.2 user/custom starts; legacy records читаются; raw trace только при `PI_PROFILE=1`. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
-| `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Сам Herdr устанавливается отдельно. |
+| `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Для Firstmate backend ставится в private stack, независимая установка Herdr не меняется. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: coding flow выполняется последовательными или параллельными direct tool calls.
 
@@ -187,6 +187,8 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 
 ## Установка
 
+Полный согласованный состав Pi + Firstmate + Herdr, точные источники, prerequisites Linux x86_64/WSL, MCP credentials и границы rollback описаны в [переносимом стеке](docs/portable-stack.md). Независимый Firstmate home и данные агентов не заменяются; installation не запускает fleet. Пользовательские C++/Python/LaTeX skills и AITunnel registration входят в source без ключей и локальных SSH-настроек.
+
 На чистом хосте:
 
 ```bash
@@ -205,7 +207,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --preserve-settings --install-core
 ```
 
-Сохраняются settings/APPEND/context policy; только известные explicit npm pins выравниваются по source lock. Управляемые расширения заменяются под backup. После установки нужен restart; текущая сессия не перезагружается автоматически.
+Сохраняются settings/APPEND/context policy; известные npm pins выравниваются по source lock, прежний default Herdr Pi plugin убирается, workspace-history добавляется. Portable Firstmate и resource-consent blocks дописываются в глобальный AGENTS без замены личных правил; полное ресурсное правило не дублируется в новом APPEND template. Отличающиеся новые provider/skills, чужие launchers или другой managed stack требуют review. После установки нужен restart Pi; текущая сессия не перезагружается автоматически.
 
 Установщик:
 
@@ -213,9 +215,9 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 2. Проверяет release и exact-version patch replay.
 3. Создаёт rollback backup управляемых agent-файлов.
 4. Выполняет `npm ci --ignore-scripts --legacy-peer-deps` по lock-файлу.
-5. Устанавливает default config, local extensions, OpenAlex skill и UI configs; добавляет Chrome MCP без перезаписи существующих servers, а train-agents config — только если его ещё нет.
+5. Устанавливает default config, local extensions, OpenAlex и три style skills, UI configs и отдельный pinned Firstmate/backend/MCP stack; добавляет отсутствующие MCP servers без перезаписи существующих, а train-agents config — только если его ещё нет.
 6. Применяет совместимые patch и запускает verification.
-7. При ошибке восстанавливает backup.
+7. При ошибке восстанавливает backup управляемых файлов и launchers; persistent stack stores сохраняются, чтобы не удалить Firstmate runtime/agent data.
 
 Другой основной agent directory:
 

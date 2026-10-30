@@ -11,6 +11,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+PORTABLE_MANAGED = {
+    "AGENTS.md", "extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
+    "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
+    "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp",
+}
 
 
 class InstallerRestoreTest(unittest.TestCase):
@@ -52,6 +57,7 @@ class InstallerRestoreTest(unittest.TestCase):
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
         if legacy:
+            managed = [item for item in managed if item not in PORTABLE_MANAGED]
             managed.remove("herdr-agents/config.json")
             managed.remove("extensions/task-session.ts")
             present.remove("extensions/task-session.ts")
@@ -97,10 +103,68 @@ class InstallerRestoreTest(unittest.TestCase):
 
     def test_pre_herdr_backup_is_accepted(self):
         """Retain the exact previous managed set with task-session present."""
+        self.managed = [item for item in self.managed
+                        if item not in PORTABLE_MANAGED]
         self.managed.remove("herdr-agents/config.json")
         self.write_backup()
         self.assertEqual(self.invoke(dry_run=True).returncode, 0)
         self.assert_current_unchanged()
+
+    def test_pre_portable_backup_is_accepted(self):
+        """Accept the exact previous allowlist without broadening restore scope."""
+        self.managed = [item for item in self.managed
+                        if item not in PORTABLE_MANAGED]
+        self.write_backup()
+        self.assertEqual(self.invoke(dry_run=True).returncode, 0)
+        self.assert_current_unchanged()
+
+    def test_instruction_restore_keeps_firstmate_runtime(self):
+        """Restore managed instructions without deleting persistent stack data."""
+        runtime = self.agent / "stack/fixture/firstmate/fleet-state"
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text("KEEP AGENT DATA")
+        (self.agent / "AGENTS.md").write_text("current private rules")
+        self.present.append("AGENTS.md")
+        self.entries.append(("AGENTS.md", "saved private rules", None))
+        self.write_backup()
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.agent / "AGENTS.md").read_text(),
+                         "saved private rules")
+        self.assertEqual(runtime.read_text(), "KEEP AGENT DATA")
+
+    def test_new_skill_rollback_keeps_unrelated_siblings(self):
+        """Remove only new templates, retaining user files beside all skills."""
+        notes = []
+        for name in ("cpp-styleguide", "python-styleguide", "latex-simple-style"):
+            directory = self.agent / "skills" / name
+            directory.mkdir(parents=True)
+            (directory / "SKILL.md").write_text("installed template")
+            note = directory / "private-notes.txt"
+            note.write_text("KEEP UNRELATED NOTES")
+            notes.append(note)
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for note in notes:
+            self.assertTrue(note.exists(), f"Rollback deleted {note.name}")
+            self.assertEqual(note.read_text(), "KEEP UNRELATED NOTES")
+            self.assertFalse((note.parent / "SKILL.md").exists())
+
+    def test_existing_skill_restore_keeps_unrelated_siblings(self):
+        """Restore a saved template without replacing its parent directory."""
+        name = "skills/cpp-styleguide/SKILL.md"
+        template = self.agent / name
+        template.parent.mkdir(parents=True)
+        template.write_text("installed template")
+        self.present.append(name)
+        self.entries.append((name, "saved template", None))
+        self.write_backup()
+        note = template.parent / "private-notes.txt"
+        note.write_text("KEEP UNRELATED NOTES")
+        result = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(template.read_text(), "saved template")
+        self.assertEqual(note.read_text(), "KEEP UNRELATED NOTES")
 
     def test_herdr_config_restore(self):
         """Restore new config bytes alongside the current managed set."""

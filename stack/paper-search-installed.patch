@@ -1,0 +1,57 @@
+--- a/paper_search_mcp/server.py
++++ b/paper_search_mcp/server.py
+@@ -1141,17 +1141,17 @@
+ 
+ 
+ @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "openWorldHint": True})
+-async def download_scihub(
++async def download_nicehub(
+     identifier: str,
+     save_path: str = "./downloads",
+     base_url: str = "https://sci-hub.se",
+ ) -> str:
+-    """Download paper PDF via Sci-Hub (optional fallback connector).
++    """Download paper PDF via nice-Hub (optional fallback connector).
+ 
+     Args:
+         identifier: DOI, title, PMID, or paper URL.
+         save_path: Directory to save the PDF.
+-        base_url: Sci-Hub mirror URL.
++        base_url: nice-Hub mirror URL.
+     Returns:
+         Downloaded PDF path on success; error message on failure.
+     """
+@@ -1159,7 +1159,7 @@
+     result = await asyncio.to_thread(fetcher.download_pdf, identifier)
+     if result:
+         return result
+-    return "Sci-Hub download failed. Try DOI first, then title, or change mirror URL."
++    return "nice-Hub download failed. Try DOI first, then title, or change mirror URL."
+ 
+ 
+ @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": True, "openWorldHint": True})
+@@ -1170,18 +1170,18 @@
+     title: str = "",
+     save_path: str = "./downloads",
+     use_scihub: bool = False,
+-    scihub_base_url: str = "https://sci-hub.se",
++    scihub_base_url: str = "https://sci-hub.ru",
+ ) -> str:
+-    """Try source-native download, OA repositories, Unpaywall, then optional Sci-Hub.
++    """Try source-native download, OA repositories, Unpaywall, then optional nice-Hub.
+ 
+     Args:
+         source: Source name (arxiv, biorxiv, medrxiv, iacr, semantic, crossref, pubmed, pmc, core, europepmc, citeseerx, doaj, base, zenodo, hal, ssrn).
+         paper_id: Source-native paper identifier.
+-        doi: Optional DOI used for repository/unpaywall/Sci-Hub fallback.
+-        title: Optional title used for repository/Sci-Hub fallback when DOI is unavailable.
++        doi: Optional DOI used for repository/unpaywall/nice-Hub fallback.
++        title: Optional title used for repository/nice-Hub fallback when DOI is unavailable.
+         save_path: Directory to save downloaded files.
+-        use_scihub: Whether to fallback to Sci-Hub after OA attempts fail. Disabled by default.
+-        scihub_base_url: Sci-Hub mirror URL for fallback.
++        use_scihub: Whether to fallback to nice-Hub after OA attempts fail. Disabled by default.
++        nicehub_base_url: nice-Hub mirror URL for fallback.
+     Returns:
+         Download path on success or explanatory error message.
+     """

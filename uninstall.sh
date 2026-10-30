@@ -55,8 +55,14 @@ deferred = allowed.copy()
 allowed.add("extensions/task-session.ts")
 task_session = allowed.copy()
 allowed.add("herdr-agents/config.json")
+herdr_config = allowed.copy()
+allowed.add("AGENTS.md")
+instruction_policy = allowed.copy()
+allowed.update({"extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
+                "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
+                "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp"})
 managed = s.get("agentManaged", [])
-if set(managed) not in (legacy, previous, deferred, task_session, allowed):
+if set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 present = s["agentPresent"]
 if not set(present).issubset(managed):

@@ -36,6 +36,8 @@ with tempfile.TemporaryDirectory(prefix="pi-preserve-") as temp:
     expected = json.loads(json.dumps(before))
     expected["packages"][0] = "npm:pi-ssh-remote@" + deps["pi-ssh-remote"]
     expected["packages"][1]["source"] = "npm:@amaster.ai/pi-browser-use@" + deps["@amaster.ai/pi-browser-use"]
+    expected["packages"][2] = "npm:pi-workspace-history@" + \
+        deps["pi-workspace-history"]
     assert after == expected
     assert (agent / "pi-meantime.json").read_bytes() == b'{"enabled":false,"widget":false}\n'
     assert (agent / "APPEND_SYSTEM.md").read_bytes() == b"PRIVATE INSTRUCTIONS\n"

@@ -14,15 +14,13 @@ For SSH work, use Pi's `remote` tool; if it is not declared, discover it through
 
 For long independent checks use the background tools' safety, waiting and cancellation contracts. Record the initial working state before edits. Validate the final changed scope and review the full owned diff against that initial working state, including owned untracked files. Preserve unrelated pre-existing tracked/untracked changes; do not stage or revert them. Earlier or narrower checks prove only their scope.
 
-Follow `start_task_session`'s goal-based handoff contract for new chat/queue tasks; never abandon unfinished work or checks. Ask the user if uncertain.
+Outside Firstmate sessions, follow `start_task_session`'s goal-based handoff contract for new chat/queue tasks. In Firstmate sessions (operating under the Firstmate supervisor contract), the global task-switch handoff instructions do not apply, including those injected by tools or the TODO queue: do not call `start_task_session` merely because the goal changes; keep the session and follow Firstmate's task lifecycle. In all sessions, never abandon unfinished work or checks; ask the user if uncertain.
 
 # Long-lived delegation
 
 Delegate only self-contained independent tasks forecast to require more than one context window after applying the current folding, recall and compaction system. Judge the remaining work, not raw file size or elapsed time; do not wait for an overflow first. Small scouts and prototypes stay in the parent. Require an explicit goal, boundaries and verifiable output, and an executor that preserves goal, constraints, progress and evidence across context cycles. Return a bounded summary with checks and artifact paths, not the full child history; the parent inspects results, verifies and integrates them. Clarify unclear user intent instead of outsourcing it. A clear large independent research goal with an unknown solution may qualify at the same threshold.
 
 This threshold does not authorize agent launches, production installation or paid requests. It does not permit agents through the shell-only background pilot and is not a substitute for native sequential task handoff. A saved transcript or a long-lived process alone does not prove multi-window continuity.
-
-When delegation is needed, discover Herdr tools with `tool_search` and read the package's `skills/pi-herdr-agents/SKILL.md` before operating them; never poll for completion or invent results.
 
 # Tracked project work
 

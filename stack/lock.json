@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "platform": "linux-x64",
+  "python": "3.13.7",
+  "firstmate": {
+    "repository": "https://github.com/kunchenguid/firstmate.git",
+    "commit": "7da4c3621370534ff9689843d2b77f34158057fb"
+  },
+  "paper": {
+    "repository": "https://github.com/openags/paper-search-mcp.git",
+    "commit": "cab1b5cc276a0cd004a0044003926a6440088049",
+    "version": "0.1.4",
+    "serverSha256": "03c58c255fa267e504b6e52a4894091b97a5b38aa43691b3b09fd929b8c8a7d3"
+  },
+  "artifacts": [
+    {
+      "name": "herdr",
+      "version": "0.9.5",
+      "url": "https://github.com/herdrdev/herdr/releases/download/v0.9.5/herdr-linux-x86_64",
+      "sha256": "14d9e8bc8b4a9e0118d77c32266f76d461f09b40342eb23752960bd89f59929d"
+    },
+    {
+      "name": "treehouse",
+      "version": "3.1.6",
+      "url": "https://github.com/kunchenguid/treehouse/releases/download/v3.1.6/treehouse-v3.1.6-linux-amd64.tar.gz",
+      "sha256": "e89891caf913b3b228387c7dccf53ff908327fca47839b7957681084578cb1a1",
+      "member": "treehouse"
+    },
+    {
+      "name": "gh",
+      "version": "2.103.3",
+      "url": "https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_linux_amd64.tar.gz",
+      "sha256": "4c806978ffce1cec70853302a56d70ac6da4f19bae7adca4e1a8ab00633dd91d",
+      "member": "gh_2.103.3_linux_amd64/bin/gh"
+    },
+    {
+      "name": "jq",
+      "version": "1.8.1",
+      "url": "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64",
+      "sha256": "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d"
+    }
+  ]
+}

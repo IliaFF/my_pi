@@ -22,17 +22,14 @@ try {
   const state = await client.getState();
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
-  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace", "bg", "jobs", "logs", "kill", "tasks", "subagent", "subagents-init", "worktree"]) {
+  for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace", "bg", "jobs", "logs", "kill", "tasks", "history-status"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
   }
-  for (const name of ["subagent", "subagents-init", "worktree"]) {
-    assert.equal(commands.filter(command => command.name === name).length, 1, `duplicate Herdr command: ${name}`);
-    assert.equal(commands.find(command => command.name === name).sourceInfo?.source, "npm:pi-herdr-agents@3.3.1", `wrong Herdr command owner: ${name}`);
-  }
+  assert.equal(commands.find(command => command.name === "history-status").sourceInfo?.source, "npm:pi-workspace-history@0.5.2", "workspace history must load from the approved package");
   for (const name of ["bg", "jobs", "logs", "kill", "tasks"]) {
     assert.equal(commands.find(command => command.name === name).sourceInfo?.source, "npm:pi-background-tasks@2.6.10", `wrong background command owner: ${name}`);
   }
-  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast", "caveman", "fusion", "fusion-model", "bg-update"]) {
+  for (const name of ["reader-pane-on", "reader-pane-off", "reader-pane-status", "fast", "caveman", "fusion", "fusion-model", "bg-update", "subagent", "subagents-init", "worktree"]) {
     assert.ok(!commands.some((command) => command.name === name), `removed command still registered: ${name}`);
   }
   assert.deepEqual(errors, [], "startup must not emit extension errors or start a model run");

@@ -6,7 +6,7 @@ Keep unrelated goals in clean native sessions without losing work or queue safet
 ## Requirements
 
 ### Requirement: Task continuity is goal based
-Before starting a task from chat or TODO queue, the agent MUST assess whether it shares the previous goal. Related work MUST stay; unrelated work MUST use a fresh session; ambiguity MUST ask the user. The existing model makes the assessment; no extra model, heuristic classifier or automatic deployment is introduced.
+Outside Firstmate supervisor sessions, before starting a task from chat or TODO queue, the agent MUST assess whether it shares the previous goal. Related work MUST stay; unrelated work MUST use a fresh session; ambiguity MUST ask the user. The existing model makes the assessment; no extra model, heuristic classifier or automatic deployment is introduced.
 
 #### Scenario: Same goal in one repo
 - **WHEN** the next request fixes/tests/extends the same goal
@@ -19,6 +19,10 @@ Before starting a task from chat or TODO queue, the agent MUST assess whether it
 #### Scenario: Unclear relation
 - **WHEN** the agent cannot establish continuity
 - **THEN** it asks the user and does not switch until clarified
+
+#### Scenario: Supervisor owns task lifecycle
+- **WHEN** the session operates under the Firstmate supervisor contract
+- **THEN** global task-switch handoff instructions, including tool/queue instructions, do not require native replacement merely for a changed goal; Firstmate lifecycle applies without abandoning unfinished work/checks
 
 ### Requirement: Session handoff is native and bounded
 Handoff MUST use a native command-only session replacement after idle, fresh withSession context and parent linkage. It MUST terminate old task execution, preserve the old session and send only a self-contained new request/necessary constraints. It MUST NOT copy old conversation, spawn Pi/subagents, discard queued messages or silently move unfinished queue tasks.

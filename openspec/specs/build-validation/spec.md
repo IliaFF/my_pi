@@ -170,17 +170,6 @@ The mandatory gate MUST exercise actual native SDK command-backed replacement wi
 - **WHEN** npm test runs
 - **THEN** goal-continuity policy wiring, real session handoff and queue dispatch boundaries are checked with finite deadlines; semantic model quality is not claimed
 
-### Requirement: Optional status IPC failures are nonfatal
-A failed optional herdr status/session report MUST NOT cause an unhandled rejection or abort a native session. Existing successful delivery and ordinary retry behavior MUST remain. Mandatory tests MUST NOT inherit the live pane identity or socket, and MUST retain fail-closed network denial.
-
-#### Scenario: Transport throws synchronously
-- **WHEN** native session/agent events run with net.createConnection throwing NETWORK_BLOCKED
-- **THEN** the session still finishes using its faux provider without unhandled rejection, crash record or external IPC
-
-#### Scenario: Inherited live pane environment
-- **WHEN** mandatory tests construct their isolated environment
-- **THEN** live HERDR identity/socket variables are absent; a dedicated synthetic case still exercises denied IPC
-
 ### Requirement: Queue recovery has mandatory offline native coverage
 The mandatory gate MUST exercise preflight failure before background launch, explicit replacement across scopes, obsolete endpoint avoidance, launched-failure rejection and Blocked recovery through actual Pi SDK/background execution with a faux provider in temporary workspaces. Reopen without a fresh check and unsafe reopens MUST fail without mutating TODO. Old records MUST remain; no production TODO, settings, credentials or provider calls may be used.
 
@@ -201,3 +190,28 @@ The mandatory gate MUST assert effective permanent recovery instructions with ac
 #### Scenario: Raw user restriction survives hard compaction
 - **WHEN** the real SDK compacts the temporary conversation
 - **THEN** focused raw-history recovery returns the exact restriction from the current branch before and after reopening, while effective-policy checks retain TODO authority and bounded sensitive retrieval
+
+### Requirement: Fresh install preflight does not require its future runtime
+Installer source preflight MUST retain structural, privacy, pin and registry patch validation without requiring an already installed Pi/context-fold SDK. Runtime-independent harness checks MUST still run. The mandatory npm test gate MUST force full installed-runtime SDK validation, regardless of the internal installer preflight mode.
+
+#### Scenario: Empty profile and no usable Pi
+- **WHEN** a fresh candidate is validated before dependencies/core are installed
+- **THEN** source validation can succeed without importing a nonexistent runtime; the installer still requires its documented install-core permission to install a missing core
+
+#### Scenario: Mandatory source gate
+- **WHEN** npm test runs
+- **THEN** it explicitly disables the source-only preflight mode and retains the actual SDK check
+
+### Requirement: Release scanning prunes excluded runtime directories
+The release privacy scan MUST skip descent into .git, node_modules and test-results, not traverse them before filtering. All other release files MUST retain the existing forbidden-path and secret-content validation, including similarly named non-excluded directories.
+
+#### Scenario: Dependencies exist in the source tree
+- **WHEN** source validation runs with installed test dependencies
+- **THEN** excluded directory descendants are not visited, ordinary files remain checked, and no dependency relocation is needed
+
+### Requirement: Portable stack has isolated acceptance checks
+Mandatory checks MUST cover fresh/preserved instructions, the approved package/skill/MCP/provider inventory, pinned Firstmate bootstrap and refusal of unsafe replacement. Actual SDK assembly MUST verify the Firstmate fallback with project APPEND precedence. Live transports, fleet execution and provider quality MUST remain separately unverified.
+
+#### Scenario: Full source gate
+- **WHEN** npm test runs
+- **THEN** stack contracts and isolated installer/SDK cases execute alongside all retained integration/startup checks without production files, credentials or external model calls

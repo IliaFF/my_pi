@@ -1,4 +1,4 @@
-"""Check pinned adoption and preservation of private Herdr preferences."""
+"""Check retired Pi plugin and preservation of private Herdr preferences."""
 
 import json
 import os
@@ -13,14 +13,14 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 class HerdrAdoptionTests(unittest.TestCase):
     """Exercise portable config bootstrap without a real Herdr server."""
 
-    def test_exact_package_and_conservative_defaults(self):
-        """Keep model selection and tool permissions outside default adoption."""
+    def test_retired_plugin_and_conservative_saved_defaults(self):
+        """Omit the Pi plugin without deleting saved Herdr preferences."""
         package = json.loads((ROOT / "npm/package.json").read_text())
-        self.assertEqual(package["dependencies"].get(
-            "pi-herdr-agents"), "3.3.1")
+        self.assertNotIn("pi-herdr-agents", package["dependencies"])
+        self.assertEqual(package["dependencies"]["pi-workspace-history"],
+                         "0.5.2")
         settings = json.loads((ROOT / "configs/settings.json").read_text())
-        self.assertEqual(settings["packages"].count(
-            "npm:pi-herdr-agents@3.3.1"), 1)
+        self.assertNotIn("npm:pi-herdr-agents@3.3.1", settings["packages"])
         config = json.loads(
             (ROOT / "configs/herdr-agents/config.json").read_text())
         self.assertEqual(config, {"status": {"enabled": True},

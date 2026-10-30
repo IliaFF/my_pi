@@ -16,12 +16,12 @@
     "context-fold": "0.7.0",
     "pi-background-tasks": "2.6.10",
     "pi-fast-resume": "1.4.18",
-    "pi-herdr-agents": "3.3.1",
     "pi-markdown-preview": "0.25.0",
     "pi-ssh-remote": "0.1.15",
     "pi-token-speed": "0.12.0",
     "pi-train-agents": "0.2.7",
     "pi-web-access": "0.45.0",
+    "pi-workspace-history": "0.5.2",
     "pine-of-glass": "0.18.4",
     "typebox": "1.4.3"
   },

@@ -13,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
 
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent).resolve()
@@ -20,6 +21,17 @@ ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().paren
 
 def fail(message: str) -> None:
     raise RuntimeError(message)
+
+
+def release_files(root: Path) -> Iterator[Path]:
+    """Yield release files without descending into excluded runtime trees."""
+    excluded = {".git", "node_modules", "test-results"}
+    for directory, directories, files in os.walk(root):
+        directories[:] = [name for name in directories if name not in excluded]
+        for name in files:
+            path = Path(directory) / name
+            if name not in excluded and path.is_file():
+                yield path
 
 
 def tarball(package: str, version: str) -> bytes:
@@ -92,7 +104,7 @@ def main() -> int:
             or "pi-canary" in (ROOT / "npm/package-lock.json").read_text()):
         fail("Canary must be absent from the release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
-    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "Ask the user if uncertain"]:
+    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "ask the user if uncertain"]:
         if required not in append_system:
             fail(f"tool routing / task policy missing: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:
@@ -229,9 +241,7 @@ def main() -> int:
 
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|context-fold|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
-    for path in ROOT.rglob("*"):
-        if ".git" in path.parts or "node_modules" in path.parts or "test-results" in path.parts or not path.is_file():
-            continue
+    for path in release_files(ROOT):
         if forbidden_path.search(path.relative_to(ROOT).as_posix()):
             fail(f"forbidden path in release: {path.relative_to(ROOT)}")
         try:
@@ -292,16 +302,20 @@ def main() -> int:
     else:
         print("SKIP registry archive replay in offline gate; fresh npm lock + patch integration cover installation")
 
-    compaction_test = subprocess.run(
-        ["node", str(ROOT / "scripts/test-auto-ultra-compact.mjs"), str(ROOT)],
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if compaction_test.returncode:
-        fail(f"auto-ultra-compact test failed: {compaction_test.stdout.strip()}")
-    print(compaction_test.stdout.strip())
+    if os.environ.get("PI_RELEASE_SOURCE_ONLY") == "1":
+        print("SKIP installed-runtime SDK check in source-only install preflight; mandatory npm test runs it")
+    else:
+        compaction_test = subprocess.run(
+            ["node", str(ROOT / "scripts/test-auto-ultra-compact.mjs"), str(ROOT)],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if compaction_test.returncode:
+            fail(
+                f"auto-ultra-compact test failed: {compaction_test.stdout.strip()}")
+        print(compaction_test.stdout.strip())
 
     profiler_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-loop-profiler.mjs")],

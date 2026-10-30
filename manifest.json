@@ -118,18 +118,6 @@
         "src/core/index/seed-index.ts"
       ],
       "reason": "Exclude exact owned restore envelopes and index queue task bodies in soft/hard user intents; retain ordinary text and explicitly tested multiline truncation."
-    },
-    {
-      "package": "pi-herdr-agents",
-      "version": "3.3.1",
-      "pinRequired": true,
-      "settingsSpec": "npm:pi-herdr-agents@3.3.1",
-      "patch": "patches/pi-herdr-agents+3.3.1.patch",
-      "files": [
-        "pi-extension/subagents/index.ts",
-        "skills/pi-herdr-agents/SKILL.md"
-      ],
-      "reason": "Defer Herdr schemas and hide operating-skill advertising until needed; retain explicit help, full discovered descriptions, routing guidelines and executors."
     }
   ],
   "managedConfigs": [
@@ -161,7 +149,8 @@
       "source": "mcp.json",
       "snapshot": "configs/mcp.json",
       "restore": false,
-      "reason": "Audit native Chrome MCP codemode exposure and safety flags; never overwrite other user MCP servers during maintenance."
+      "reason": "Audit native Chrome MCP codemode exposure and safety flags; never overwrite other user MCP servers during maintenance.",
+      "snapshotRuntime": false
     },
     {
       "source": "APPEND_SYSTEM.md",
@@ -258,6 +247,41 @@
       "snapshot": "local-extensions/deferred-tools.ts",
       "restore": true,
       "reason": "Preserve the rollout-managed tool loadout on recorded-session startup; fresh defaults use native deferred/tool_search."
+    },
+    {
+      "source": "AGENTS.md",
+      "snapshot": "configs/AGENTS.md",
+      "restore": false,
+      "reason": "Portable Firstmate exception and resource-consent rule survive project APPEND override; installer preserves unrelated private instructions.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "extensions/aitunnel.ts",
+      "snapshot": "local-extensions/aitunnel.ts",
+      "restore": false,
+      "reason": "Portable AITunnel registration; key resolved from AITUNNEL_API_KEY, no auth data.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "skills/cpp-styleguide/SKILL.md",
+      "snapshot": "skills/cpp-styleguide/SKILL.md",
+      "restore": false,
+      "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "skills/python-styleguide/SKILL.md",
+      "snapshot": "skills/python-styleguide/SKILL.md",
+      "restore": false,
+      "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "skills/latex-simple-style/SKILL.md",
+      "snapshot": "skills/latex-simple-style/SKILL.md",
+      "restore": false,
+      "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
+      "snapshotRuntime": false
     }
   ]
 }

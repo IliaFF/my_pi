@@ -104,7 +104,7 @@ def main():
         (home / ".pi/agent").symlink_to(agent, target_is_directory=True)
         env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL", "TERM", "SYSTEMROOT") if key in os.environ}
         env.update(HOME=str(home), XDG_CONFIG_HOME=str(home / ".config"), PI_CODING_AGENT_DIR=str(agent),
-                   PI_CODING_AGENT_CORE_DIR=str(core), PI_OFFLINE="1", OPENSPEC_TELEMETRY="0", PI_TEST_OFFLINE="1",
+                   PI_CODING_AGENT_CORE_DIR=str(core), PI_OFFLINE="1", OPENSPEC_TELEMETRY="0", PI_TEST_OFFLINE="1", PI_RELEASE_SOURCE_ONLY="0",
                    NODE_OPTIONS="--unhandled-rejections=strict")
         env["PATH"] = os.pathsep.join([str(modules / ".bin"), str(ROOT / "node_modules/.bin"), env.get("PATH", "")])
 
@@ -121,6 +121,10 @@ def main():
         check("ci-config", "contract", ["node", "scripts/test-ci-config.mjs"])
         check("harness", "unit", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "*_test.py"])
         check("release", "unit", [sys.executable, "scripts/test-release.py", str(ROOT)], timeout=180)
+        check("portable-stack", "unit",
+              ["node", "scripts/test-portable-stack.mjs"])
+        check("stack-bootstrap", "unit",
+              ["node", "scripts/test-stack-bootstrap.mjs"])
         check("loop-pilot", "unit", ["node", "scripts/test-loop-pilot.mjs", "local-extensions/loop-profiler.ts"])
         check("queue-checks", "unit", ["node", "--test", "scripts/test-queue-checks.mjs"], timeout=30)
         if args.agent:
@@ -140,14 +144,13 @@ def main():
                    "scripts/test-compaction-sdk.mjs", str(modules)], timeout=30)
             check("stack-surface", "integration", ["node", "scripts/test-stack-surface.mjs", str(agent)])
             check("native-quota-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-native-quota-sdk.mjs", str(modules)], timeout=30)
+            check("firstmate-policy-sdk", "integration",
+                  ["node", "scripts/test-firstmate-policy-sdk.mjs", str(modules)], timeout=120)
             check("deferred-tools-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-deferred-tools-sdk.mjs", str(modules)], timeout=60)
             check("train-agents", "integration", ["node", "scripts/test-train-agents.mjs", str(agent)])
             check("queue-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-todo-queue-sdk.mjs", str(modules)], timeout=60)
             check("queue-checks-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-queue-checks-sdk.mjs", str(modules)], timeout=60)
             check("task-session-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-task-session-sdk.mjs", str(modules)], timeout=60)
-            check("herdr-ipc-sdk", "integration",
-                  ["node", "--require", "./scripts/no-network.cjs",
-                   "scripts/test-herdr-ipc-sdk.mjs", str(modules)], timeout=60)
             check("ponytail-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-ponytail-sdk.mjs", str(modules)], timeout=60)
             check("background-jobs", "integration", ["node", "scripts/test-background-jobs.mjs", str(modules)], timeout=60)
             check("loop-sdk", "integration", ["node", "scripts/test-loop-profiler-sdk.mjs", str(core)])

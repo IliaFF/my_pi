@@ -15,6 +15,23 @@
       ],
       "exposure": "codemode",
       "description": "Isolated headless Chrome in WSL. Discover browser tools with searchTools or describeNamespace('chrome'); call list_pages first and pass pageId explicitly. Screenshots return image blocks."
+    },
+    "jev-browser": {
+      "command": "~/.pi/agent/bin/jev-browser",
+      "env": {
+        "JEV_PROVIDER": "openrouter",
+        "OPENROUTER_API_KEY": "${OPENROUTER_API_KEY}"
+      },
+      "exposure": "codemode",
+      "enabled": false
+    },
+    "paper-search": {
+      "command": "~/.pi/agent/bin/paper-search-mcp",
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "exposure": "codemode"
     }
   }
 }
