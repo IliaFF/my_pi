@@ -1,0 +1,2 @@
+# Design
+Use five sparse files, each exactly 64 MiB, so actual fingerprint streaming reaches the unchanged 256 MiB aggregate budget and rejects the fifth file without violating RLIMIT_FSIZE. Keep symlink-ancestor and /byte limit/ rejection assertions. A Python stdlib resource preexec limit on the existing Node fixture catches future per-file incompatibility in ordinary npm test as well as the real VPS sandbox. No mocks replace fingerprint behavior, and no resource policy or timeout is raised.

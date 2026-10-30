@@ -24,8 +24,10 @@ with tempfile.TemporaryDirectory(prefix="pi-config-merge-") as temp:
     custom = {"mcpServers": {"chrome": {"command": "custom"}, "existing": {"command": "keep"}}}
     (agent / "mcp.json").write_text(json.dumps(custom))
     train.write_text('{"targetFile":"custom.md"}')
+    expected = {"mcpServers": {**config["mcpServers"],
+                               **custom["mcpServers"]}}
     merge()
-    assert json.loads((agent / "mcp.json").read_text()) == custom
+    assert json.loads((agent / "mcp.json").read_text()) == expected
     assert json.loads(train.read_text()) == {"targetFile": "custom.md"}
 print("PASS installer: custom agent path; existing MCP servers/Chrome and training config preserved")
 

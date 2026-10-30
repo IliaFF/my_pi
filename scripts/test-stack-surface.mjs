@@ -52,7 +52,7 @@ try {
     process.env.HOME = state;
     process.chdir(state);
     mkdirSync(join(state, ".pi/agent"), { recursive: true });
-    writeFileSync(join(state, ".pi/agent/pi-meantime.json"), '{"enabled":true}');
+    writeFileSync(join(state, "pi-meantime.json"), '{"enabled":true}');
     globalThis.setInterval = (fn, ms) => { assert.equal(ms, 1000); timers.set(++nextTimer, fn); return nextTimer; };
     globalThis.clearInterval = id => { cleared.add(id); };
     (await jiti.import(join(modules, "pine-of-glass/extensions/pi-meantime/index.ts"), { default: true }))(meantime.pi);
@@ -101,7 +101,7 @@ try {
   assert.equal(await hasCodexAuth(context("openai-codex")), true);
   assert.equal(await hasCodexAuth(context("openai")), false);
   await assert.rejects(getCodexUsage(context("openai")), error => error.code === "codex-no-auth");
-  console.log("PASS quota compatibility probe: legacy supported; new OpenAI-only gpt-6.1-sol credentials are NOT supported by pi-zai-usage 1.1.0 (mocked, no login/network)");
+  console.log("PASS quota auth boundary: legacy supported; native-only credentials cannot supply separate Codex account quota (mocked, no login/network)");
 } finally {
   rmSync(state, { recursive: true, force: true });
 }

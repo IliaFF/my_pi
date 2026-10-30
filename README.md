@@ -8,7 +8,7 @@ Node >=24, npm, Python 3.12+, Git и `patch`, Linux/WSL:
 
 ```bash
 cd pi-build
-npm ci --ignore-scripts --no-audit --no-fund
+npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
 npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix npm
 npm test
 ```
@@ -27,6 +27,10 @@ npm test
 4. `/opsx-apply` → `npm test` → review полного diff → запись результатов и ограничений.
 5. `/opsx-archive` только после PASS и завершения tasks; commit specs/code/tests вместе. Не писать, что CI прошёл, без реального job.
 
+## Долгоживущие исполнители
+
+Делегировать только независимые задачи, прогнозируемо требующие более одного управляемого окна контекста после folding, recall и compaction. Малые исследования и прототипы остаются у родителя. [Проверка Herdr и Durable](docs/multiwindow-agent-evaluation.md) описывает pinned offline evidence, разные контекстные системы и ограничения recovery; Herdr принят в состав сборки после [реальной изолированной Herdr/sidebar проверки](docs/herdr-sidebar-integration.md). [Установка и rollback](docs/herdr-agents-installation.md) описывают exact package, bundled sidebar, scoped backup и необходимость reload для существующих сессий; Durable не активирован.
+
 ## Установленный runtime
 
 ```bash
@@ -34,9 +38,9 @@ npm test -- --agent "$HOME/.pi/agent"  # реальные dependencies + drift, 
 npm run verify:host                  # только patches/snapshots integrity
 ```
 
-Новый source закрепляет Pi core/pi-tui **1.3.0**, проверенный offline и установленный с backup. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
+Новый source закрепляет Pi core/pi-tui **1.4.0**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
 
-Ponytail 5.2.0 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
+Ponytail 5.3.3 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
 
 ### SSH remote на Windows
 
@@ -50,7 +54,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ---
 
-Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.3.0; текущие результаты — в OpenSpec evidence и `test-results/`.
+Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.4.0; текущие результаты — в OpenSpec evidence и `test-results/`.
 
 # my_pi
 
@@ -58,13 +62,13 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@1.3.0`
+- Pi core `@earendil-works/pi-coding-agent@1.4.0`
 - Node.js `>=24.0.0`
-- 19 прямых npm dependencies с точными версиями: 16 settings entries и exact runtime peers; полный `package-lock.json`
+- 20 прямых npm dependencies с точными версиями: 17 settings entries и exact runtime peers; полный `package-lock.json`
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
 - детерминированное сжатие `context-fold@0.7.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
-- bounded recovery packet `auto-ultra-compact` как emergency fallback
+- `auto-ultra-compact` без дополнительного recovery snapshot: восстановление по TODO, индексу и истории
 - precise tool restoration после compaction добавляет `recall_folded` при наличии folded pointers
 - Contextimate для оценки статического context footprint
 - Cachemire для cache/turn cost diagnostics
@@ -72,31 +76,40 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 - persistent агрегированный agent-loop baseline, direct context-output и searchable-context receipt telemetry v4, `/loop-report batching`
 - глобальный OpenAlex skill с dependency-free Node helper для поиска научных публикаций и OA-ссылок
 
-Репозиторий содержит три version-gated patch: `pi-train-agents@0.2.7` для глобального `APPEND_SYSTEM.md` и истории всех проектов, `@juicesharp/rpiv-ask-user-question@2.13.8` для первого хода без UI. `pi-background-tasks@2.6.10` ограничен process-only политикой в общей точке запуска. Caveman и его patch удалены по запросу пользователя; правила понятных объяснений находятся в `configs/APPEND_SYSTEM.md`, Ponytail сохранён. Прежний patch `pi-zai-usage` удалён: upstream `1.1.0` включает обработку optional Codex quota windows.
+Репозиторий содержит десять version-gated patches: `pi-train-agents@0.2.7` для глобального `APPEND_SYSTEM.md` и истории всех проектов, `@juicesharp/rpiv-ask-user-question@2.15.0` для первого хода без UI, Ponytail для request-local skill discovery и три native-deferred patches для SSH, preview и context. `pi-background-tasks@2.6.10` ограничен process-only политикой в общей точке запуска. Caveman и его patch удалены по запросу пользователя; правила понятных объяснений находятся в `configs/APPEND_SYSTEM.md`, Ponytail сохранён. `pi-zai-usage@1.1.0` сохраняет локальный native-quota fallback patch; web-access и context-fold также имеют version-gated patches.
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 19 прямых dependency. В `configs/settings.json` перечислены 16 Pi packages; выключенный `pi-canary` больше не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.3.37`/`1.3.0`/`1.3.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` удалён и не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.11.0` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.11.1` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `@monotykamary/pi-retry` | `0.11.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
 | `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
 | `context-fold` | `0.7.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
-| `pi-web-access` | `0.41.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
-| `@dietrichgebert/ponytail` | `5.2.0` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
-| `@juicesharp/rpiv-ask-user-question` | `2.13.8` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
-| `pi-token-speed` | `0.11.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
-| `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; без agent telemetry, delegates, Fusion, attribution и auto-wake. |
-| `pi-fast-resume` | `1.4.17` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
+| `pi-web-access` | `0.45.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
+| `@dietrichgebert/ponytail` | `5.3.3` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
+| `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
+| `pi-token-speed` | `0.12.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
+| `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; completion wake по умолчанию с явным opt-out; без agent telemetry, delegates, Fusion и attribution. |
+| `pi-workspace-history` | `0.5.2` | pinned | История workspace; retired default `pi-herdr-agents@3.3.1` не переустанавливается. Herdr backend сохранён в отдельном Firstmate стеке. |
+| `pi-fast-resume` | `1.4.18` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
-| `pine-of-glass` | `0.15.3` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
-| `pi-markdown-preview` | `0.22.3` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
+| `pine-of-glass` | `0.18.4` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
+| `pi-markdown-preview` | `0.25.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
-| `@amaster.ai/pi-browser-use` | `0.1.27` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
+| `@amaster.ai/pi-browser-use` | `0.1.32` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
 
 | `pi-ssh-remote` | `0.1.15` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
+
+### Автоматическое сжатие
+
+`auto-ultra-compact` больше не ограничивает большие модели порогом 170к: extension cap — 500000 tokens. Штатное сжатие Pi остаётся включено с `reserveTokens=12500`, `keepRecentTokens=12000`: для меньшего окна оно сработает раньше (`contextTokens > contextWindow - reserveTokens`). Метаданные модели и выбранный провайдер не меняются. Например, при окне 272000 штатный порог — выше 259500, а при окне 500000 — выше 487500, не 500000.
+
+Canary не устанавливается и не выполняет дополнительные recall-запросы. `context-fold` остаётся единственным владельцем summary.
+
+Offline gate проверяет настоящий SDK с faux provider, но не реальную деградацию recall, стоимость или интерактивный UI. После установки требуется `/reload` либо перезапуск Pi.
 
 ### SSH
 
@@ -110,13 +123,13 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ### Chrome в WSL
 
-`@amaster.ai/pi-browser-use@0.1.27` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
+`@amaster.ai/pi-browser-use@0.1.28` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
 
 Сохранены headless, isolated profile на сессию, executable `/usr/bin/google-chrome`, pageId routing, выключенные usageStatistics/CrUX/experimentalVision и включённый network headers redact. Старый блок `pi-browser-use` в settings не управляет native сервером: менять браузерные flags нужно в `mcp.json`. Chrome должен быть установлен отдельно. MCP подключается на session_start, Chrome запускается при первом браузерном действии; это не on-demand запуск самого MCP process.
 
 На рабочем Pi1.0.0 подтверждены real Chrome150/MCP1.10.1 и 9 nested browser calls через настоящий codemode/AgentSession: snapshot, fill, click, DOM, image и закрытие страницы. В каждой scripted model request: 0 браузерных schemas; прежний wrapper объявлял 16 schemas/15 263 JSON characters. Description codemode остался 1 059 characters в изолированном сравнении. Это символы, не измеренные provider tokens. Fresh полный RPC: stderr0, native `/mcp` присутствует, `/browser-tools` отсутствует, 0 messages/model runs. LLM planning, произвольные сайты, полный interacting tool loop всех extensions и Windows CDP этим не сертифицируются; произвольные сайты требуют отдельной проверки.
 
-`configs/mcp.json` — переносимый baseline. Installer добавляет отсутствующий entry `chrome`, сохраняя существующие servers и пользовательский entry с тем же именем; путь MCP адаптируется к agent directory. Maintenance не перезаписывает пользовательский `mcp.json`. После изменения — `/reload`; состояние — `pi mcp list` или `/mcp`. Браузерные schemas из уже записанной истории сессии задним числом не исчезают.
+`configs/mcp.json` — переносимый baseline. Installer добавляет отсутствующие `chrome`, `jev-browser` и `paper-search`, сохраняя существующие servers и записи с теми же именами; пути MCP адаптируются к agent directory. Новый Jev entry выключен до отдельной настройки ключа и включения; paper-search и Jev используют private stack wrappers. Состав, credentials и ограничения описаны в [portable stack](docs/portable-stack.md). Maintenance не перезаписывает пользовательский `mcp.json`. После изменения — `/reload`; состояние — `pi mcp list` или `/mcp`. Браузерные schemas из уже записанной истории сессии задним числом не исчезают.
 
 ### pi-train-agents: глобальные правила
 
@@ -132,11 +145,12 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 | Файл | Статус | Назначение |
 | --- | --- | --- |
-| `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability, запускает continuation и пишет bounded recovery packet только как emergency fallback. |
+| `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability и запускает continuation без записи recovery packets. |
 | `deferred-tools.ts` | активен | Сохраняет ранее объявленный managed loadout при startup старой ветки; новые сессии используют native deferred/tool_search. |
+| `task-session.ts` | активен | Перед новой задачей из чата/очереди агент оценивает общую цель. Связанная остаётся, при сомнении спрашивает; независимая переносится через `start_task_session` в новую native-сессию без старой переписки. Незавершённые TODO не бросаются, новая задача выполняется автоматически. |
 | `loop-profiler.ts` | активен | Последние 500 runs: model/tool timing без двойного счёта, медленные/ошибочные tools, native nested calls, context output, cache, стоимость из usage и stop reason. Pi 1.2 user/custom starts; legacy records читаются; raw trace только при `PI_PROFILE=1`. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
-| `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Сам Herdr устанавливается отдельно. |
+| `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Для Firstmate backend ставится в private stack, независимая установка Herdr не меняется. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: coding flow выполняется последовательными или параллельными direct tool calls.
 
@@ -152,7 +166,6 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 | Локальный `output-compactor` | полностью удалён | Заменён готовым searchable sidecar `@spences10/pi-context@0.1.16`; оба `tool_result` interceptor одновременно не загружаются. |
 | Локальный `context-compaction.ts` | полностью удалён | Заменён `context-fold@0.7.0`: без model summarizer, external excerpt store и второго compaction-owner. |
 | Pi experimental tool-output pruning | выключен | Не мутирует историю lossy pruning; большие результаты обрабатывает searchable context sidecar. |
-| `pi-canary` | удалён из lock, patches и managed configs | Не загружался и не давал функций рабочему стеку. Повторная установка — только под конкретную задачу. |
 | Локальный `tools.ts` | полностью удалён | Уже был выключен; native tools и `context-fold` покрывают текущую поверхность без дополнительного lifecycle-owner. |
 | Legacy project-loop | удалён | Убирает auto-preflight и пять постоянных schemas; discovery/edit/test остаётся direct. |
 | Legacy keyword tool router и `lean-tools.ts` | удалены | Они вызывали `setActiveTools()` на turn boundaries; web `promptSnippet` пересобирал system prompt и ломал prefix cache. |
@@ -182,13 +195,15 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 
 ## Установка
 
+Полный согласованный состав Pi + Firstmate + Herdr, точные источники, prerequisites Linux x86_64/WSL, MCP credentials и границы rollback описаны в [переносимом стеке](docs/portable-stack.md). Независимый Firstmate home и данные агентов не заменяются; installation не запускает fleet. Пользовательские C++/Python/LaTeX skills и AITunnel registration входят в source без ключей и локальных SSH-настроек.
+
 На чистом хосте:
 
 ```bash
 ./install.sh --install-core
 ```
 
-Если Pi `1.3.0` уже доступен через `PATH`:
+Если Pi `1.4.0` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -200,7 +215,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --preserve-settings --install-core
 ```
 
-Сохраняются settings/APPEND/context policy; только известные explicit npm pins выравниваются по source lock. Управляемые расширения заменяются под backup. После установки нужен restart; текущая сессия не перезагружается автоматически.
+Сохраняются settings/APPEND/context policy; известные npm pins выравниваются по source lock, прежний default Herdr Pi plugin убирается, workspace-history добавляется. Portable Firstmate и resource-consent blocks дописываются в глобальный AGENTS без замены личных правил; полное ресурсное правило не дублируется в новом APPEND template. Отличающиеся новые provider/skills, чужие launchers или другой managed stack требуют review. После установки нужен restart Pi; текущая сессия не перезагружается автоматически.
 
 Установщик:
 
@@ -208,9 +223,9 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 2. Проверяет release и exact-version patch replay.
 3. Создаёт rollback backup управляемых agent-файлов.
 4. Выполняет `npm ci --ignore-scripts --legacy-peer-deps` по lock-файлу.
-5. Устанавливает default config, local extensions, OpenAlex skill и UI configs; добавляет Chrome MCP без перезаписи существующих servers, а train-agents config — только если его ещё нет.
+5. Устанавливает default config, local extensions, OpenAlex и три style skills, UI configs и отдельный pinned Firstmate/backend/MCP stack; добавляет отсутствующие MCP servers без перезаписи существующих, а train-agents config — только если его ещё нет.
 6. Применяет совместимые patch и запускает verification.
-7. При ошибке восстанавливает backup.
+7. При ошибке восстанавливает backup управляемых файлов и launchers; persistent stack stores сохраняются, чтобы не удалить Firstmate runtime/agent data.
 
 Другой основной agent directory:
 
@@ -222,11 +237,11 @@ PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 
 ## Compaction
 
-`context-fold@0.7.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256.
+`context-fold@0.7.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256. Versioned patch убирает из User intents точный служебный restore prompt и заменяет заголовок собственного queue prompt первой строкой тела задачи. Обычный текст не фильтруется по общим словам. Это не смысловое резюме: ограничения на следующих строках по-прежнему не гарантированно попадают в индекс; распознавание собственных текстовых envelopes нужно заменить origin metadata, если bridge начнёт её передавать.
 
 Fold ladder начинает сворачивать stale `tool_result` и `thinking` blocks при 45% context window; user intent, assistant conclusions, tool calls и свежий tail не сворачиваются. Обычный fold требует экономию минимум 12% окна. Несжимаемый tail/roots остаётся честно обозначенным floor.
 
-Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRecentTokens: 12000`. `auto-ultra-compact` проверяет compactability, запускает threshold compaction и post-compaction usage check; recovery packet используется только как emergency fallback. Ручной `/compact` остаётся без automatic continuation. После восстановления агент перечитывает текущий проектный `TODO.md`: цели, статус и следующие шаги не переносятся в recovery packet как авторитетное состояние.
+Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRecentTokens: 12000`. `auto-ultra-compact` проверяет compactability, запускает threshold compaction и post-compaction usage check без дополнительного recovery-файла. Запись в `~/.pi/agent/recovery` не требуется; старые пользовательские packets не удаляются. Ручной `/compact` остаётся без automatic continuation. Перед продолжением многошаговой работы агент перечитывает текущий проектный `TODO.md`; прочие детали восстанавливаются из файлов проекта, deterministic summary и `recall_folded`. Recall покрывает зарегистрированные свёрнутые блоки, а не все пользовательские сообщения. Если существенная договорённость отсутствует или противоречива, постоянная инструкция направляет к выбранным сообщениям активной ветки исходного session JSONL по пути из summary (`id`/`parentId`), с ограниченным выводом и без секретов/дампа всей сессии. Если путь/данные недоступны или неясность остаётся, агент должен спросить, а не угадывать; текущие инструкции и TODO имеют приоритет. Это не гарантирует автоматического восстановления моделью всех договорённостей из чата.
 
 Настройка и статус:
 
@@ -247,7 +262,7 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 
 ## Observability
 
-Default-конфигурация включает `pi-contextimate`, `pi-cachemire`, `pi-traceline` и `pi-meantime` из `pine-of-glass@0.15.3`. Meantime включён через `pi-meantime.json`; `/pace` показывает локальный timing ledger, live widget — текущую фазу. Дополнительного model call нет. Это session-local наблюдения, не persistent loop baseline и не доказанная причина задержки. Нужен reload/restart. Upstream ищет user config в `HOME/.pi/agent` (или project `.pi`); нестандартный `PI_CODING_AGENT_DIR` сам по себе этот путь не перенаправляет.
+Default-конфигурация включает `pi-contextimate`, `pi-cachemire`, `pi-traceline` и `pi-meantime` из `pine-of-glass@0.18.0`. Meantime включён через `pi-meantime.json`; `/pace` показывает локальный timing ledger, live widget — текущую фазу. Дополнительного model call нет. Это session-local наблюдения, не persistent loop baseline и не доказанная причина задержки. Нужен reload/restart. Upstream ищет user config в `HOME/.pi/agent` (или project `.pi`); нестандартный `PI_CODING_AGENT_DIR` сам по себе этот путь не перенаправляет.
 
 `loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl`: каталог создаётся с правами `0700`, файл — `0600`. Prompt, messages, tool arguments, tool results, tool-call IDs и секреты туда не записываются; сохраняются counters/histograms и metadata запуска, модели, task/run IDs. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
 
@@ -320,22 +335,24 @@ timeout 20 pi --mode rpc --no-session </dev/null
 Сначала:
 
 ```bash
-~/.pi/agent/maintenance/scripts/update-safe.sh --dry-run
+(cd "$HOME" && "$HOME/.pi/agent/maintenance/scripts/update-safe.sh" --dry-run)
 ```
 
 Затем:
 
 ```bash
-~/.pi/agent/maintenance/scripts/update-safe.sh
+(cd "$HOME" && "$HOME/.pi/agent/maintenance/scripts/update-safe.sh")
 ```
 
 Update script создаёт backup npm tree, обновляет расширения, возвращает managed configs, повторно применяет совместимые patch и проверяет результат. Неизвестная версия patch-пакета вызывает отказ и rollback.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.3.0`; обновление core нужно сначала проверить и зафиксировать здесь.
+Обычный `pi update --extensions` заменяет npm-пакеты и **не восстанавливает наши патчи**, включая отдельные project overrides. Для user runtime используйте safe updater **вне проекта с собственными packages**, как в примерах выше: его gate проверяет user runtime, не project overrides. Проектный Ponytail обновляется отдельно с backup/patch/actual SDK gate. Перенос на новую patched version делается сначала в source с полным gate.
 
-Все прямые зависимости сверены с npm `latest` при обновлении. `configs/settings.json` больше не закрепляет версии packages: `pi update --extensions` обновляет их, а exact lock сохраняет воспроизводимую установку этого release. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.4.0`; обновление core нужно сначала проверить и зафиксировать здесь.
 
-Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. `npm audit --omit=dev --legacy-peer-deps --prefix npm` для runtime lock: 0 vulnerabilities; отдельный global npm tree не аудирован. Offline gate не подтверждает доступность внешних сервисов.
+Stable baseline обновлён до Pi 1.4.0; актуальные direct версии приведены в таблице выше и exact lock. Установка каждого runtime подтверждается отдельно в OpenSpec evidence. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
+
+Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. `npm audit --omit=dev --legacy-peer-deps` для candidate 1.4.0 отметил 8 affected packages (5 high, 3 moderate); часть цепочек закреплена upstream exact pins/ranges. Автоматический downgrade/major override не применялся. Это известный риск dependency tree, не подтверждение эксплуатации; подробности в evidence `update-stack-1-4-0`.
 
 ## Откат
 
@@ -360,8 +377,8 @@ Update script создаёт backup npm tree, обновляет расшире�
 
 ## Background shell pilot
 
-`/bg [--survive-reload] [--name "Task name"] <command>` запускает локальный shell job; `/jobs`, `/logs <id>`, `/kill <id>`, `/tasks` — управление. `bg_run` требует `isAgent:false`; completion уведомляет, но не запускает model turn. Например: `/bg --name "Pi tests" cd /path/to/pi-build && npm test`. Работа над независимыми документами допустима; проверяемый код до завершения не менять. Exit evidence связывать с тем же revision/diff и authoritative TODO, не с новым состоянием файлов.
+`/bg [--survive-reload] [--name "Task name"] <command>` запускает локальный shell job; `/jobs`, `/logs <id>`, `/kill <id>`, `/tasks` — управление. `bg_run` требует `isAgent:false`. По умолчанию `bg_run` и `/bg` после terminal completion (успех, ошибка, тайм-аут или отмена) запускают разбор результата агентом; если агент занят, продолжение попадёт в follow-up очередь. `task_queue check` также включает completion wake по умолчанию: успех, ошибка и тайм-аут запускают или ставят в очередь разбор результата, не отменяя snapshot-проверки и не разрешая автоматические retries/deploy. `triggerOnCompletion:false` у обычного `bg_run` оставляет только уведомление. `notifyOnCompletion:false` без явного wake отключает и уведомление, и продолжение; явный `triggerOnCompletion:true` с отключёнными уведомлениями отклоняется. EventBus сохраняет обязательные явные boolean-параметры completion. Wake расходует токены/лимиты модели, но не разрешает новые deploy/retry/платные действия. Не опрашивайте status/logs лишь для ожидания. Например: `/bg --name "Pi tests" cd /path/to/pi-build && npm test`. Работа над независимыми документами допустима; проверяемый код до завершения не менять. Exit evidence связывать с тем же revision/diff и authoritative TODO, не с новым состоянием файлов.
 
-Default deadline 600s; tool позволяет явный конечный timeout >=1s. Per-job output cap 1MiB; превышение останавливает job, причина есть в status/metadata. Запросы логов ограничены 50KiB или меньшим maxBytes. Полные bounded логи находятся в project `.pi/tasks`; явный shell имеет права пользователя и может сам запускать любые программы/сеть — это не sandbox. SSH routing инструментов Pi на этот Node spawn не распространяется.
+Default deadline 600s; tool позволяет явный конечный timeout >=1s. Per-job output cap 1MiB; превышение останавливает job, причина есть в status/metadata. Запросы логов ограничены 50KiB или меньшим maxBytes. Полные bounded логи находятся в project `.pi/tasks`; явный shell имеет права пользователя и может сам запускать любые программы/сеть — это не sandbox. SSH routing инструментов Pi на этот Node spawn не распространяется. Для удалённого service нужно наблюдать terminal outcome конкретной invocation: выход `systemctl start --no-block` означает только запуск, не завершение repair.
 
-Без opt-in job прекращается при reload. `surviveReload:true`/`--survive-reload` сохраняет только тот же живой процесс при same-process reload; quit/restart останавливает, PID adoption/crash recovery не обещаны. Старые файлы остаются артефактами, а не активными jobs новой сессии. Общая квота всех сессий/автоочистка не реализованы: проверять размер `.pi/tasks`, удалять старые артефакты только явно после завершения jobs. `/bg-clear` убирает terminal records из памяти, не гарантирует очистку диска. Delegate/Fusion/attested/attribution, agent jobs и auto-wake запрещены patch; попытки feature override отклоняются. Attribution entry не загружается, update checks отключены. После установки нужен reload/restart.
+Без opt-in job прекращается при reload. `surviveReload:true`/`--survive-reload` сохраняет только тот же живой процесс при same-process reload; quit/restart останавливает, PID adoption/crash recovery не обещаны. Старые файлы остаются артефактами, а не активными jobs новой сессии. Общая квота всех сессий/автоочистка не реализованы: проверять размер `.pi/tasks`, удалять старые артефакты только явно после завершения jobs. `/bg-clear` убирает terminal records из памяти, не гарантирует очистку диска. Delegate/Fusion/attested/attribution и agent jobs запрещены patch; wake включён по умолчанию, quit/shutdown его подавляет; попытки feature override отклоняются. Attribution entry не загружается, update checks отключены. После установки нужен reload/restart.

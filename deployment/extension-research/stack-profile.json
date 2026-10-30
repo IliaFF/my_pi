@@ -1,0 +1,26 @@
+{
+  "focus": [
+    "context",
+    "compact",
+    "compression",
+    "fold",
+    "retrieval",
+    "search",
+    "codemode",
+    "review",
+    "queue",
+    "telemetry",
+    "observability"
+  ],
+  "capabilities": [
+    "Pi with direct ChatGPT subscription; OpenSpec and mandatory offline/real SDK gates.",
+    "Existing context-fold with exact recall and local SQLite snippet-first tool-output retrieval; manual compaction policy; avoid duplicate auto-compaction.",
+    "Native codemode/BM25 tool discovery; MCP Chrome/Jev; durable root TODO queue; bounded ordinary background shell jobs, no autonomous subagents.",
+    "Ponytail small complete changes; read-only telemetry/loop profiler; isolated tested VPS known-package updater with Hermes Telegram.",
+    "Prefer focused ideas to copy, no automatic installations, production changes, secret logging, expensive or overlapping systems."
+  ],
+  "limitations": [
+    "Portable profile is a curated source snapshot, not inspection of private PC sessions or a live runtime inventory.",
+    "Refresh profile/dependencies on explicit reinstall when the stack changes. A package review is partial, not compatibility/performance/security proof."
+  ]
+}

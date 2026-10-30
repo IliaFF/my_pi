@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { stripVTControlCharacters } from "node:util";
 
 export type SectionName = "In progress" | "Pending" | "Blocked" | "Completed";
 export type QueueTask = { id?: string; text: string; checked: boolean; section: SectionName };
@@ -115,6 +116,23 @@ export function inspectTodo(text: string): QueueSnapshot {
   };
 }
 
+export function formatQueuePanel(state: QueueSnapshot, collapsed: boolean, maxLines = 6): string[] {
+  if (!state.current && !state.pending.length && !state.blocked.length) return [];
+  const lines = [`${collapsed ? "▸" : "▾"} TODO · Pending: ${state.pending.length} · Blocked: ${state.blocked.length} · Ctrl+Shift+T`];
+  if (collapsed || maxLines <= 1) return lines;
+  const safe = (text: string) => stripVTControlCharacters(text).replace(/[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/g, " ");
+  const tasks = [...(state.current ? [state.current] : []), ...state.pending, ...state.blocked];
+  const overflow = tasks.length > maxLines - 1;
+  const visible = tasks.slice(0, overflow ? maxLines - 2 : maxLines - 1);
+  for (const task of visible) {
+    const glyph = task.section === "In progress" ? "◐" : task.section === "Blocked" ? "!" : "○";
+    lines.push(`├─ ${glyph} ${safe(task.text)}`);
+  }
+  if (overflow) lines.push(`├─ + ${tasks.length - visible.length} ещё · /queue`);
+  lines[lines.length - 1] = lines.at(-1)!.replace(/^├─/, "└─");
+  return lines;
+}
+
 export function addTask(text: string, taskText: string, id = newId()): { text: string; task: QueueTask } {
   const document = parseForMutation(text);
   const task: QueueTask = { id, text: cleanTaskText(taskText), checked: false, section: "Pending" };
@@ -134,6 +152,17 @@ export function claimNext(text: string, forcedId?: string, targetId?: string): {
   document.lines.splice(pending.index, 1);
   const headers = sectionHeaders(document.lines);
   document.lines.splice(insertionIndex(document.lines, headers, "In progress"), 0, renderTask(task));
+  return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
+}
+
+export function reopenBlocked(text: string, id: string): { text: string; task: QueueTask } {
+  const document = parseForMutation(text);
+  if (inspectTodo(text).current) throw new Error("A task is already in progress");
+  const row = sectionTasks(document.lines, document.headers, "Blocked").find(({ task }) => !task.checked && task.id === id);
+  if (!row) throw new Error(`Blocked task id not found: ${id}`);
+  const task: QueueTask = { ...row.task, section: "In progress" };
+  document.lines.splice(row.index, 1);
+  document.lines.splice(insertionIndex(document.lines, sectionHeaders(document.lines), "In progress"), 0, renderTask(task));
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 

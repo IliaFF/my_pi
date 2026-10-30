@@ -13,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
 
 ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent).resolve()
@@ -20,6 +21,17 @@ ROOT = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().paren
 
 def fail(message: str) -> None:
     raise RuntimeError(message)
+
+
+def release_files(root: Path) -> Iterator[Path]:
+    """Yield release files without descending into excluded runtime trees."""
+    excluded = {".git", "node_modules", "test-results"}
+    for directory, directories, files in os.walk(root):
+        directories[:] = [name for name in directories if name not in excluded]
+        for name in files:
+            path = Path(directory) / name
+            if name not in excluded and path.is_file():
+                yield path
 
 
 def tarball(package: str, version: str) -> bytes:
@@ -42,8 +54,11 @@ def extract_package(data: bytes, destination: Path) -> None:
 
 def main() -> int:
     manifest = json.loads((ROOT / "manifest.json").read_text())
-    if manifest.get("piCoreVersion") != "1.3.0":
-        fail("unexpected Pi core version")
+    core_version = manifest.get("piCoreVersion", "")
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", core_version):
+        fail("Pi core must be a stable exact version")
+    if re.findall(r'^PI_VERSION="([^"]+)"$', (ROOT / "install.sh").read_text(), re.M) != [core_version]:
+        fail("installer and manifest Pi core versions differ")
     if manifest.get("nodeMinimum") != "24.0.0":
         fail("Node >=24 required")
     package_json = json.loads((ROOT / "npm/package.json").read_text())
@@ -70,17 +85,26 @@ def main() -> int:
     expected_context_policy = {"version": 1, "preset": "balanced", "retention_days": 7, "max_mb": 250, "purge_on_shutdown": False, "capture_max_bytes": 24576, "capture_max_lines": 300, "mcp_max_bytes": 51200, "mcp_max_lines": 2000}
     if context_policy != expected_context_policy:
         fail(f"unexpected pi-context policy: {context_policy!r}")
-    expected_context_deps = {"@spences10/pi-context": "0.1.16", "context-fold": "0.7.0", "typebox": "1.3.37", "@earendil-works/pi-coding-agent": manifest["piCoreVersion"], "@earendil-works/pi-tui": manifest["piCoreVersion"]}
-    if any(package_json["dependencies"].get(name) != version for name, version in expected_context_deps.items()):
-        fail("pi-context or its runtime peers are not exactly pinned")
+    required_context_deps = {"@spences10/pi-context", "context-fold", "typebox"}
+    expected_core_deps = {"@earendil-works/pi-coding-agent": core_version, "@earendil-works/pi-tui": core_version}
+    if not required_context_deps.issubset(package_json["dependencies"]) or any(package_json["dependencies"].get(name) != version for name, version in expected_core_deps.items()):
+        fail("pi-context peers missing or core/TUI pins differ")
+    context_version = package_json["dependencies"]["@spences10/pi-context"]
     retired_compactor = [ROOT / "configs/output-compactor.json", ROOT / "local-extensions/output-compactor", ROOT / "scripts/test-output-compactor-extension.mjs", ROOT / "configs/context-compaction.json", ROOT / "local-extensions/context-compaction.ts"]
     if any(path.exists() for path in retired_compactor):
         fail("retired local output-compactor remains in release")
-    retired_surface = [ROOT / "local-extensions/tools.ts", ROOT / "scripts/test-tools.mjs", ROOT / "configs/pi-canary.json", ROOT / "patches/pi-canary+1.5.0.patch"]
-    if any(path.exists() for path in retired_surface) or "pi-canary" in package_json["dependencies"] or any("node_modules/pi-canary" in path for path in package_lock["packages"]):
-        fail("retired tools/Canary artifacts remain in release")
+    retired_surface = [ROOT / "local-extensions/tools.ts",
+                       ROOT / "scripts/test-tools.mjs"]
+    if any(path.exists() for path in retired_surface):
+        fail("retired tools artifacts remain in release")
+    if ("pi-canary" in package_json["dependencies"]
+            or (ROOT / "configs/pi-canary.json").exists()
+            or list((ROOT / "patches").glob("pi-canary+*.patch"))
+            or "pi-canary" in json.dumps(manifest)
+            or "pi-canary" in (ROOT / "npm/package-lock.json").read_text()):
+        fail("Canary must be absent from the release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
-    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status"]:
+    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "ask the user if uncertain"]:
         if required not in append_system:
             fail(f"tool routing / task policy missing: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:
@@ -91,6 +115,12 @@ def main() -> int:
     for required in ['registerCommand("queue"', 'name: "task_queue"', 'pi.on("agent_settled"']:
         if required not in todo_source:
             fail(f"todo-queue wiring missing: {required}")
+    session_source = ROOT / "local-extensions/task-session.ts"
+    if not session_source.is_file() or 'name: "start_task_session"' not in session_source.read_text():
+        fail("native task session handoff tool missing")
+    for required in ['"extensions/task-session.ts"', 'cp "$ROOT/local-extensions/task-session.ts"']:
+        if required not in (ROOT / "install.sh").read_text():
+            fail(f"task-session installer/backup wiring missing: {required}")
     terminal = json.loads((ROOT / "windows-terminal/settings.json").read_text())
     background = terminal.get("profiles", {}).get("defaults", {}).get("backgroundImage", "")
     if not background.startswith("%USERPROFILE%") or "C:\\Users\\" in background:
@@ -143,7 +173,7 @@ def main() -> int:
             fail("background shell pilot must load only pinned process entry, never attribution")
         active_sources = {spec if isinstance(spec, str) else spec.get("source", "") for spec in settings.get("packages", [])}
         if any(source.startswith("npm:pi-canary") for source in active_sources):
-            fail("pi-canary must not be configured")
+            fail("Canary must not be activated")
         for package, version in package_json["dependencies"].items():
             if package in {"typebox", "@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"}:
                 continue
@@ -211,9 +241,7 @@ def main() -> int:
 
     forbidden_path = re.compile(r"(^|/)(auth\.json|sessions|recovery|context-store|context-fold|logs?|mcp-cache(?:\.json)?)($|/)")
     secret_content = re.compile(r"(BEGIN [A-Z ]*PRIVATE KEY|(?:^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{16,})")
-    for path in ROOT.rglob("*"):
-        if ".git" in path.parts or "node_modules" in path.parts or "test-results" in path.parts or not path.is_file():
-            continue
+    for path in release_files(ROOT):
         if forbidden_path.search(path.relative_to(ROOT).as_posix()):
             fail(f"forbidden path in release: {path.relative_to(ROOT)}")
         try:
@@ -228,10 +256,10 @@ def main() -> int:
             temp_path = Path(temp)
             context_destination = temp_path / "pi-context"
             context_destination.mkdir()
-            extract_package(tarball("@spences10/pi-context", "0.1.16"), context_destination)
+            extract_package(tarball("@spences10/pi-context", context_version), context_destination)
             context_root = context_destination / "package"
             published = json.loads((context_root / "package.json").read_text())
-            if published.get("version") != "0.1.16" or published.get("peerDependencies", {}).get("typebox") != "*":
+            if published.get("version") != context_version or published.get("peerDependencies", {}).get("typebox") != "*":
                 fail("published pi-context package/peer contract changed")
             for relative, marker in {
                 "dist/text.js": "[context-sidecar] Large",
@@ -244,7 +272,7 @@ def main() -> int:
             expected_tools = {"search.js", "get.js", "export.js", "list.js", "stats.js", "purge.js"}
             if not expected_tools.issubset({path.name for path in (context_root / "dist/tools").glob("*.js")}):
                 fail("published pi-context retrieval tool set changed")
-            print("PASS published @spences10/pi-context@0.1.16 capture/retrieval/policy surface")
+            print(f"PASS published @spences10/pi-context@{context_version} capture/retrieval/policy surface")
 
             for item in manifest["patchedPackages"]:
                 destination = temp_path / re.sub(r"[^A-Za-z0-9_.-]", "_", item["package"])
@@ -274,16 +302,20 @@ def main() -> int:
     else:
         print("SKIP registry archive replay in offline gate; fresh npm lock + patch integration cover installation")
 
-    compaction_test = subprocess.run(
-        ["node", str(ROOT / "scripts/test-auto-ultra-compact.mjs"), str(ROOT)],
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    if compaction_test.returncode:
-        fail(f"auto-ultra-compact test failed: {compaction_test.stdout.strip()}")
-    print(compaction_test.stdout.strip())
+    if os.environ.get("PI_RELEASE_SOURCE_ONLY") == "1":
+        print("SKIP installed-runtime SDK check in source-only install preflight; mandatory npm test runs it")
+    else:
+        compaction_test = subprocess.run(
+            ["node", str(ROOT / "scripts/test-auto-ultra-compact.mjs"), str(ROOT)],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if compaction_test.returncode:
+            fail(
+                f"auto-ultra-compact test failed: {compaction_test.stdout.strip()}")
+        print(compaction_test.stdout.strip())
 
     profiler_test = subprocess.run(
         ["node", str(ROOT / "scripts/test-loop-profiler.mjs")],

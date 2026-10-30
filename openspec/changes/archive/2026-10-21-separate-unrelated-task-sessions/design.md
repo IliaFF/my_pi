@@ -1,0 +1,16 @@
+# Design
+
+## Decisions
+User chose common goal (not common repo) as the relation criterion, ask on ambiguity, and both queue/chat scope. Use the current agent's semantic assessment, not keyword heuristics or a second model. Enforce safe transition mechanics in a small native tool; instructions alone cannot guarantee semantic correctness.
+
+A new tool accepts a self-contained task and reason. It schedules an internal extension command using sendUserMessage with command expansion; the command waits until idle and invokes command-only newSession with parent linkage. A fresh withSession context starts the task automatically. Never call replacement APIs directly from a tool or lifecycle callback. Tool returns terminate:true; no timers, shell Pi process, subagent or forked transcript. Reject parallel/duplicate handoffs, first-task handoff, untrusted projects, pending messages, registered unfinished background jobs, ephemeral history and unfinished queue tasks; do not release or complete tasks automatically. Cancellation preserves the active old session and TODO. Replacement failure preserves TODO and the persisted old session file, not necessarily a usable active runtime: native runtime teardown precedes replacement creation, so recovery may require /resume or restart. Surface the native error without reusing stale ctx/pi. Do not continue new work in old context after handoff failure.
+
+Only the explicit self-contained task + necessary constraints/file paths, current-request image attachments and bounded auto-run budget metadata are sent to the new session, never an automatic old transcript/summary. Parent session remains on disk. New-session first task must not recurse into another handoff. Existing queue check evidence remains session/task-bound and is not copied.
+
+Queue next/run selects the same FIFO candidate but asks the current agent to assess continuity and claim only after choosing the right session. Resume retains its current task. Successful tool claim binds active id for existing auto-run accounting. No claim/release churn or changes to pending order. A task-local custom entry transfers the remaining five-task auto-run budget; the new queue consumes its handoff marker once, so reload cannot silently reactivate auto-run.
+
+## Scope / limits
+This cannot prove that an LLM correctly recognizes relatedness. Uncertain relation must be clarified before switching, using existing question UI. If previous work remains In progress or messages are queued, stop and ask rather than dropping it. Restored sessions and empty sessions must behave without automatic surprise switches. No installation until separately approved.
+
+## Validation
+Offline native SDK/faux provider: related chat stays; unrelated chat creates different session id/file, no old conversation in provider input, fresh prompt executes, no extra old followup; uncertainty asks without switch; cancellation preserves identity/TODO; malformed token/parallel requests do not switch; first clean session cannot loop; queue candidate remains Pending before claim and explicit/FIFO/auto-run semantics survive. Installer includes backup/copy/verification of new extension. Full npm test, strict OpenSpec, owned diff review, evidence/archive/commit.

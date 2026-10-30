@@ -29,47 +29,60 @@ fi
 state="$BACKUP/state.json"
 [[ -f "$state" ]] || { echo "FAIL state missing: $state" >&2; exit 1; }
 
-python3 - "$state" "$AGENT_DIR" "$BACKUP" "$DRY_RUN" <<'PY'
+python3 - "$state" "$AGENT_DIR" "$BACKUP/agent-files.tar.gz" "$DRY_RUN" <<'PY'
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
+import posixpath
 import shutil
 import sys
 import tarfile
 import tempfile
+from pathlib import Path, PurePosixPath
 
-state, agent_arg, backup_arg, dry_run = sys.argv[1:]
-s = json.loads(Path(state).read_text())
-agent, backup = Path(agent_arg).resolve(), Path(backup_arg).resolve()
-if Path(s.get("agentDir", "")).resolve() != agent:
+s = json.loads(Path(sys.argv[1]).read_text())
+if Path(s["agentDir"]).resolve() != Path(sys.argv[2]).resolve():
     raise SystemExit("FAIL backup belongs to another agent directory")
 allowed = {
- "settings.json", "APPEND_SYSTEM.md", "my-pi-settings.json", "fabric.json", "extensions/tools.ts", "extensions/lean-tools.ts",
- "extensions/loop-profiler.ts", "extensions/decision-observer.ts", "extensions/reader-pane.ts", "extensions/todo-queue", "extensions/project-loop.ts", "extensions/context-compaction.ts", "extensions/context-compaction.ts.disabled", "extensions/auto-ultra-compact", "extensions/output-compactor", "extensions/fabric-output",
- "extensions/pi-fast-resume.json", "extensions/quotas.json", "extensions/context-compaction.json", "extensions/output-compactor.json", "extensions/fabric-output.json", "skills/openalex", "npm", "maintenance",
+    "settings.json", "APPEND_SYSTEM.md", "my-pi-settings.json", "fabric.json", "extensions/tools.ts", "extensions/lean-tools.ts",
+    "extensions/loop-profiler.ts", "extensions/decision-observer.ts", "extensions/reader-pane.ts", "extensions/todo-queue", "extensions/project-loop.ts", "extensions/context-compaction.ts", "extensions/context-compaction.ts.disabled", "extensions/auto-ultra-compact", "extensions/output-compactor", "extensions/fabric-output",
+    "extensions/pi-fast-resume.json", "extensions/quotas.json", "extensions/context-compaction.json", "extensions/output-compactor.json", "extensions/fabric-output.json", "skills/openalex", "npm", "maintenance",
 }
 legacy = allowed.copy()
-allowed.update({"mcp.json", "train-agents/config.json", "extensions/jev-review", "extensions/herdr-agent-state.ts"})
+allowed.update({"mcp.json", "train-agents/config.json",
+               "extensions/jev-review", "extensions/herdr-agent-state.ts"})
 previous = allowed.copy()
 allowed.add("extensions/deferred-tools.ts")
+deferred = allowed.copy()
+allowed.add("extensions/task-session.ts")
+task_session = allowed.copy()
+allowed.add("herdr-agents/config.json")
+herdr_config = allowed.copy()
+allowed.add("AGENTS.md")
+instruction_policy = allowed.copy()
+allowed.update({"extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
+                "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
+                "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp"})
 managed = s.get("agentManaged", [])
-if not isinstance(managed, list) or set(managed) not in (legacy, previous, allowed):
+if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
-if dry_run == "1":
-    print(f"DRY-RUN restore from: {backup}")
-    for name in managed:
-        print(f"DRY-RUN replace agent: {name}")
-    print("DRY-RUN Pi core is unchanged")
-    raise SystemExit(0)
-
-present = s.get("agentPresent")
+present = s["agentPresent"]
 if not isinstance(present, list) or not all(isinstance(name, str) and name in managed for name in present):
     raise SystemExit("FAIL backup contains unexpected present paths")
-owned = [PurePosixPath(name) for name in managed]
-backed = [PurePosixPath(name) for name in present]
-def permitted(path, roots, directory=False):
-    return any(path == base or base in path.parents or (directory and path in base.parents) for base in roots)
+agent = Path(sys.argv[2]).resolve()
+if agent.exists() and not agent.is_dir():
+    raise SystemExit("FAIL agent destination is not a directory")
+for item in managed:
+    for parent in Path(item).parents:
+        target = agent / parent
+        if parent != Path(".") and (target.is_symlink() or (target.exists() and not target.is_dir())):
+            raise SystemExit(f"FAIL unsafe restore parent: {item}")
+
+
+def within(name, roots):
+    """Restrict archive destinations and links to saved managed trees."""
+    return any(name == root or name.startswith(root + "/") for root in roots)
+
 
 def fingerprint(path):
     if path.is_symlink():
@@ -80,52 +93,61 @@ def fingerprint(path):
     with path.open("rb") as stream:
         return ("file", hashlib.file_digest(stream, "sha256").hexdigest(), mode)
 
-try:
-    with tempfile.TemporaryDirectory(prefix="pi-install-restore-") as temp:
-        stage = Path(temp)
-        with tarfile.open(backup / "agent-files.tar.gz", "r:gz") as archive:
+# Stage everything before deleting current files, including on dry-run.
+with tempfile.TemporaryDirectory(prefix="pi-restore-") as temporary:
+    stage = Path(temporary)
+    archive_path = Path(sys.argv[3])
+    if not archive_path.exists() and present:
+        raise SystemExit("FAIL backup payload missing")
+    if archive_path.exists():
+        with tarfile.open(archive_path, "r:gz") as archive:
             for member in archive.getmembers():
                 path = PurePosixPath(member.name)
-                if path.is_absolute() or ".." in path.parts or not permitted(path, backed, member.isdir()):
-                    raise ValueError(f"unsafe backup member: {member.name}")
-                if not (member.isfile() or member.isdir() or member.issym() or member.islnk()):
-                    raise ValueError(f"unsafe backup type: {member.name}")
+                if (path.is_absolute() or ".." in path.parts
+                        or not within(str(path), present)
+                        or not (member.isfile() or member.isdir()
+                                or member.issym() or member.islnk())):
+                    raise SystemExit(
+                        f"FAIL unsafe backup member: {member.name}")
+                if member.issym() or member.islnk():
+                    link = PurePosixPath(member.linkname)
+                    target = posixpath.normpath(str(
+                        path.parent / link if member.issym() else link))
+                    if link.is_absolute() or not within(target, present):
+                        raise SystemExit(
+                            f"FAIL unsafe backup link: {member.name}")
             archive.extractall(stage, filter="data")
             while archive.fileobj.read(1024 * 1024):
-                pass  # Read the gzip trailer too, before touching the agent.
+                pass  # Validate the gzip trailer before touching current files.
             for member in archive.getmembers():
                 if member.isdir():
                     (stage / member.name).chmod(member.mode & 0o777)
-        for name in present:
-            if not (stage / name).exists() and not (stage / name).is_symlink():
-                raise ValueError(f"backup is missing expected path: {name}")
-        expected = {}
-        for path in stage.rglob("*"):
-            relative = path.relative_to(stage)
-            if not permitted(PurePosixPath(relative.as_posix()), backed, path.is_dir() and not path.is_symlink()):
-                raise ValueError(f"unmanaged backup path: {relative}")
-            if path.is_symlink():
-                target = path.resolve().relative_to(stage)
-                if not permitted(PurePosixPath(target.as_posix()), owned):
-                    raise ValueError(f"unmanaged backup link: {relative}")
-            if permitted(PurePosixPath(relative.as_posix()), owned):
-                expected[relative] = fingerprint(path)
-        # Existing destination parents must not redirect writes through symlinks.
-        if agent.exists() and not agent.is_dir():
-            raise ValueError("agent destination is not a directory")
-        for name in managed:
-            destination = agent / name
-            for parent in destination.relative_to(agent).parents:
-                target = agent / parent
-                if parent != Path(".") and (target.is_symlink() or (target.exists() and not target.is_dir())):
-                    raise ValueError(f"unsafe destination parent: {parent}")
-        for name in managed:
-            path = agent / name
-            if path.is_symlink() or path.is_file():
-                path.unlink()
-            elif path.exists():
-                shutil.rmtree(path)
+    for item in present:
+        saved = stage / item
+        if not saved.exists() and not saved.is_symlink():
+            raise SystemExit(f"FAIL backup missing saved path: {item}")
+    expected = {}
+    for path in stage.rglob("*"):
+        relative = path.relative_to(stage)
+        if path.is_symlink():
+            target = path.resolve().relative_to(stage)
+            if not within(target.as_posix(), present):
+                raise SystemExit(f"FAIL unmanaged backup link: {relative}")
+        if within(relative.as_posix(), present):
+            expected[relative] = fingerprint(path)
+    if sys.argv[4] == "1":
+        print(f"DRY-RUN restore from: {Path(sys.argv[1]).parent}")
+        for item in managed:
+            print(f"DRY-RUN replace agent: {item}")
+        print("DRY-RUN Pi core is unchanged")
+    else:
         agent.mkdir(parents=True, exist_ok=True)
+        for item in managed:
+            destination = agent / item
+            if destination.is_symlink() or destination.is_file():
+                destination.unlink()
+            elif destination.exists():
+                shutil.rmtree(destination)
         copied = {}
         def copy_file(source, destination):
             stat = Path(source).stat()
@@ -148,8 +170,7 @@ try:
             if fingerprint(agent / relative) != before:
                 raise ValueError(f"restored content differs: {relative}")
         (agent / ".my-pi-last-backup").unlink(missing_ok=True)
-except Exception as error:
-    raise SystemExit(f"FAIL restore not confirmed; backup retained at {backup}: {error}")
-print(f"PASS restored pre-install agent files from {backup}")
-print("Pi core unchanged. Restart Pi before use.")
+        print(
+            f"PASS restored pre-install agent files from {Path(sys.argv[1]).parent}")
+        print("Pi core unchanged. Restart Pi before use.")
 PY

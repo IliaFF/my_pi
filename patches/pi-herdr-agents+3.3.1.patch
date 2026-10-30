@@ -1,0 +1,135 @@
+--- a/skills/pi-herdr-agents/SKILL.md
++++ b/skills/pi-herdr-agents/SKILL.md
+@@ -1,3 +1,4 @@
+ ---
+ name: pi-herdr-agents
++disable-model-invocation: true
+ description: Operate the pi-herdr-agents host. Use when asked to launch, delegate to, supervise, interrupt, cancel, stop, resume, or clean up Pi subagents; to use worktrees, persistent specialists, or model routing; to edit the host's config.json or task-model preferences; to install, configure, troubleshoot, or uninstall the optional Herdr sidebar plugin; or when a child looks hung, stalled, or unwanted.
+--- a/pi-extension/subagents/index.ts
++++ b/pi-extension/subagents/index.ts
+@@ -2631,6 +2631,7 @@
+ 	if (parentSession) {
+ 		pi.registerTool({
+ 			name: "worktree_list",
++			exposure: "deferred",
+ 			label: "Worktree inventory",
+ 			description:
+ 				"Inspect managed worktrees, including cross-session orphans. Only source repositories inside cwd are eligible for explicit removal. This tool never removes anything.",
+@@ -2645,6 +2646,7 @@
+ 		});
+ 		pi.registerTool({
+ 			name: "worktree_remove",
++			exposure: "deferred",
+ 			label: "Remove worktree",
+ 			description:
+ 				"Explicitly remove one managed worktree by exact path, branch, or workspace ID. Rechecks cwd containment, live children/leases, and Git state. Branches and commits are retained. Dirty work requires explicit preserve: true to make a WIP commit first.",
+@@ -2673,6 +2675,7 @@
+ 	)
+ 		pi.registerTool({
+ 			name: "subagents_write_task_models",
++			exposure: "deferred",
+ 			label: "Write task model preferences",
+ 			description: `Validate and atomically replace models.tasks and models.tasksMeta in the durable Pi agent config, preserving unrelated settings. Supported categories: ${TASK_CATEGORIES.join(", ")}. Partial nonempty categories are accepted; omitted categories are removed. Rejects duplicate exact refs within a category. Review the active authenticated registry and existing preferences first. Optional expectedConfigRevision makes the write conditional: it fails without replacing configuration when the config file no longer matches the revision the proposal was read from. Optional basis records what the ranking rests on; its kind must equal tasksMeta.method, and it is returned but not saved. Cooperating writes are serialized and fail on contention rather than waiting. Returns normalized saved preferences, missing categories, the configRevision of the written file, and any basis; reload required.`,
+ 			parameters: Type.Object({
+@@ -2779,10 +2782,17 @@
+ 			},
+ 		});
+ 
++	// The SDK snapshots guidelines; refresh after session_start updates the catalog.
++	const registerSubagentTool: ExtensionAPI["registerTool"] = (definition) => {
++		pi.registerTool(definition);
++		pi.on("session_start", () => pi.registerTool(definition));
++	};
++
+ 	// ── subagent tool ──
+ 	if (shouldRegister("subagent"))
+-		pi.registerTool({
++		registerSubagentTool({
+ 			name: "subagent",
++			exposure: "deferred",
+ 			label: "Subagent",
+ 			description:
+ 				"Spawn a sub-agent in a dedicated terminal herdr pane, or in an isolated Herdr-managed Git worktree when worktree is provided. " +
+@@ -2795,17 +2805,7 @@
+ 				"DO NOT write polling loops, sleep/wait commands, tail/watch scripts, or repeatedly read session/log files to detect completion. DO NOT call subagents_list or any other tool to 'check' status. All of that is wasted work — the harness handles delivery for you. " +
+ 				"DO NOT fabricate, assume, or summarize results after calling this tool. " +
+ 				"After spawning, either end your turn immediately, or work on other independent tasks (including spawning more subagents in parallel). The harness will wake you with the result when it is ready.",
+-			promptSnippet:
+-				"Spawn a sub-agent in a dedicated terminal herdr pane, or in an isolated Herdr-managed Git worktree when worktree is provided. " +
+-				"Use ordinary panes for read-only tasks; a single or sequential writer can work in the parent checkout without a worktree. " +
+-				"Reserve unique worktree branches for parallel independent writers starting from committed state — the worktree base is committed HEAD, so uncommitted parent changes are not copied. " +
+-				"Worktree runs retain their workspace after completion for parent review; they are not pushed, merged, or removed automatically. " +
+-				"To inspect a retained worktree result, spawn read-only agents in an ordinary pane with cwd set to that worktree path — do not create a new worktree for them. " +
+-				"This is a fire-and-forget async tool: the call returns immediately with only an acknowledgement. " +
+-				"When the sub-agent finishes, the harness AUTOMATICALLY delivers its result as a steer message that wakes you up and starts a new turn — you do not need to do anything to receive it. " +
+-				"DO NOT write polling loops, sleep/wait commands, tail/watch scripts, or repeatedly read session/log files to detect completion. DO NOT call subagents_list or any other tool to 'check' status. All of that is wasted work — the harness handles delivery for you. " +
+-				"DO NOT fabricate, assume, or summarize results after calling this tool. " +
+-				"After spawning, either end your turn immediately, or work on other independent tasks (including spawning more subagents in parallel). The harness will wake you with the result when it is ready.",
++			promptSnippet: "Spawn a Pi child; read the discovered tool description and pi-herdr-agents skill first.",
+ 			promptGuidelines: subagentRoutingGuidelines,
+ 			parameters: SubagentParams,
+ 
+@@ -3031,6 +3031,7 @@
+ 	if (shouldRegister("subagent_send"))
+ 		pi.registerTool({
+ 			name: "subagent_send",
++			exposure: "deferred",
+ 			label: "Send Persistent Task",
+ 			description:
+ 				"Deliver one follow-up task to an idle persistent specialist. Busy specialists reject tasks; no queue is kept.",
+@@ -3070,6 +3071,7 @@
+ 	if (shouldRegister("subagent_stop"))
+ 		pi.registerTool({
+ 			name: "subagent_stop",
++			exposure: "deferred",
+ 			label: "Stop Persistent Specialist",
+ 			description:
+ 				"Gracefully stop a persistent specialist after its active task settles. Exit is confirmed before the specialist is removed.",
+@@ -3109,6 +3111,7 @@
+ 	if (shouldRegister("subagent_interrupt"))
+ 		pi.registerTool({
+ 			name: "subagent_interrupt",
++			exposure: "deferred",
+ 			label: "Interrupt Subagent",
+ 			description:
+ 				"Send Escape to the active turn of a currently running Pi-backed subagent. " +
+@@ -3170,6 +3173,7 @@
+ 	if (shouldRegister("subagent_cancel"))
+ 		pi.registerTool({
+ 			name: "subagent_cancel",
++			exposure: "deferred",
+ 			label: "Cancel Subagent",
+ 			description: SUBAGENT_CANCEL_DESCRIPTION,
+ 			promptSnippet: SUBAGENT_CANCEL_DESCRIPTION,
+@@ -3225,6 +3229,7 @@
+ 	if (shouldRegister("subagents_list"))
+ 		pi.registerTool({
+ 			name: "subagents_list",
++			exposure: "deferred",
+ 			label: "List Subagents",
+ 			description:
+ 				"List all available package, global, and project subagent definitions. " +
+@@ -3297,6 +3302,7 @@
+ 	if (shouldRegister("subagent_resume"))
+ 		pi.registerTool({
+ 			name: "subagent_resume",
++			exposure: "deferred",
+ 			label: "Resume Subagent",
+ 			description:
+ 				"Resume a previous Pi-backed sub-agent session in a new herdr pane. " +
+@@ -3306,14 +3312,7 @@
+ 				"DO NOT write polling loops, sleep/wait commands, tail/watch scripts, or repeatedly read session/log files to detect completion. DO NOT poll for status. All of that is wasted work — the harness handles delivery for you. " +
+ 				"DO NOT fabricate or assume results. After resuming, either end your turn or work on other independent tasks; the harness will wake you when the result is ready. " +
+ 				"Use when a sub-agent was cancelled or needs follow-up work.",
+-			promptSnippet:
+-				"Resume a previous Pi-backed sub-agent session in a new herdr pane. " +
+-				"This does not reattach a retained managed worktree; continue worktree-bound follow-up in its existing workspace. " +
+-				"This is a fire-and-forget async tool: the call returns immediately with only an acknowledgement. " +
+-				"When the resumed sub-agent finishes, the harness AUTOMATICALLY delivers its result as a steer message that wakes you up and starts a new turn — you do not need to do anything to receive it. " +
+-				"DO NOT write polling loops, sleep/wait commands, tail/watch scripts, or repeatedly read session/log files to detect completion. DO NOT poll for status. All of that is wasted work — the harness handles delivery for you. " +
+-				"DO NOT fabricate or assume results. After resuming, either end your turn or work on other independent tasks; the harness will wake you when the result is ready. " +
+-				"Use when a sub-agent was cancelled or needs follow-up work.",
++			promptSnippet: "Resume a Pi child; completion is delivered automatically, never poll.",
+ 			parameters: Type.Object({
+ 				sessionPath: Type.String({
+ 					description: "Path to the session .jsonl file to resume",

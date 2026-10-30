@@ -19,7 +19,7 @@
     "npm:@juicesharp/rpiv-ask-user-question",
     "npm:pi-token-speed",
     "npm:pi-fast-resume",
-    "npm:@beyona/pi-zai-usage",
+    "npm:@beyona/pi-zai-usage@1.1.0",
     {
       "source": "npm:pine-of-glass",
       "extensions": [
@@ -33,7 +33,7 @@
     "npm:context-fold",
     "npm:pi-train-agents@0.2.7",
     {
-      "source": "npm:@amaster.ai/pi-browser-use@0.1.27",
+      "source": "npm:@amaster.ai/pi-browser-use@0.1.32",
       "extensions": []
     },
     "npm:pi-ssh-remote@0.1.15",
@@ -42,7 +42,8 @@
       "extensions": [
         "dist/extensions/background-tasks.js"
       ]
-    }
+    },
+    "npm:pi-workspace-history@0.5.2"
   ],
   "readseek": {
     "replacedTools": [

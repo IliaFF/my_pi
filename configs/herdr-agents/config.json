@@ -1,0 +1,11 @@
+{
+  "status": {
+    "enabled": true
+  },
+  "sidebar": {
+    "enabled": true
+  },
+  "persistent": {
+    "maxAgents": 1
+  }
+}

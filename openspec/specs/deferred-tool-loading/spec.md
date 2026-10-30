@@ -17,7 +17,7 @@ Fresh default sessions MUST keep remote, preview_export, context_list, context_s
 - **THEN** the existing executor runs through native tool lifecycle without SSH, live provider or destructive actions
 
 ### Requirement: Loading is additive and existing history is preserved
-The build MUST NOT introduce automatic unloading or redefinition. For the supported Codex model, native loading MUST preserve the initial request tools/instructions/cache key and prior input prefix, appending additional_tools in history. Existing recorded sessions MUST retain previously declared rare tools without schema rewrites or automatic new-loader insertion. Unsupported adapters MUST use native fallback rather than pretend cache preservation.
+The five rare tools MUST NOT be automatically unloaded or redefined. For these rare tools on the supported Codex model, native loading MUST preserve the initial request tools/instructions/cache key and prior input prefix, appending additional_tools in history. Existing recorded sessions MUST retain previously declared rare tools without schema rewrites or automatic new-loader insertion. Unsupported adapters MUST use native fallback rather than pretend cache preservation.
 
 #### Scenario: Native lazy load
 - **WHEN** an initially deferred tool is loaded in a fresh session on the supported model
@@ -33,3 +33,25 @@ Reports MUST include tool-search overhead in before/after serialized schema byte
 #### Scenario: Offline acceptance
 - **WHEN** the regression passes without credentials/transports
 - **THEN** results describe request-prefix invariants and measured schema sizes only, leaving live endpoint/cache behavior unverified
+
+### Requirement: Updated Preview retains deferred exposure
+The approved Preview 0.24.0 baseline MUST register preview_export with native deferred exposure without changing its schema or executor.
+
+#### Scenario: Fresh Preview after stock package update
+- **WHEN** the versioned patch is applied to a pristine Preview 0.24.0 installation
+- **THEN** the actual SDK deferred-tool regression passes with core 1.4.0 and safe discovery remains additive
+
+### Requirement: Web loader is declared only while needed
+The build MUST omit web_enable from current declarations when every configured pi-web-access tool is active, preserve its registered executor, and restore its declaration if a configured tool becomes inactive. It MUST preserve renamed tools, disabled capabilities, native lazy/eager adapter selection and session restoration. It MUST NOT remove unrelated tools or claim control of external harness schemas.
+
+#### Scenario: Lazy activation
+- **WHEN** a fresh lazy session calls web_enable
+- **THEN** configured web tools become active and the next request omits the redundant loader
+
+#### Scenario: Partial and resumed loadouts
+- **WHEN** a configured web tool is inactive, including after resume
+- **THEN** web_enable is available to restore the configured tools, while all-active resumed/eager loadouts omit it
+
+#### Scenario: External parallel wrapper
+- **WHEN** multi_tool_use.parallel is supplied outside Pi's registered tools
+- **THEN** evidence reports that boundary instead of claiming schema removal by instruction

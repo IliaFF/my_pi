@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_VERSION="1.3.0"
+PI_VERSION="1.4.0"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -41,7 +41,7 @@ done
 node -e 'const [M]=process.versions.node.split(".").map(Number); if (M<24) process.exit(1)' || {
   echo "FAIL Node $(node --version). Required >=24.0.0" >&2; exit 1;
 }
-python3 "$ROOT/scripts/test-release.py" "$ROOT"
+PI_RELEASE_SOURCE_ONLY=1 python3 "$ROOT/scripts/test-release.py" "$ROOT"
 
 current_version=""
 if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/null || true)"; fi
@@ -50,7 +50,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.7.0 and @spences10/pi-context@0.1.16"
   echo "DRY-RUN preserve personal configuration: $PRESERVE_SETTINGS"
-  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + seven local extensions + OpenAlex skill"
+  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + local extensions (including task-session handoff) + OpenAlex skill"
   echo "DRY-RUN patches: manifest exact-version patches"
   exit 0
 fi
@@ -59,14 +59,17 @@ if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
   exit 1
 fi
 
+node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR" --preflight
+
 managed=(
-  "settings.json" "APPEND_SYSTEM.md" "my-pi-settings.json" "fabric.json"
-  "mcp.json" "train-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
-  "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts"
+  "settings.json" "APPEND_SYSTEM.md" "AGENTS.md" "my-pi-settings.json" "fabric.json"
+  "mcp.json" "train-agents/config.json" "herdr-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
+  "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts" "extensions/task-session.ts" "extensions/aitunnel.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
   "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
-  "skills/openalex" "npm" "maintenance"
+  "skills/openalex" "skills/cpp-styleguide/SKILL.md" "skills/python-styleguide/SKILL.md" "skills/latex-simple-style/SKILL.md"
+  "bin/firstmate" "bin/jev-browser" "bin/paper-search-mcp" "npm" "maintenance"
 )
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_ROOT"
@@ -131,23 +134,31 @@ data = json.loads(path.read_text())
 deps = json.loads(lock.read_text())["dependencies"]
 if not isinstance(data, dict) or not isinstance(data.get("packages", []), list):
     raise SystemExit("FAIL invalid personal settings")
-changed = False
-for index, item in enumerate(data.get("packages", [])):
-    source = item if isinstance(item, str) else item.get("source", "") if isinstance(item, dict) else ""
-    if not isinstance(source, str) or not source.startswith("npm:"):
-        continue
-    name, separator, version = source[4:].rpartition("@")
-    if not separator or name not in deps:
-        continue
-    updated = f"npm:{name}@{deps[name]}"
-    if updated == source:
-        continue
-    changed = True
+def source_of(item):
+    """Read a configured package source without changing its shape."""
     if isinstance(item, str):
-        data["packages"][index] = updated
-    else:
-        item["source"] = updated
-if changed:
+        return item
+    return item.get("source", "") if isinstance(item, dict) else ""
+
+
+packages = data.get("packages", [])
+aligned = []
+for item in packages:
+    source = source_of(item)
+    if source in ("npm:pi-herdr-agents", "npm:pi-herdr-agents@3.3.1"):
+        continue
+    if isinstance(source, str) and source.startswith("npm:"):
+        specifier = source[4:]
+        name = specifier if specifier in deps else specifier.rpartition("@")[0]
+        if name in deps:
+            updated = f"npm:{name}@{deps[name]}"
+            item = updated if isinstance(item, str) else {**item, "source": updated}
+    aligned.append(item)
+history = f"npm:pi-workspace-history@{deps['pi-workspace-history']}"
+if not any(source_of(item) == history for item in aligned):
+    aligned.append(history)
+if aligned != packages:
+    data["packages"] = aligned
     path.write_text(json.dumps(data, indent=2) + "\n")
 PYCONFIG
 else
@@ -158,9 +169,13 @@ import json, os, sys
 from pathlib import Path
 agent, configs = map(Path, sys.argv[1:])
 path = agent / "mcp.json"
+if path.is_symlink():
+    raise SystemExit("FAIL linked mcp.json; preserve and review its destination")
 data = json.loads(path.read_text()) if path.exists() else {}
 servers = data.setdefault("mcpServers", {})
 for name, config in json.loads((configs / "mcp.json").read_text())["mcpServers"].items():
+    if "command" in config:
+        config["command"] = config["command"].replace("~/.pi/agent/", str(agent) + "/", 1)
     config["args"] = [arg.replace("~/.pi/agent/", str(agent) + "/", 1) for arg in config.get("args", [])]
     servers.setdefault(name, config)  # Preserve existing servers, including a custom Chrome entry.
 path.write_text(json.dumps(data, indent=2) + "\n")
@@ -169,6 +184,10 @@ train = agent / "train-agents/config.json"
 train.parent.mkdir(parents=True, exist_ok=True)
 if not train.exists():
     train.write_bytes((configs / "train-agents/config.json").read_bytes())
+herdr = agent / "herdr-agents/config.json"
+herdr.parent.mkdir(parents=True, exist_ok=True)
+if not herdr.exists():
+    herdr.write_bytes((configs / "herdr-agents/config.json").read_bytes())
 PY
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$CONTEXT_SETTINGS" ]]; then
 python3 - "$CONTEXT_SETTINGS" "$ROOT/configs/pi-context.json" <<'PY'
@@ -190,6 +209,28 @@ fi
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/APPEND_SYSTEM.md" ]]; then
   cp "$ROOT/configs/APPEND_SYSTEM.md" "$AGENT_DIR/APPEND_SYSTEM.md"
 fi
+python3 - "$AGENT_DIR/AGENTS.md" "$ROOT/configs/AGENTS.md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path, source = map(Path, sys.argv[1:])
+if path.is_symlink():
+    raise SystemExit("FAIL linked AGENTS.md; preserve and review its destination")
+existing = path.read_text() if path.exists() else ""
+missing = []
+for block in re.split(r"(?m)(?=^## )", source.read_text()):
+    block = block.strip()
+    if not block or block in existing:
+        continue
+    heading = block.splitlines()[0]
+    if heading in existing:
+        raise SystemExit(f"FAIL conflicting managed section: {heading}; preserve AGENTS.md")
+    missing.append(block)
+if missing:
+    with path.open("a") as stream:
+        stream.write(("\n\n" if existing else "") + "\n\n".join(missing) + "\n")
+PY
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/pi-meantime.json" ]]; then
   cp "$ROOT/configs/pi-meantime.json" "$AGENT_DIR/pi-meantime.json"
 fi
@@ -200,16 +241,29 @@ rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/con
 rm -f "$AGENT_DIR/extensions/tools.ts"
 rm -f "$AGENT_DIR/extensions/lean-tools.ts"
 cp "$ROOT/local-extensions/loop-profiler.ts" "$AGENT_DIR/extensions/loop-profiler.ts"
+cp "$ROOT/local-extensions/task-session.ts" "$AGENT_DIR/extensions/task-session.ts"
+if [[ -e "$AGENT_DIR/extensions/aitunnel.ts" ]] && ! cmp -s "$ROOT/local-extensions/aitunnel.ts" "$AGENT_DIR/extensions/aitunnel.ts"; then
+  echo "FAIL custom AITunnel extension differs; preserve and review before replacing" >&2; false
+fi
+cp "$ROOT/local-extensions/aitunnel.ts" "$AGENT_DIR/extensions/aitunnel.ts"
 cp "$ROOT/local-extensions/deferred-tools.ts" "$AGENT_DIR/extensions/deferred-tools.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
 rm -f "$AGENT_DIR/extensions/reader-pane.ts"
-cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,store.ts} "$AGENT_DIR/extensions/todo-queue/"
+cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
 rm -rf "$AGENT_DIR/extensions/jev-review"
 cp "$ROOT/local-extensions/herdr-agent-state.ts" "$AGENT_DIR/extensions/herdr-agent-state.ts"
 rm -rf "$AGENT_DIR/skills/openalex"
 cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"
+for skill in cpp-styleguide python-styleguide latex-simple-style; do
+  mkdir -p "$AGENT_DIR/skills/$skill"
+  if [[ -e "$AGENT_DIR/skills/$skill/SKILL.md" ]] && ! cmp -s "$ROOT/skills/$skill/SKILL.md" "$AGENT_DIR/skills/$skill/SKILL.md"; then
+    echo "FAIL custom $skill differs; preserve and review before replacing" >&2; false
+  fi
+  cp "$ROOT/skills/$skill/SKILL.md" "$AGENT_DIR/skills/$skill/SKILL.md"
+done
+node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR"
 
 rm -rf "$AGENT_DIR/maintenance"
 mkdir -p "$AGENT_DIR/maintenance"

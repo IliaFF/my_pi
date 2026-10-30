@@ -49,6 +49,10 @@ Installer MUST provide an explicit configuration-preserving deployment mode. Exi
 - **WHEN** preservation mode is selected but personal configuration is absent
 - **THEN** portable defaults are installed
 
+#### Scenario: Published release diverges from local source
+- **WHEN** an approved installation follows integration of published changes with local commits
+- **THEN** local behavior and private configuration are preserved, exact merged source and host gates pass, and any active project override is backed up and validated separately before being reported as updated
+
 ### Requirement: Approved optional package removal is scoped
 An explicitly requested optional package removal MUST update portable declarations, dependency lock and installed package configuration without removing other direct dependencies or private user data. Runtime removal MUST have a recoverable pre-state backup. Already loaded extension hooks MUST NOT be reported as unloaded until reload/restart.
 
@@ -82,3 +86,28 @@ The build MUST not declare or load Caveman after approved removal. Communication
 #### Scenario: Historical Caveman patch backup
 - **WHEN** a verified pre-removal backup contains the retired pi-caveman/package.json and pi-caveman/extensions/caveman.ts payloads
 - **THEN** rollback accepts those exact destinations without accepting arbitrary new paths
+
+### Requirement: Installer backups can be safely staged before restoration
+Uninstall MUST accept all current exact managed paths, including task-session.ts, while retaining supported historical sets. It MUST fully stage and validate the archive before deleting current managed files. Extraction MUST reject unmanaged paths, escapes, unsafe links and special devices. Legitimate relative npm links MUST survive. Unrelated files and shared parent permissions MUST remain unchanged.
+
+#### Scenario: Current installer backup
+- **WHEN** a backup includes the current path set and npm .bin relative symlinks
+- **THEN** dry-run and restoration succeed, preserving link targets and task-session bytes
+
+#### Scenario: Malicious or incomplete archive
+- **WHEN** the archive escapes its allowed destinations, contains unsafe links/devices, or lacks expected present paths
+- **THEN** validation fails before changing any runtime file
+
+### Requirement: Security remediation preserves dependency scope
+A targeted transitive advisory fix MUST retain direct dependency pins and declared compatible ranges. The build MUST review lock changes and run dependency audit and offline SDK gates; it MUST NOT equate audit success with absence of exploitable service bugs.
+
+#### Scenario: Hono static-middleware advisory
+- **WHEN** vulnerable Hono is resolved through the existing MCP SDK dependency
+- **THEN** the compatible patched lock is used without adding a direct package or blind audit fix, and no unrelated dependency updates are accepted
+
+### Requirement: Approved stable stack updates preserve each runtime scope
+An explicitly requested stable stack update MUST validate the exact source candidate with the full offline gate and preserve private configuration, credentials, sessions and unrelated dependencies in each approved installation. Active project overrides and actual CLI entry points MUST be checked separately from managed SDK pins. Deployment MUST have a recoverable verified backup, and failures or untested live behavior MUST be reported honestly.
+
+#### Scenario: Local and VPS update requested
+- **WHEN** the user approves updating source, local runtime and VPS
+- **THEN** exact stable pins and version-gated patches pass source and host validation, local extra dependencies/overrides survive, and unrelated VPS applications and provider credentials remain unchanged

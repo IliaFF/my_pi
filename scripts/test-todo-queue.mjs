@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent } from "../local-extensions/todo-queue/core.ts";
+import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, formatQueuePanel } from "../local-extensions/todo-queue/core.ts";
 import { findTodoPath, mutateTodo } from "../local-extensions/todo-queue/store.ts";
 
 const base = `# TODO
@@ -19,6 +19,60 @@ const base = `# TODO
 ## Completed
 - [x] Old result
 `;
+
+test("panel is compact, FIFO, read-only and omits completed/deferred tasks", () => {
+  let text = claimNext(base, "active").text;
+  for (let i = 1; i <= 5; i++) text = addTask(text, `Next ${i}`, `n${i}`).text;
+  text += "\n## Deferred ideas\n- [ ] Not selected\n";
+  const state = inspectTodo(text);
+  const before = JSON.stringify(state);
+  const lines = formatQueuePanel(state, false);
+  assert.equal(lines.length, 6);
+  assert.match(lines[0], /Pending: 5.*Blocked: 0/);
+  assert.match(lines[1], /Existing task/);
+  assert.deepEqual(lines.slice(2, 5), ["├─ ○ Next 1", "├─ ○ Next 2", "├─ ○ Next 3"]);
+  assert.match(lines[5], /2/);
+  assert.doesNotMatch(lines.join("\n"), /Old result|Not selected|Next 4|Next 5/);
+  assert.equal(formatQueuePanel(state, true).length, 1);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test("panel tree honors viewport budgets, overflow and current/FIFO/blocked order", () => {
+  let text = claimNext(base, "active").text;
+  for (let i = 1; i <= 7; i++) text = addTask(text, `Next ${i}`, `n${i}`).text;
+  text = text.replace("## Blocked\n", "## Blocked\n- [ ] Waiting A\n- [ ] Waiting B\n");
+  const state = inspectTodo(text);
+  const before = JSON.stringify(state);
+  for (const budget of [1, 2, 3, 6, 12]) {
+    const lines = formatQueuePanel(state, false, budget);
+    assert.ok(lines.length <= budget);
+    if (budget > 1 && budget < 11) {
+      assert.match(lines.at(-1), new RegExp(`^└─ \\+ ${10 - (budget - 2)} ещё`));
+    }
+    assert.equal(formatQueuePanel(state, true, budget).length, 1);
+  }
+  const all = formatQueuePanel(state, false, 12);
+  assert.match(all[1], /^├─ ◐ Existing task$/);
+  assert.match(all[8], /^├─ ○ Next 7$/);
+  assert.match(all[9], /^├─ ! Waiting A$/);
+  assert.match(all[10], /^└─ ! Waiting B$/);
+  assert.doesNotMatch(all.join("\n"), /Old result/);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test("panel hides completed-only queues and shows blocked count", () => {
+  assert.deepEqual(formatQueuePanel(inspectTodo("## Completed\n- [x] Finished\n"), false), []);
+  const text = blockCurrent(claimNext(base, "a").text, "a", "waiting").text;
+  assert.match(formatQueuePanel(inspectTodo(text), false)[0], /Pending: 0.*Blocked: 1/);
+});
+
+test("panel neutralizes terminal controls without breaking Unicode", () => {
+  const state = inspectTodo(base);
+  state.pending[0].text = "\x1b[31m红色\x1b[0m\n\x1b]8;;https://evil\x07link\x1b]8;;\x07\u202E e\u0301 👩‍💻";
+  const line = formatQueuePanel(state, false)[1];
+  assert.doesNotMatch(line, /[\x00-\x1f\x7f-\x9f\u202e]/);
+  assert.match(line, /红色.*link.*e\u0301.*👩‍💻/);
+});
 
 test("add appends a stable hidden id and preserves unrelated content", () => {
   const changed = addTask(base, "New small task", "abc123");
@@ -71,6 +125,23 @@ test("block records reason and clears current", () => {
   const state = inspectTodo(blocked.text);
   assert.equal(state.current, undefined);
   assert.match(state.blocked[0].text, /Заблокировано: Need API access/);
+});
+
+test("reopen selects only Blocked, preserves identity/order and requires an empty current slot", async () => {
+  const { reopenBlocked } = await import("../local-extensions/todo-queue/core.ts");
+  let text = addTask(base, "Second", "second").text;
+  text = blockCurrent(claimNext(text, "blocked").text, "blocked", "Old blocker").text;
+  const before = inspectTodo(text);
+  const changed = reopenBlocked(text, "blocked");
+  assert.equal(changed.task.id, "blocked");
+  assert.equal(changed.task.text, before.blocked[0].text);
+  assert.equal(inspectTodo(changed.text).current.id, "blocked");
+  assert.deepEqual(inspectTodo(changed.text).pending, before.pending);
+  assert.deepEqual(inspectTodo(changed.text).completed, before.completed);
+  for (const id of ["missing", "second", ""]) assert.throws(() => reopenBlocked(text, id), /Blocked task/);
+  assert.throws(() => reopenBlocked(claimNext(text, undefined, "second").text, "blocked"), /already in progress/);
+  const crlf = reopenBlocked(text.replace(/\n/g, "\r\n"), "blocked").text;
+  assert.equal(/(^|[^\r])\n/.test(crlf), false);
 });
 
 test("release returns current task to front of Pending", () => {

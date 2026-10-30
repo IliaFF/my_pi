@@ -1,0 +1,8 @@
+{
+  "name": "my-pi-mcp-stack",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@jkudish/jev-browser": "0.8.3"
+  }
+}

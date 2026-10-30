@@ -90,7 +90,7 @@ for name, make in cases.items():
         assert not (Path(temp) / "escaped").exists(), name
         assert (Path(temp) / "outside").read_bytes() == b"outside\n", name
 
-for name in ["missing", "truncated", "bad gzip checksum", "missing expected path", "wrong agent", "unknown managed path", "chain", "cycle", "write through chain", "destination parent"]:
+for name in ["missing", "truncated", "bad gzip checksum", "missing expected path", "wrong agent", "unknown managed path", "chain", "cycle", "write through chain", "destination parent", "file parent", "internal parent"]:
     with tempfile.TemporaryDirectory(prefix="pi-rollback-preflight-") as temp:
         entries = [member("settings.json"), member("npm/file")]
         if name == "chain":
@@ -120,6 +120,11 @@ for name in ["missing", "truncated", "bad gzip checksum", "missing expected path
             state = json.loads((backup / "state.json").read_text())
             state["agentPresent"].append("extensions/loop-profiler.ts")
             (backup / "state.json").write_text(json.dumps(state))
+        if name == "file parent":
+            (agent / "extensions").write_bytes(b"not a directory\n")
+        if name == "internal parent":
+            (agent / "private-dir").mkdir()
+            (agent / "extensions").symlink_to(agent / "private-dir", target_is_directory=True)
         before = snapshot(agent)
         result = restore(agent, backup)
         assert result.returncode != 0, (name, result.stdout)
@@ -144,11 +149,13 @@ for fail_restore, fresh in [(False, False), (True, False), (False, True)]:
         before = snapshot(agent)
         bin_dir = temp / "bin"; bin_dir.mkdir()
         scripts = {
-            "pi": "#!/bin/sh\necho 1.3.0\n",
+            "pi": f"#!/bin/sh\necho {json.loads((ROOT / 'manifest.json').read_text())['piCoreVersion']}\n",
             "python3": f'#!/bin/sh\nif [ "$1" = "{ROOT}/scripts/test-release.py" ]; then exit 0; fi\nexec {shlex.quote(sys.executable)} "$@"\n',
             "npm": f'''#!{sys.executable}
 import os,sys
 from pathlib import Path
+if sys.argv[1:] == ["--version"]:
+    print("fixture-npm"); sys.exit(0)
 agent=Path(os.environ['PI_CODING_AGENT_DIR'])
 (agent/'settings.json').write_bytes(b'changed by failed install\\n')
 if os.environ['FAIL_RESTORE']=='1':
@@ -156,6 +163,7 @@ if os.environ['FAIL_RESTORE']=='1':
 sys.exit(73)
 ''',
         }
+        scripts.update({name: "#!/bin/sh\necho fixture-version\n" for name in ["uv", "tmux"]})
         for name, text in scripts.items():
             path = bin_dir / name; path.write_text(text); path.chmod(0o755)
         env = {**os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"], "PI_CODING_AGENT_DIR": str(agent), "PI_BACKUP_DIR": str(temp / "backups"), "FAIL_RESTORE": "1" if fail_restore else "0"}

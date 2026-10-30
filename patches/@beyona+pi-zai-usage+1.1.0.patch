@@ -1,0 +1,352 @@
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -97,29 +97,7 @@
+         return "go";
+     if (provider?.startsWith("openai-codex"))
+         return "codex";
+-    if (!provider || !modelRegistry || provider !== "openai")
+-        return null;
+-    if (!model)
+-        return null;
+-    const identifier = (model.id ?? model.name ?? "").toLowerCase();
+-    if (!identifier)
+-        return null;
+-    const isCodexProviderMatch = (candidate) => {
+-        if (!candidate?.provider)
+-            return false;
+-        if (!candidate.id && !candidate.name)
+-            return false;
+-        const candidateProvider = candidate.provider.toLowerCase();
+-        if (!candidateProvider.startsWith("openai-codex"))
+-            return false;
+-        const candidateId = (candidate.id ?? candidate.name ?? "").toLowerCase();
+-        return candidateId === identifier;
+-    };
+-    if (modelRegistry.getAvailable().some(isCodexProviderMatch))
+-        return "codex";
+-    if (modelRegistry.getAll().some(isCodexProviderMatch))
+-        return "codex";
+-    return null;
++    return provider === "openai" ? "codex" : null;
+ }
+ function usageModelKey(model, selectedProvider) {
+     if (!model)
+@@ -134,52 +112,8 @@
+ function isUsageProvider(ctx) {
+     return usageProvider(ctx.model, ctx.modelRegistry) !== null;
+ }
+-function toCodexAuthModel(model) {
+-    const providerRaw = model?.provider;
+-    const modelId = (model?.id ?? model?.name)?.toLowerCase();
+-    let provider;
+-    if (providerRaw?.toLowerCase().startsWith("openai") && modelId?.includes("codex")) {
+-        provider = "openai-codex";
+-    }
+-    else if (providerRaw) {
+-        provider = providerRaw.toLowerCase();
+-    }
+-    else if (modelId?.includes("codex")) {
+-        provider = "openai-codex";
+-    }
+-    if (!provider)
+-        return undefined;
+-    const result = { provider };
+-    if (model?.id !== undefined) {
+-        result.id = model.id;
+-    }
+-    else if (model?.name !== undefined) {
+-        result.id = model.name;
+-    }
+-    if (model?.name !== undefined) {
+-        result.name = model.name;
+-    }
+-    return result;
+-}
+ function codexUsageContext(ctx, model) {
+-    const selectedModel = toCodexAuthModel(model ?? ctx.model);
+-    const result = {
+-        modelRegistry: {
+-            getApiKeyAndHeaders: (authModel) => ctx.modelRegistry.getApiKeyAndHeaders(authModel),
+-            getAvailable: () => ctx.modelRegistry.getAvailable().flatMap((item) => {
+-                const authModel = toCodexAuthModel(item);
+-                return authModel ? [authModel] : [];
+-            }),
+-            getAll: () => ctx.modelRegistry.getAll().flatMap((item) => {
+-                const authModel = toCodexAuthModel(item);
+-                return authModel ? [authModel] : [];
+-            }),
+-        },
+-    };
+-    if (selectedModel) {
+-        result.model = selectedModel;
+-    }
+-    return result;
++    return { model: model ?? ctx.model, modelRegistry: ctx.modelRegistry };
+ }
+ /** Render Z.ai usage data into a themed string showing 5h, weekly, and monthly quotas */
+ export function renderZaiStatus(data, theme) {
+@@ -318,6 +252,7 @@
+     let codexConfigured = null;
+     let goConfigured = null;
+     let activeProvider = null;
++    let codexGeneration = 0;
+     let lastCodexModelKey = "";
+     let footerActive = false;
+     /** When true, the statusline shows all providers (DeepSeek · Codex · Go · Z.ai) right-aligned. */
+@@ -333,7 +268,7 @@
+      * Fetch all three providers (DeepSeek, Codex, Z.ai) respecting per-provider
+      * cooldowns and exponential backoff. Used by show-all mode.
+      */
+-    async function fetchAllProviders(ctx) {
++    async function fetchAllProviders(ctx, generation) {
+         const now = nowEpochMilliseconds();
+         const tasks = [];
+         // DeepSeek
+@@ -360,11 +295,13 @@
+         if (shouldRetryFetch(!!lastCodexData, lastCodexFetchTime, codexRetry, now)) {
+             tasks.push(getCodexUsage(codexUsageContext(ctx))
+                 .then((d) => {
++                if (generation !== codexGeneration) return;
+                 lastCodexData = d;
+                 lastCodexFetchTime = nowEpochMilliseconds();
+                 codexRetry.retryCount = 0;
+             })
+                 .catch((error) => {
++                if (generation !== codexGeneration) return;
+                 if (error instanceof CodexAuthError && error.code === "codex-no-auth") {
+                     codexConfigured = false;
+                 }
+@@ -432,6 +369,13 @@
+     async function updateStatus(ctx, modelOverride = null) {
+         ctxRef = ctx;
+         const model = modelOverride ?? ctx.model;
++        const generation = ++codexGeneration;
++        if (model?.provider?.toLowerCase() === "openai") {
++            // Separate account source: never reuse a native-view reading across auth refreshes.
++            lastCodexData = null;
++            if (codexRetry.retryCount === 0) lastCodexFetchTime = 0;
++            codexConfigured = null;
++        }
+         const selectedProvider = usageProvider(model, ctx.modelRegistry);
+         const selectedModelKey = usageModelKey(model, selectedProvider);
+         if (selectedProvider === "codex" &&
+@@ -467,7 +411,8 @@
+         }
+         activeProvider = selectedProvider;
+         if (showAllProviders) {
+-            await fetchAllProviders(ctx);
++            await fetchAllProviders(ctx, generation);
++            if (generation !== codexGeneration) return;
+             installFooterWithRepair();
+             return;
+         }
+@@ -546,6 +491,7 @@
+                     codexConfigured = false;
+                 }
+             }
++            if (generation !== codexGeneration) return;
+             if (!codexConfigured) {
+                 lastCodexData = null;
+                 installFooterWithRepair();
+@@ -553,11 +499,14 @@
+             }
+             if (shouldRetryFetch(!!lastCodexData, lastCodexFetchTime, codexRetry, now)) {
+                 try {
+-                    lastCodexData = await getCodexUsage(codexUsageContext(ctx, model));
++                    const data = await getCodexUsage(codexUsageContext(ctx, model));
++                    if (generation !== codexGeneration) return;
++                    lastCodexData = data;
+                     lastCodexFetchTime = nowEpochMilliseconds();
+                     codexRetry.retryCount = 0;
+                 }
+                 catch (error) {
++                    if (generation !== codexGeneration) return;
+                     if (error instanceof CodexAuthError && error.code === "codex-no-auth") {
+                         codexConfigured = false;
+                     }
+@@ -652,12 +601,16 @@
+                         if (sessionName)
+                             pwd = `${pwd} • ${sessionName}`;
+                         let usageText = "";
++                        const nativeView = ctx.model?.provider?.toLowerCase() === "openai";
++                        const codexText = lastCodexData
++                            ? `${nativeView ? "Codex account (not native app): " : ""}${renderCodexStatus(lastCodexData, theme)}`
++                            : nativeView ? "Codex account quota unavailable" : "";
+                         if (showAllProviders) {
+                             const segments = [];
+                             if (lastDeepSeekData)
+                                 segments.push(renderDeepSeekStatus(lastDeepSeekData, theme));
+-                            if (lastCodexData)
+-                                segments.push(renderCodexStatus(lastCodexData, theme));
++                            if (codexText)
++                                segments.push(codexText);
+                             if (lastGoData)
+                                 segments.push(renderGoStatus(lastGoData, theme));
+                             if (lastZaiData)
+@@ -670,8 +623,8 @@
+                         else if (activeProvider === "deepseek" && lastDeepSeekData) {
+                             usageText = renderDeepSeekStatus(lastDeepSeekData, theme);
+                         }
+-                        else if (activeProvider === "codex" && lastCodexData) {
+-                            usageText = renderCodexStatus(lastCodexData, theme);
++                        else if (activeProvider === "codex") {
++                            usageText = codexText;
+                         }
+                         else if (activeProvider === "go" && lastGoData) {
+                             usageText = renderGoStatus(lastGoData, theme);
+@@ -787,6 +740,7 @@
+         }
+     }
+     function clearStatus(ctx) {
++        ++codexGeneration;
+         lastZaiData = null;
+         lastZaiFetchTime = 0;
+         lastDeepSeekData = null;
+@@ -822,12 +776,13 @@
+             ctxRef = ctx;
+             if (showAllProviders) {
+                 try {
+-                    await fetchAllProviders(ctx);
++                    await updateStatus(ctx);
+                 }
+                 catch {
+                     // best-effort; render whatever is cached
+                 }
+             }
++            if (ctxRef !== ctx) return;
+             installFooterWithRepair();
+             requestFooterRender?.();
+             ctx.ui.notify(showAllProviders
+--- a/dist/codex-api.js
++++ b/dist/codex-api.js
+@@ -25,7 +25,11 @@
+         throw new Error(`Codex usage endpoint returned ${response.status} ${response.statusText}`);
+     }
+     const payload = parseJsonObject(text, "Codex usage endpoint response");
+-    const modelHint = ctx.model?.id ?? ctx.model?.name;
++    if (ctx.model?.provider?.toLowerCase() === "openai" &&
++        JSON.stringify(await resolveCodexAuthHeaders(ctx)) !== JSON.stringify(headers)) {
++        throw new CodexAuthError("Codex account changed during quota refresh", "codex-no-auth");
++    }
++    const modelHint = ctx.model?.provider?.toLowerCase() === "openai" ? undefined : ctx.model?.id ?? ctx.model?.name;
+     const usage = extractCodexUsage(payload, modelHint);
+     if (!usage.fiveHour && !usage.weekly && !usage.weeklySpark) {
+         throw new Error("Codex usage endpoint did not include any usable usage window");
+@@ -132,11 +136,25 @@
+ function normalizeText(value) {
+     return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+ }
++function isOfficialCodexOrigin(value) {
++    try {
++        const url = new URL(value);
++        return url.origin === "https://chatgpt.com" && !url.username && !url.password;
++    }
++    catch { return false; }
++}
+ async function resolveCodexAuthHeaders(ctx) {
+     const models = codexAuthCandidateModels(ctx);
+     const errors = [];
+     for (const model of models) {
+-        const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
++        const nativeFallback = ctx.model?.provider?.toLowerCase() === "openai";
++        if (nativeFallback && (!ctx.modelRegistry.isUsingOAuth?.(model) || !isOfficialCodexOrigin(model.baseUrl)))
++            continue;
++        let auth;
++        try { auth = await ctx.modelRegistry.getApiKeyAndHeaders(model); }
++        catch { errors.push("Codex auth lookup failed"); continue; }
++        if (nativeFallback && !isOfficialCodexOrigin(auth.baseUrl ?? model.baseUrl))
++            continue;
+         if (!auth.ok) {
+             errors.push(auth.error ?? "unknown Codex auth error");
+             continue;
+@@ -158,50 +176,21 @@
+     throw new CodexAuthError("No Pi OpenAI Codex subscription auth was available. Use a Pi OpenAI Codex model or run /login for OpenAI ChatGPT Plus/Pro (Codex).", "codex-no-auth");
+ }
+ export async function hasCodexAuth(ctx) {
+-    const models = codexAuthCandidateModels(ctx);
+-    for (const model of models) {
+-        try {
+-            const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
+-            if (auth.ok)
+-                return true;
+-        }
+-        catch {
+-            // Ignore auth lookup errors and try the next model.
+-        }
+-    }
+-    return false;
++    try { await resolveCodexAuthHeaders(ctx); return true; }
++    catch { return false; }
+ }
+ function isCodexCandidate(model) {
+-    if (!model?.provider)
+-        return false;
+-    const provider = model.provider.toLowerCase();
+-    if (provider.startsWith(CODEX_PROVIDER_ID))
+-        return true;
+-    const modelId = model.id?.toLowerCase() ?? "";
+-    return provider === "openai" && modelId.includes("codex");
+-}
+-function normalizedCodexModels(model) {
+-    if (!model)
+-        return [];
+-    const modelId = model.id?.toLowerCase() ?? "";
+-    if (model.provider.toLowerCase() === "openai" && modelId.includes("codex")) {
+-        return [model, { ...model, provider: CODEX_PROVIDER_ID }];
+-    }
+-    return [model];
++    return model?.provider?.toLowerCase() === CODEX_PROVIDER_ID;
+ }
+ function codexAuthCandidateModels(ctx) {
+     const candidates = [];
+     const seen = new Set();
+     const add = (model) => {
+-        for (const candidate of normalizedCodexModels(model)) {
+-            if (!isCodexCandidate(candidate))
+-                return;
+-            const modelId = candidate.id ?? "";
+-            const key = `${candidate.provider}/${modelId}`;
+-            if (seen.has(key))
+-                return;
++        if (!isCodexCandidate(model)) return;
++        const key = `${model.provider}/${model.id ?? ""}`;
++        if (!seen.has(key)) {
+             seen.add(key);
+-            candidates.push(candidate);
++            candidates.push(model);
+         }
+     };
+     add(ctx.model);
+@@ -215,7 +204,7 @@
+     const controller = new AbortController();
+     const timeout = setTimeout(() => controller.abort(), timeoutMs);
+     try {
+-        return await fetch(url, { ...init, signal: controller.signal });
++        return await fetch(url, { ...init, redirect: "error", signal: controller.signal });
+     }
+     catch (error) {
+         if (controller.signal.aborted) {
+--- a/dist/codex-api.d.ts
++++ b/dist/codex-api.d.ts
+@@ -26,11 +26,13 @@
+     timeRemaining?: string;
+ }
+ export interface CodexAuthModel {
++    baseUrl?: string;
+     id?: string;
+     name?: string;
+     provider: string;
+ }
+ interface CodexAuthResult {
++    baseUrl?: string;
+     ok: boolean;
+     apiKey?: string;
+     headers?: Record<string, string>;
+@@ -39,6 +41,7 @@
+ export interface CodexUsageContext {
+     model?: CodexAuthModel;
+     modelRegistry: {
++        isUsingOAuth?(model: CodexAuthModel): boolean;
+         getApiKeyAndHeaders(model: CodexAuthModel): Promise<CodexAuthResult>;
+         getAvailable(): CodexAuthModel[];
+         getAll(): CodexAuthModel[];

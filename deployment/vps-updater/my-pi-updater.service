@@ -1,0 +1,17 @@
+[Unit]
+Description=Daily isolated my_pi release repair and checked publication
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+StateDirectory=my-pi-updater
+StateDirectoryMode=0700
+ExecStart=/usr/bin/python3 /opt/my-pi-updater/vps-updater.py run
+ExecStopPost=/usr/bin/python3 /opt/my-pi-updater/vps-updater.py cleanup
+TimeoutStartSec=2h
+TimeoutStopSec=90
+NoNewPrivileges=yes

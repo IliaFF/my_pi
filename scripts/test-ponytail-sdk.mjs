@@ -93,6 +93,10 @@ try {
         assert.ok(prompt.includes("Never cut: validation at trust boundaries"));
         assert.equal((prompt.match(/The best code is the code never written/g) || []).length, 1);
       }
+      for (const name of ["help", "gain", "debt"]) {
+        assert.ok(!prompt.includes(`<name>ponytail-${name}</name>`), `${name} must be command-only`);
+        assert.ok(loader.getSkills().skills.some(skill => skill.name === `ponytail-${name}`));
+      }
       assert.ok(prompt.includes("<name>ponytail-review</name>"));
       assert.ok(prompt.includes("<name>ponytail-audit</name>"));
       assert.ok(context.includes("Never cut") || mode === "off", "Rules reach real provider context");
@@ -104,6 +108,19 @@ try {
     assert.ok(context.includes("# Ponytail"));
     assert.ok(context.includes("## The smallest complete change"));
   });
+  for (const mode of ["off", "full"]) {
+    await session.prompt(`/ponytail ${mode}`);
+    for (const name of ["help", "gain", "debt"]) {
+      const body = readFileSync(join(pkg, `skills/ponytail-${name}/SKILL.md`), "utf8");
+      for (const prefix of ["/ponytail-", "/skill:ponytail-"]) {
+        await run(`${prefix}${name} explicit-${name}-argument`, (_prompt, context) => {
+          assert.ok(context.includes(`explicit-${name}-argument`));
+          const instruction = body.replace(/^---[\s\S]*?---\s*/, "").trim().split(/\r?\n/)[0];
+          assert.ok(context.includes(instruction), "Command must expand the actual skill body");
+        });
+      }
+    }
+  }
   for (const name of ["review", "audit"]) {
     const body = readFileSync(join(pkg, `skills/ponytail-${name}/SKILL.md`), "utf8");
     assert.ok(!/plain English|Very simple English/.test(body), `${name} must not force English`);
@@ -124,10 +141,18 @@ try {
   await run(undefined, prompt => {
     assert.ok(prompt.includes(baseName), "Standalone base skill remains automatically discoverable");
     assert.ok(!prompt.includes("PONYTAIL MODE ACTIVE"));
+    for (const name of ["help", "gain", "debt"]) assert.ok(!prompt.includes(`<name>ponytail-${name}</name>`));
   });
+  for (const name of ["help", "gain", "debt"]) {
+    await run(`/skill:ponytail-${name} standalone-${name}`, (_prompt, context) => {
+      assert.ok(context.includes(`standalone-${name}`));
+      const body = readFileSync(join(pkg, `skills/ponytail-${name}/SKILL.md`), "utf8");
+      assert.ok(context.includes(body.replace(/^---[\s\S]*?---\s*/, "").trim().split(/\r?\n/)[0]));
+    });
+  }
   assert.deepEqual(errors, []);
   assert.equal(networkAttempts, 0);
-  console.log("PASS real Pi SDK: full/lite/ultra/off/full discovery; rules preserved; loader unchanged; explicit base/review/audit; independent review; standalone; session language; 0 network attempts");
+  console.log("PASS real Pi SDK: full/lite/ultra/off/full discovery; rules preserved; loader unchanged; explicit base/review/audit and help/gain/debt aliases/native commands in full/off; standalone native commands; independent review; session language; 0 network attempts");
 } finally {
   session?.dispose();
   globalThis.fetch = previousFetch;

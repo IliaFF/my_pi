@@ -1,17 +1,17 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "1.3.0",
+  "piCoreVersion": "1.4.0",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
       "package": "@juicesharp/rpiv-ask-user-question",
-      "version": "2.13.8",
+      "version": "2.15.0",
       "pinRequired": false,
-      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.13.8.patch",
+      "patch": "patches/@juicesharp+rpiv-ask-user-question+2.15.0.patch",
       "files": [
         "reconcile.ts"
       ],
-      "reason": "Reconcile UI availability at session_start; stock 2.13.8 fails first-turn tool availability regression."
+      "reason": "Reconcile UI availability at session_start; stock 2.15.0 fails first-turn tool availability regression."
     },
     {
       "package": "pi-train-agents",
@@ -37,19 +37,22 @@
         "dist/src/extension.js",
         "dist/src/core/reload-shell-owner.js"
       ],
-      "reason": "Local process-only pilot: reject agent/wake at shared admission, disable other features/update checks, finite deadline and strict per-job output cap, truthful notification-only tool schema/prompt."
+      "reason": "Local process-only pilot: reject agents at shared admission; default completion wake with explicit validated opt-out; disable other features/update checks; retain finite deadline and strict per-job output cap."
     },
     {
       "package": "@dietrichgebert/ponytail",
-      "version": "5.2.0",
+      "version": "5.3.3",
       "pinRequired": false,
-      "patch": "patches/@dietrichgebert+ponytail+5.2.0.patch",
+      "patch": "patches/@dietrichgebert+ponytail+5.3.3.patch",
       "files": [
         "pi-extension/index.js",
         "skills/ponytail-review/SKILL.md",
-        "skills/ponytail-audit/SKILL.md"
+        "skills/ponytail-audit/SKILL.md",
+        "skills/ponytail-help/SKILL.md",
+        "skills/ponytail-gain/SKILL.md",
+        "skills/ponytail-debt/SKILL.md"
       ],
-      "reason": "Avoid repeat automatic base-skill reads while lite/full/ultra rules are injected; preserve off/standalone/manual commands and follow session language in review/audit."
+      "reason": "Avoid repeat automatic base-skill reads while lite/full/ultra rules are injected; preserve off/standalone/manual commands and follow session language in review/audit. Help/gain/debt use native command-only skill metadata without removing explicit commands."
     },
     {
       "package": "pi-ssh-remote",
@@ -63,9 +66,9 @@
     },
     {
       "package": "pi-markdown-preview",
-      "version": "0.22.3",
+      "version": "0.25.0",
       "pinRequired": false,
-      "patch": "patches/pi-markdown-preview+0.22.3.patch",
+      "patch": "patches/pi-markdown-preview+0.25.0.patch",
       "files": [
         "index.ts"
       ],
@@ -82,6 +85,39 @@
         "dist/tools/purge.js"
       ],
       "reason": "Register rare tools as native deferred; keep executors/schemas/hooks and recorded-session declarations unchanged, no auto-unloading."
+    },
+    {
+      "package": "@beyona/pi-zai-usage",
+      "version": "1.1.0",
+      "pinRequired": true,
+      "settingsSpec": "npm:@beyona/pi-zai-usage@1.1.0",
+      "patch": "patches/@beyona+pi-zai-usage+1.1.0.patch",
+      "files": [
+        "dist/index.js",
+        "dist/codex-api.js",
+        "dist/codex-api.d.ts"
+      ],
+      "reason": "Show explicitly labeled separate Codex-account quota for native OpenAI without changing inference or forwarding native credentials; reject unsafe OAuth origins/redirects and stale lifecycle results."
+    },
+    {
+      "package": "pi-web-access",
+      "version": "0.45.0",
+      "pinRequired": false,
+      "patch": "patches/pi-web-access+0.45.0.patch",
+      "files": [
+        "dist/index.js"
+      ],
+      "reason": "Declare web_enable only while configured web tools are missing; preserve lazy/eager activation, renamed/disabled tools, resume and registered executor."
+    },
+    {
+      "package": "context-fold",
+      "version": "0.7.0",
+      "pinRequired": false,
+      "patch": "patches/context-fold+0.7.0.patch",
+      "files": [
+        "src/core/index/seed-index.ts"
+      ],
+      "reason": "Exclude exact owned restore envelopes and index queue task bodies in soft/hard user intents; retain ordinary text and explicitly tested multiline truncation."
     }
   ],
   "managedConfigs": [
@@ -90,6 +126,12 @@
       "snapshot": "local-extensions/herdr-agent-state.ts",
       "restore": true,
       "reason": "Optional Herdr TUI status integration; inactive without explicit Herdr environment."
+    },
+    {
+      "source": "herdr-agents/config.json",
+      "snapshot": "configs/herdr-agents/config.json",
+      "restore": false,
+      "reason": "Conservative Herdr sidebar/persistent defaults; initialize only when missing and preserve later user preferences."
     },
     {
       "source": "train-agents/config.json",
@@ -107,7 +149,8 @@
       "source": "mcp.json",
       "snapshot": "configs/mcp.json",
       "restore": false,
-      "reason": "Audit native Chrome MCP codemode exposure and safety flags; never overwrite other user MCP servers during maintenance."
+      "reason": "Audit native Chrome MCP codemode exposure and safety flags; never overwrite other user MCP servers during maintenance.",
+      "snapshotRuntime": false
     },
     {
       "source": "APPEND_SYSTEM.md",
@@ -143,13 +186,19 @@
       "source": "extensions/auto-ultra-compact/index.ts",
       "snapshot": "local-extensions/auto-ultra-compact/index.ts",
       "restore": true,
-      "reason": "Recovery-aware automatic compaction and bounded emergency packets."
+      "reason": "500k automatic compaction cap with native smaller-window reserve protection and TODO-aware continuation."
     },
     {
       "source": "extensions/loop-profiler.ts",
       "snapshot": "local-extensions/loop-profiler.ts",
       "restore": true,
       "reason": "Persistent bounded direct-tool loop baseline with externalized-output metrics and /loop-report; raw trace remains opt-in."
+    },
+    {
+      "source": "extensions/task-session.ts",
+      "snapshot": "local-extensions/task-session.ts",
+      "restore": true,
+      "reason": "Native fresh-session handoff for unrelated goals from chat and TODO queue; shared goals stay and ambiguity asks."
     },
     {
       "source": "extensions/todo-queue/README.md",
@@ -170,10 +219,22 @@
       "reason": "Preserve deterministic queue mutations."
     },
     {
+      "source": "extensions/todo-queue/panel.ts",
+      "snapshot": "local-extensions/todo-queue/panel.ts",
+      "restore": true,
+      "reason": "Preserve the read-only project queue panel and its UI lifecycle."
+    },
+    {
       "source": "extensions/todo-queue/store.ts",
       "snapshot": "local-extensions/todo-queue/store.ts",
       "restore": true,
       "reason": "Preserve locked atomic TODO.md writes."
+    },
+    {
+      "source": "extensions/todo-queue/checks.ts",
+      "snapshot": "local-extensions/todo-queue/checks.ts",
+      "restore": true,
+      "reason": "Preserve task-bound file snapshots and native background check records."
     },
     {
       "source": "pi-meantime.json",
@@ -186,6 +247,41 @@
       "snapshot": "local-extensions/deferred-tools.ts",
       "restore": true,
       "reason": "Preserve the rollout-managed tool loadout on recorded-session startup; fresh defaults use native deferred/tool_search."
+    },
+    {
+      "source": "AGENTS.md",
+      "snapshot": "configs/AGENTS.md",
+      "restore": false,
+      "reason": "Portable Firstmate exception and resource-consent rule survive project APPEND override; installer preserves unrelated private instructions.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "extensions/aitunnel.ts",
+      "snapshot": "local-extensions/aitunnel.ts",
+      "restore": false,
+      "reason": "Portable AITunnel registration; key resolved from AITUNNEL_API_KEY, no auth data.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "skills/cpp-styleguide/SKILL.md",
+      "snapshot": "skills/cpp-styleguide/SKILL.md",
+      "restore": false,
+      "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "skills/python-styleguide/SKILL.md",
+      "snapshot": "skills/python-styleguide/SKILL.md",
+      "restore": false,
+      "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
+      "snapshotRuntime": false
+    },
+    {
+      "source": "skills/latex-simple-style/SKILL.md",
+      "snapshot": "skills/latex-simple-style/SKILL.md",
+      "restore": false,
+      "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
+      "snapshotRuntime": false
     }
   ]
 }

@@ -1,0 +1,3 @@
+# Design
+
+Reuse native deferred tool discovery and skill frontmatter `disable-model-invocation: true`; add no loader or dependency. The skill remains readable from the package and available by explicit command. The short standing discovery pointer names it; detailed completion/no-polling prose already belongs to discovered tool schemas and the skill. Keep authorization, multi-window eligibility, parent verification and process-only limits in standing policy. Preserve old session declarations; demonstrate fresh-session boundaries with the real SDK and faux provider. Deployment uses the existing backed-up installer in preserve-settings mode, with separately backed-up alignment of the known APPEND difference only. Do not overwrite unrelated settings or histories.

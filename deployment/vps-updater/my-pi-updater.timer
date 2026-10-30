@@ -1,0 +1,11 @@
+[Unit]
+Description=Check my_pi upstream releases daily
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+Unit=my-pi-updater.service
+
+[Install]
+WantedBy=timers.target

@@ -139,6 +139,9 @@ def snapshot() -> int:
     failures = 0
     manifest = load_manifest()
     for item in manifest["managedConfigs"]:
+        if not item.get("snapshotRuntime", True):
+            print(f"PRESERVED portable source {item['snapshot']}")
+            continue
         source = AGENT_DIR / item["source"]
         target = BASE / item["snapshot"]
         if not source.is_file():
@@ -326,7 +329,9 @@ def verify() -> int:
             print(f"FAIL managed config drift: {item['source']}")
             failures += 1
         else:
-            print(f"WARN audit snapshot drift: {item['source']} (run snapshot after review)")
+            note = ("run snapshot after review" if item.get("snapshotRuntime", True)
+                    else "portable source template; private runtime is not captured")
+            print(f"WARN audit snapshot drift: {item['source']} ({note})")
             warnings += 1
     print(f"SUMMARY failures={failures} warnings={warnings}")
     return 1 if failures else 0
