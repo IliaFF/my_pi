@@ -1,0 +1,6 @@
+## Scope and recovery
+Initial source HEAD a7937ec diverges from origin/main by 10 local/2 remote commits. Preserve local commits via merge, not reset. Existing TODO edits, .pi/tasks and enable-canary planning remain outside the committed deployment archive. Private initial state is recorded under /root/pi-deployments/20261031T101538Z-update.
+Use the existing installer backup and validated staged uninstall restore. Compare exact managed package pins before install; stop for unrelated extras or private config conflicts rather than discard them. Record protected-file digests privately, verify backup before accepting deployment, and keep runtime out of Git. Current CLI is already 1.4.0, so no core replacement is expected. About 27 GiB free, existing npm runtime about 332 MiB.
+
+## Acceptance
+Full npm test on merged source, diff review, installer host gate, exact package/CLI and portable marker verification, unchanged private files/settings except documented managed pin alignment. Deploy from a clean committed archive. Offline checks do not prove live service/model/browser/fleet availability. Do not restart the current session or Herdr server automatically. No paid operations or additional environments.
