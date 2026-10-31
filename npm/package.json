@@ -4,7 +4,7 @@
   "private": true,
   "description": "Exact extension set for IliaFF/my_pi",
   "dependencies": {
-    "@amaster.ai/pi-browser-use": "0.1.32",
+    "@amaster.ai/pi-browser-use": "0.1.33",
     "@beyona/pi-zai-usage": "1.1.0",
     "@dietrichgebert/ponytail": "5.3.3",
     "@earendil-works/pi-coding-agent": "1.4.0",
@@ -16,11 +16,11 @@
     "context-fold": "0.7.0",
     "pi-background-tasks": "2.6.10",
     "pi-fast-resume": "1.4.18",
-    "pi-markdown-preview": "0.25.0",
+    "pi-markdown-preview": "0.26.2",
     "pi-ssh-remote": "0.1.15",
     "pi-token-speed": "0.12.0",
     "pi-train-agents": "0.2.7",
-    "pi-web-access": "0.45.0",
+    "pi-web-access": "0.46.0",
     "pi-workspace-history": "0.5.2",
     "pine-of-glass": "0.18.4",
     "typebox": "1.4.3"

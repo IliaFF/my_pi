@@ -7,7 +7,8 @@
 Node >=24, npm, Python 3.12+, Git и `patch`, Linux/WSL:
 
 ```bash
-cd pi-build
+git clone https://github.com/IliaFF/my_pi.git
+cd my_pi
 npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
 npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund --prefix npm
 npm test
@@ -15,7 +16,7 @@ npm test
 
 `npm test`: строгая OpenSpec validation; portable release/unit (queue, reader, compaction, profiler); self-tests runner и backup/restore; реальные Pi SDK integration; применение/проверка patches; настоящий RPC startup configured stack. Личные credentials и sessions не используются. `test-results/results.json` и отдельные логи содержат стадии, exit codes, версии и Git revision. В Git не включаются. Все subprocess ограничены deadline.
 
-`.github/workflows/test.yml` вызывает тот же gate на push/pull_request и сохраняет artifacts даже при ошибке. Hosted CI подтверждён: [GitHub Actions run 38652731907](https://github.com/IliaFF/my_pi/actions/runs/38652731907), main SHA 1b9b4b3, conclusion success, test-results artifact сохранён. Публикация в main выполнена по явному указанию пользователя. В последующем change align-latest-stable-runtime отдельно согласована и выполнена установка latest stable: source/host gate PASS, личные настройки сохранены, текущему процессу нужен restart.
+`.github/workflows/test.yml` вызывает тот же gate на push/pull_request и сохраняет artifacts даже при ошибке. Историческое CI evidence: [GitHub Actions run 38652731907](https://github.com/IliaFF/my_pi/actions/runs/38652731907), main SHA `1b9b4b3`, conclusion success, test-results artifact сохранён. Этот run не подтверждает CI последующих commits. История согласованных установок и их source/host проверок хранится в OpenSpec evidence; она не определяет состояние текущего пользовательского runtime.
 
 ## Как менять сборку
 
@@ -29,7 +30,7 @@ npm test
 
 ## Долгоживущие исполнители
 
-Делегировать только независимые задачи, прогнозируемо требующие более одного управляемого окна контекста после folding, recall и compaction. Малые исследования и прототипы остаются у родителя. [Проверка Herdr и Durable](docs/multiwindow-agent-evaluation.md) описывает pinned offline evidence, разные контекстные системы и ограничения recovery; Herdr принят в состав сборки после [реальной изолированной Herdr/sidebar проверки](docs/herdr-sidebar-integration.md). [Установка и rollback](docs/herdr-agents-installation.md) описывают exact package, bundled sidebar, scoped backup и необходимость reload для существующих сессий; Durable не активирован.
+Делегировать только независимые задачи, прогнозируемо требующие более одного управляемого окна контекста после folding, recall и compaction. Малые исследования и прототипы остаются у родителя. Текущая интеграция — отдельный Firstmate с Herdr backend; прежний default Pi plugin `pi-herdr-agents` исключён, вместо него установлен `pi-workspace-history`. Состав и границы описаны в [переносимом стеке](docs/portable-stack.md). [Проверка Herdr и Durable](docs/multiwindow-agent-evaluation.md), [изолированная Herdr/sidebar проверка](docs/herdr-sidebar-integration.md) и [установка прежнего Pi plugin](docs/herdr-agents-installation.md) сохранены как исторические evidence, а не инструкции текущего default runtime. Durable не активирован.
 
 ## Установленный runtime
 
@@ -123,7 +124,7 @@ Offline gate проверяет настоящий SDK с faux provider, но н
 
 ### Chrome в WSL
 
-`@amaster.ai/pi-browser-use@0.1.28` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
+`@amaster.ai/pi-browser-use@0.1.32` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
 
 Сохранены headless, isolated profile на сессию, executable `/usr/bin/google-chrome`, pageId routing, выключенные usageStatistics/CrUX/experimentalVision и включённый network headers redact. Старый блок `pi-browser-use` в settings не управляет native сервером: менять браузерные flags нужно в `mcp.json`. Chrome должен быть установлен отдельно. MCP подключается на session_start, Chrome запускается при первом браузерном действии; это не on-demand запуск самого MCP process.
 
@@ -147,7 +148,7 @@ Offline gate проверяет настоящий SDK с faux provider, но н
 | --- | --- | --- |
 | `auto-ultra-compact/index.ts` | активен | Следит за threshold, проверяет compactability и запускает continuation без записи recovery packets. |
 | `deferred-tools.ts` | активен | Сохраняет ранее объявленный managed loadout при startup старой ветки; новые сессии используют native deferred/tool_search. |
-| `task-session.ts` | активен | Перед новой задачей из чата/очереди агент оценивает общую цель. Связанная остаётся, при сомнении спрашивает; независимая переносится через `start_task_session` в новую native-сессию без старой переписки. Незавершённые TODO не бросаются, новая задача выполняется автоматически. |
+| `task-session.ts` | активен | Перед новой задачей из чата/очереди агент оценивает общую цель. Связанная остаётся, при сомнении спрашивает; независимая переносится через `start_task_session` в новую native-сессию без старой переписки. В supervisor-сессиях Firstmate автоматический native handoff не применяется: сохраняются сессия и lifecycle Firstmate. Незавершённые TODO и проверки не бросаются ни в одном режиме. |
 | `loop-profiler.ts` | активен | Последние 500 runs: model/tool timing без двойного счёта, медленные/ошибочные tools, native nested calls, context output, cache, стоимость из usage и stop reason. Pi 1.2 user/custom starts; legacy records читаются; raw trace только при `PI_PROFILE=1`. |
 | `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
 | `herdr-agent-state.ts` | условно активен | Herdr TUI status hook; без `HERDR_ENV`, socket и pane не выполняет действий. Для Firstmate backend ставится в private stack, независимая установка Herdr не меняется. |
@@ -262,7 +263,7 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 
 ## Observability
 
-Default-конфигурация включает `pi-contextimate`, `pi-cachemire`, `pi-traceline` и `pi-meantime` из `pine-of-glass@0.18.0`. Meantime включён через `pi-meantime.json`; `/pace` показывает локальный timing ledger, live widget — текущую фазу. Дополнительного model call нет. Это session-local наблюдения, не persistent loop baseline и не доказанная причина задержки. Нужен reload/restart. Upstream ищет user config в `HOME/.pi/agent` (или project `.pi`); нестандартный `PI_CODING_AGENT_DIR` сам по себе этот путь не перенаправляет.
+Default-конфигурация включает `pi-contextimate`, `pi-cachemire`, `pi-traceline` и `pi-meantime` из `pine-of-glass@0.18.4`. Meantime включён через `pi-meantime.json`; `/pace` показывает локальный timing ledger, live widget — текущую фазу. Дополнительного model call нет. Это session-local наблюдения, не persistent loop baseline и не доказанная причина задержки. Нужен reload/restart. Upstream ищет user config в `HOME/.pi/agent` (или project `.pi`); нестандартный `PI_CODING_AGENT_DIR` сам по себе этот путь не перенаправляет.
 
 `loop-profiler.ts` постоянно хранит только bounded агрегаты последних 500 agent runs в `~/.pi/agent/observability/loop-runs.jsonl`: каталог создаётся с правами `0700`, файл — `0600`. Prompt, messages, tool arguments, tool results, tool-call IDs и секреты туда не записываются; сохраняются counters/histograms и metadata запуска, модели, task/run IDs. Project correlation использует короткий hash пути; raw event trace остаётся opt-in через `PI_PROFILE=1`.
 

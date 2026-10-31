@@ -66,9 +66,9 @@
     },
     {
       "package": "pi-markdown-preview",
-      "version": "0.25.0",
+      "version": "0.26.2",
       "pinRequired": false,
-      "patch": "patches/pi-markdown-preview+0.25.0.patch",
+      "patch": "patches/pi-markdown-preview+0.26.2.patch",
       "files": [
         "index.ts"
       ],
@@ -101,9 +101,9 @@
     },
     {
       "package": "pi-web-access",
-      "version": "0.45.0",
+      "version": "0.46.0",
       "pinRequired": false,
-      "patch": "patches/pi-web-access+0.45.0.patch",
+      "patch": "patches/pi-web-access+0.46.0.patch",
       "files": [
         "dist/index.js"
       ],
