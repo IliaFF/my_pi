@@ -4,4 +4,4 @@
 
 ## 2. Validation and delivery
 - [x] 2.1 Run npm test and strict OpenSpec validation; review the owned diff.
-- [ ] 2.2 Commit and push to origin/main; verify remote commit. No runtime installation.
+- [x] 2.2 Commit and push to origin/main; verify remote commit. No runtime installation.

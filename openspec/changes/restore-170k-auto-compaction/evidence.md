@@ -10,4 +10,4 @@
 - No production installation, personal settings changes, external model calls or live service validation. CI job not run. Environment overrides may supersede release defaults in existing runtimes.
 
 ## Delivery
-Source commit and remote verification will be recorded after push.
+Source commit e794ccd7d19e709c27017990efe75e295691ed13 pushed to origin/main. git ls-remote origin refs/heads/main matched this exact commit after push. Earlier local history was included as explicitly approved. Only this evidence and the delivery checkbox changed after the passing full gate.
