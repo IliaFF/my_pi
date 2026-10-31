@@ -69,7 +69,7 @@ try {
   provider.setResponses([fauxAssistantMessage("Native small window answered")]);
   await session.prompt("Small window request");
   await session.waitForIdle();
-  assert.ok(native.getEntries().some(e => e.type === "compaction"), "native reserve protection runs below 500k");
+  assert.ok(native.getEntries().some(e => e.type === "compaction"), "native reserve protection runs below 170k");
   const compactions = native.getEntries().filter(e => e.type === "compaction");
   assert.equal(compactions.length, 1);
   assert.match(compactions[0].summary, /deterministic seed index/);

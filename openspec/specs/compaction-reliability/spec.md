@@ -49,15 +49,15 @@ Both soft-fold and hard-compaction indexes MUST exclude the build's exact restor
 - **WHEN** a request has its restriction on a later line
 - **THEN** a characterization test documents first-line truncation; the build MUST NOT claim that this change preserves the later restriction in User intents
 
-### Requirement: Canary-free model-safe 500k compaction
-The build MUST cap extension-triggered compaction at 500000 tokens and retain native reserve protection for smaller models. Canary MUST NOT be installed, activated, patched or managed by the build, and no Canary recall probes MUST be sent. context-fold MUST remain the sole summary owner. Manual user compaction MUST remain non-continuing. The mandatory gate MUST reject Canary release artifacts and exercise native smaller-window compaction through the real SDK.
+### Requirement: Canary-free model-safe 170k compaction
+The build MUST cap extension-triggered compaction at 170000 tokens and retain native reserve protection for smaller models. Canary MUST NOT be installed, activated, patched or managed by the build, and no Canary recall probes MUST be sent. context-fold MUST remain the sole summary owner. Manual user compaction MUST remain non-continuing. The mandatory gate MUST reject Canary release artifacts and exercise native smaller-window compaction through the real SDK.
 
 #### Scenario: Large context window
-- **WHEN** compactable context grows past 170000 but remains below 500000 in a sufficiently large model
-- **THEN** the local threshold does not compact and it does compact at 500000
+- **WHEN** compactable context grows from 169999 to 170000 in a sufficiently large model
+- **THEN** the local threshold does not compact at 169999 and does compact at 170000
 
 #### Scenario: Smaller model
-- **WHEN** native projected context exceeds model contextWindow minus reserveTokens below 500000
+- **WHEN** native projected context exceeds model contextWindow minus reserveTokens below 170000
 - **THEN** native compaction still runs rather than waiting for an impossible threshold
 
 #### Scenario: Canary-free release

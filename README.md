@@ -106,7 +106,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ### Автоматическое сжатие
 
-`auto-ultra-compact` больше не ограничивает большие модели порогом 170к: extension cap — 500000 tokens. Штатное сжатие Pi остаётся включено с `reserveTokens=12500`, `keepRecentTokens=12000`: для меньшего окна оно сработает раньше (`contextTokens > contextWindow - reserveTokens`). Метаданные модели и выбранный провайдер не меняются. Например, при окне 272000 штатный порог — выше 259500, а при окне 500000 — выше 487500, не 500000.
+`auto-ultra-compact` автоматически сжимает компактируемый контекст при 170000 tokens по умолчанию. Штатное сжатие Pi остаётся включено с `reserveTokens=12500`, `keepRecentTokens=12000`: для меньшего окна оно может сработать раньше (`contextTokens > contextWindow - reserveTokens`). Метаданные модели и выбранный провайдер не меняются. Существующие переменные окружения `PI_AUTO_COMPACT_EFFECTIVE_TOKENS` и `PI_AUTO_COMPACT_PERCENT` могут переопределить порог.
 
 Canary не устанавливается и не выполняет дополнительные recall-запросы. `context-fold` остаётся единственным владельцем summary.
 

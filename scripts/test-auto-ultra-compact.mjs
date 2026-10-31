@@ -116,15 +116,12 @@ try {
 
   const automatic = await createContinuationHarness(testHome);
   const preparation = { tokensBefore: 500_000, firstKeptEntryId: "kept", messagesToSummarize: [] };
+  automatic.setContextTokens(169_999);
+  await automatic.emit("turn_end");
+  assert.equal(automatic.compactCalls(), 0, "must not compact below 170k");
   automatic.setContextTokens(170_000);
   await automatic.emit("turn_end");
-  assert.equal(automatic.compactCalls(), 0, "old 170k cap must be inactive for large-window models");
-  automatic.setContextTokens(499_999);
-  await automatic.emit("turn_end");
-  assert.equal(automatic.compactCalls(), 0, "must not compact below 500k");
-  automatic.setContextTokens(500_000);
-  await automatic.emit("turn_end");
-  assert.equal(automatic.compactCalls(), 1, "must compact at 500k");
+  assert.equal(automatic.compactCalls(), 1, "must compact at 170k");
   assert.equal(existsSync(join(testHome, ".pi/agent/recovery")), false, "must not create recovery directory");
   assert.equal(existsSync(join(testHome, ".pi-stack/recovery")), false, "must not create project recovery mirror");
   assert.match(automatic.callbacks().customInstructions, /current TODO\.md/);
@@ -153,6 +150,7 @@ try {
   assert.equal(reduced.compactCalls(), 1, "effective compaction must consume post-check without another compaction");
 
   const managedSettings = JSON.parse(readFileSync(resolve(root, "configs/settings.json"), "utf8"));
+  assert.equal(managedSettings.compaction.enabled, true, "native compaction must remain enabled");
   assert.equal(managedSettings.compaction.keepRecentTokens, 12_000, "managed Pi compaction must retain only 12k estimated tokens");
 
   const builtin = await createContinuationHarness(testHome);
