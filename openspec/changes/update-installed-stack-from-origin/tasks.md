@@ -1,6 +1,6 @@
 ## 1. Prepare
 - [x] Read update/rollback contracts, record initial state and fetch origin.
-- [ ] Merge origin preserving local work and review complete incoming diff.
+- [x] Merge origin preserving local work and review complete incoming diff.
 - [ ] Pass full source gate and prepare clean committed archive/private runtime baseline.
 
 ## 2. Deploy
