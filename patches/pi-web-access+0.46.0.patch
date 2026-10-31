@@ -1,6 +1,6 @@
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -24062,6 +24062,7 @@
+@@ -24862,6 +24862,7 @@
        }
        try {
          pi.setActiveTools([.../* @__PURE__ */ new Set([...pi.getActiveTools(), ...names])]);
@@ -8,7 +8,7 @@
        } catch (error) {
          const message = error instanceof Error ? error.message : String(error);
          return {
-@@ -24086,7 +24087,12 @@
+@@ -24886,7 +24887,12 @@
      return pi.getAllTools().some((tool) => tool.name === LOADER_NAME);
    }
    let warned = false;
@@ -22,7 +22,7 @@
    function selectFromSession(ctx) {
      if (!loaderAvailable()) return;
      try {
-@@ -24094,9 +24100,10 @@
+@@ -24894,9 +24900,10 @@
        const declared = transcriptToolNames(messages);
        const eager = mode === "auto" && !declared && messages.length === 0 && !addsToolsWithoutCheckpoint(ctx.model);
        const recorded = declared ?? new Set(messages.length > 0 || eager ? names : []);
@@ -34,7 +34,7 @@
      } catch (error) {
        if (!warned) {
          warned = true;
-@@ -24106,10 +24113,13 @@
+@@ -24906,10 +24913,13 @@
    }
    pi.on("session_start", (_event, ctx) => selectFromSession(ctx));
    pi.on("session_tree", (_event, ctx) => selectFromSession(ctx));
