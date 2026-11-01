@@ -45,6 +45,7 @@ try {
   ({ session } = await createAgentSession({ cwd, agentDir: agent, modelRuntime: runtime, model: runtime.getModel("openai-codex", "gpt-6.1-sol"), settingsManager,
     resourceLoader: loader, sessionManager: SessionManager.inMemory(cwd) }));
   assert.ok(session.systemPrompt.includes("PROJECT_APPEND_SENTINEL"));
+  assert.match(session.systemPrompt, /После сжатия.*очередь и состояние Firstmate/, "Global restoration exception must survive project APPEND override without a project TODO");
   assert.equal(session.systemPrompt.split(resourceText).length - 1, 1, "Trusted project override must retain exactly one resource rule");
   assert.ok(!session.systemPrompt.includes("# Long-lived delegation"), "Project append must replace global append, not concatenate it");
   assert.ok(session.systemPrompt.includes(readFileSync(join(source, "configs/AGENTS.md"), "utf8").trim()), "Global context exception must survive actual SDK project append precedence");
@@ -57,6 +58,9 @@ try {
   ({ session } = await createAgentSession({ cwd, agentDir: agent, modelRuntime: runtime, model: runtime.getModel("openai-codex", "gpt-6.1-sol"), settingsManager,
     resourceLoader: loader, sessionManager: SessionManager.inMemory(cwd) }));
   assert.equal(session.systemPrompt.split(resourceText).length - 1, 1, "Default global APPEND and AGENTS must not duplicate the resource rule");
+  assert.match(session.systemPrompt, /После сжатия.*очередь и состояние Firstmate/);
+  assert.match(session.systemPrompt, /Outside Firstmate supervisor sessions.*root `TODO\.md`/);
+  assert.match(session.systemPrompt, /otherwise read current project TODO/);
   assert.equal(networkAttempts, 0);
   console.log("PASS actual SDK global AGENTS survives trusted project APPEND override; untrusted project skipped; 3 skills and credential-free AITunnel registration load (no model/MCP/fleet calls)");
 } finally {

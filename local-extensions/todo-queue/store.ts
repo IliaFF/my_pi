@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
-import { access, lstat, open, readFile, rename, stat, unlink } from "node:fs/promises";
-import { dirname, join, parse } from "node:path";
+import { access, lstat, open, readFile, realpath, rename, stat, unlink } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const LOCK_WAIT_MS = 50;
@@ -8,21 +8,39 @@ const LOCK_ATTEMPTS = 40;
 const STALE_LOCK_MS = 30_000;
 
 export async function findTodoPath(start: string): Promise<string> {
-  let directory = start;
-  try {
-    if (!(await lstat(directory)).isDirectory()) directory = dirname(directory);
-  } catch {}
+  let directory = await realpath(start);
+  if (!(await lstat(directory)).isDirectory()) directory = dirname(directory);
+  let boundary = directory;
+  for (let ancestor = directory; ; ancestor = dirname(ancestor)) {
+    const marker = await lstat(join(ancestor, ".git")).catch((error: any) => {
+      if (error.code !== "ENOENT") throw error;
+      return undefined;
+    });
+    if (marker) {
+      if (!marker.isDirectory() && !marker.isFile()) throw new Error(`Invalid Git project boundary: ${ancestor}`);
+      boundary = ancestor;
+      break;
+    }
+    if (dirname(ancestor) === ancestor) break;
+  }
   for (;;) {
     const candidate = join(directory, "TODO.md");
-    try {
-      await access(candidate, constants.R_OK | constants.W_OK);
-      return candidate;
-    } catch {}
-    const parent = dirname(directory);
-    if (parent === directory || parse(directory).root === directory) break;
-    directory = parent;
+    const entry = await lstat(candidate).catch((error: any) => {
+      if (error.code !== "ENOENT") throw error;
+      return undefined;
+    });
+    if (entry) {
+      const target = await realpath(candidate);
+      const path = relative(boundary, target);
+      if (path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)) throw new Error(`TODO.md resolves outside project: ${candidate}`);
+      if (!(await lstat(target)).isFile()) throw new Error(`TODO.md must be a regular file: ${candidate}`);
+      await access(target, constants.R_OK | constants.W_OK);
+      return target;
+    }
+    if (directory === boundary) break;
+    directory = dirname(directory);
   }
-  throw new Error(`TODO.md not found above ${start}`);
+  throw new Error(`TODO.md not found above ${start} within project boundary ${boundary}`);
 }
 
 async function acquireLock(path: string) {

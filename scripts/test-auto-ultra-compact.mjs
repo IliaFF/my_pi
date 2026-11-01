@@ -41,7 +41,7 @@ assert.equal(analyze([
   { role: "user", content: text(1000) },
 ]).compactable, false, "previous summary is boundary, not discardable history");
 
-async function createContinuationHarness(home) {
+async function createContinuationHarness(home, userText) {
   const handlers = new Map();
   const sent = [];
   const commands = new Map();
@@ -76,7 +76,7 @@ async function createContinuationHarness(home) {
     getContextUsage: () => ({ tokens: contextTokens }),
     compact(options) { compactOptions = options; compactCalls++; compactionLocked = true; },
     sessionManager: {
-      getBranch: () => [],
+      getBranch: () => userText ? [{ type: "message", message: { role: "user", content: userText } }] : [],
       buildSessionContext: () => ({ messages: compactableMessages }),
     },
     ui: { notify(message) { notices.push(message); } },
@@ -124,17 +124,27 @@ try {
   assert.equal(automatic.compactCalls(), 1, "must compact at 170k");
   assert.equal(existsSync(join(testHome, ".pi/agent/recovery")), false, "must not create recovery directory");
   assert.equal(existsSync(join(testHome, ".pi-stack/recovery")), false, "must not create project recovery mirror");
-  assert.match(automatic.callbacks().customInstructions, /current TODO\.md/);
+  assert.match(automatic.callbacks().customInstructions, /Firstmate queue\/state/);
+  assert.match(automatic.callbacks().customInstructions, /Otherwise.*current TODO\.md/);
   await automatic.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
   await automatic.emit("session_compact", { reason: "manual", compactionEntry: {} });
   assert.equal(automatic.sent.length, 0, "extension continuation must wait until Pi unlocks manual compaction");
   automatic.completeCompaction();
   assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
-  assert.match(automatic.sent[0].message, /^После автосжатия сначала прочитай текущий TODO\.md/);
+  assert.match(automatic.sent[0].message, /^После автосжатия восстанови текущую задачу по её владельцу\./);
+  assert.match(automatic.sent[0].message, /контракту супервизора Firstmate.*очередь и состояние Firstmate/);
+  assert.match(automatic.sent[0].message, /В остальных сессиях.*TODO\.md/);
   assert.ok(automatic.sent[0].message.includes("не требуют отдельной записи"));
   assert.doesNotMatch(automatic.sent[0].message, /recovery|packet/i);
   nativeRestoreMessage = automatic.sent[0].message;
+  assert.equal(existsSync(join(testHome, "TODO.md")), false, "Firstmate restoration must not require a fixture TODO");
+  const mentioned = await createContinuationHarness(testHome, "Explain Firstmate; this is not a supervisor contract.");
+  await mentioned.emit("turn_end");
+  await mentioned.emit("session_compact", { reason: "manual", compactionEntry: {} });
+  mentioned.completeCompaction();
+  assert.equal(mentioned.sent[0].message, nativeRestoreMessage, "A role mention must not select or weaken the conditional policy");
+  assert.equal(mentioned.callbacks().customInstructions, automatic.callbacks().customInstructions);
   assert.doesNotMatch(await automatic.status(), /lastRecovery|lastProjectRecovery|summaryContract/);
   automatic.setContextTokens(505_000);
   await automatic.emit("turn_end");

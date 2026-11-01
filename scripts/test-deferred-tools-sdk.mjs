@@ -66,7 +66,8 @@ try {
   for (const rule of ["If an agreement or restriction is missing or contradictory", "recall_folded",
     "session ledger path in the summary", "selected messages on its active branch",
     "User messages may not be covered by recall", "Never dump a whole session or expose secrets",
-    "Current instructions and TODO remain authoritative", "ask rather than guess"]) {
+    "Current instructions and the applicable task state remain authoritative",
+    "first read current Firstmate queue/state under its supervisor contract", "otherwise read current project TODO", "ask rather than guess"]) {
     assert.ok(fresh.systemPrompt.includes(rule), `Recovery policy lost ${rule}`);
   }
   for (const name of ["read", "bash", "write", "edit", "context_search", "context_get", "context_export"]) assert.ok(fresh.getActiveToolNames().includes(name), `${name} must remain direct`);

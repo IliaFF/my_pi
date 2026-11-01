@@ -37,7 +37,7 @@ const DEFAULT_COOLDOWN_TURNS = 3;
 const DEFAULT_KEEP_RECENT_TOKENS = 12_000;
 const ESTIMATED_IMAGE_CHARS = 4_800;
 const TASK_RESTORE_INSTRUCTIONS =
-	"После автосжатия сначала прочитай текущий TODO.md в корне проекта, если продолжаешь многошаговую проектную работу: только он определяет отслеживаемую задачу и следующий шаг. Для такой работы, если файл недоступен или активная задача неясна — остановись и спроси. Обсуждения, ответы на вопросы и небольшие одношаговые правки не требуют отдельной записи.";
+	"После автосжатия восстанови текущую задачу по её владельцу. В сессии по контракту супервизора Firstmate сначала прочитай актуальную очередь и состояние Firstmate; не требуй корневой TODO.md и не меняй сессию только из-за новой цели. В остальных сессиях для многошаговой проектной работы сначала прочитай текущий TODO.md проекта. Если соответствующее состояние недоступно или активная задача неясна — остановись и спроси. Не бросай незавершённую работу или проверки. Обсуждения, ответы на вопросы и небольшие одношаговые правки не требуют отдельной записи.";
 const RESTORE_MESSAGE =
 	`${TASK_RESTORE_INSTRUCTIONS} Для прочих деталей используй compact summary, файлы проекта и точечное восстановление истории через recall_folded.`;
 
@@ -168,7 +168,7 @@ function runCompact(pi: ExtensionAPI, ctx: ExtensionContext, runtime: RuntimeSta
 	}
 	try {
 		compactFn({
-			customInstructions: "For multi-step project work, current TODO.md alone defines task status and next steps; reread it before resuming and ask if unclear. Discussions and small single-step edits need no task entry. Preserve exact evidence and unresolved constraints without inventing task state.",
+			customInstructions: "Under the Firstmate supervisor contract, restore the current task from current Firstmate queue/state, without requiring a root TODO or switching sessions merely for a new goal. Otherwise, for multi-step project work reread current TODO.md before resuming. Ask if the authoritative state is unavailable or task identity is unclear; never abandon unfinished work/checks. Discussions and small single-step edits need no task entry. Preserve exact evidence and unresolved constraints without inventing task state.",
 			onComplete: () => {
 				if (!runtime.active) return;
 				const continuationMessage = runtime.continuationMessage;

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { execFileSync, spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, formatQueuePanel } from "../local-extensions/todo-queue/core.ts";
@@ -207,8 +209,10 @@ test("move reorders Pending tasks in all four directions", () => {
   assert.equal(inspectTodo(text).pending.at(-1)?.id, "b1");
 });
 
-test("store finds parent TODO and writes mutation atomically", async () => {
+test("store finds parent TODO in the same worktree and writes mutation atomically", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "todo-queue-test-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  execFileSync("git", ["init", "-q", root]);
   const nested = join(root, "a", "b");
   await mkdir(nested, { recursive: true });
   const todo = join(root, "TODO.md");
@@ -220,4 +224,80 @@ test("store finds parent TODO and writes mutation atomically", async () => {
   });
   assert.equal(task.id, "stored1");
   assert.equal(inspectTodo(await readFile(todo, "utf8")).pending.at(-1)?.id, "stored1");
+});
+
+async function discoveryFixture(t) {
+  const root = await mkdtemp(join(tmpdir(), "todo-boundary-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const outside = join(root, "TODO.md");
+  await writeFile(outside, base);
+  const repo = join(root, "repo");
+  await mkdir(repo);
+  return { root, outside, repo };
+}
+
+test("store refuses parent queues for Git and non-Git projects", async (t) => {
+  const { repo, outside } = await discoveryFixture(t);
+  await assert.rejects(findTodoPath(repo), /TODO.md not found above/);
+  await writeFile(join(repo, "TODO.md"), base);
+  assert.equal(await findTodoPath(repo), join(repo, "TODO.md"));
+  await rm(join(repo, "TODO.md"));
+  execFileSync("git", ["init", "-q", repo]);
+  await assert.rejects(findTodoPath(repo), /TODO.md not found above/);
+  assert.equal(await readFile(outside, "utf8"), base);
+  await writeFile(join(repo, "TODO.md"), base);
+  assert.equal(await findTodoPath(repo), join(repo, "TODO.md"));
+});
+
+test("store stops at nested repository and linked worktree boundaries", async (t) => {
+  const { root, repo } = await discoveryFixture(t);
+  execFileSync("git", ["init", "-q", root]);
+  execFileSync("git", ["init", "-q", repo]);
+  await assert.rejects(findTodoPath(repo), /TODO.md not found above/);
+  execFileSync("git", ["-C", repo, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-q", "--allow-empty", "-m", "Fixture"]);
+  const linked = join(root, "linked");
+  execFileSync("git", ["-C", repo, "worktree", "add", "-q", "--detach", linked, "HEAD"]);
+  assert.match(await readFile(join(linked, ".git"), "utf8"), /^gitdir:/);
+  await assert.rejects(findTodoPath(linked), /TODO.md not found above/);
+  const nested = join(linked, "subdir");
+  await mkdir(nested);
+  await writeFile(join(linked, "TODO.md"), base);
+  assert.equal(await findTodoPath(nested), join(linked, "TODO.md"));
+});
+
+test("store canonicalizes aliases and refuses external TODO links", async (t) => {
+  const { root, repo, outside } = await discoveryFixture(t);
+  execFileSync("git", ["init", "-q", repo]);
+  const todo = join(repo, "TODO.md");
+  await symlink(outside, todo);
+  await assert.rejects(findTodoPath(repo), /outside project/);
+  await rm(todo);
+  await writeFile(todo, base);
+  const alias = join(root, "alias");
+  await symlink(repo, alias);
+  assert.equal(await findTodoPath(alias), todo);
+  assert.equal(await readFile(outside, "utf8"), base);
+});
+
+test("store does not substitute another queue on unusable TODO or access failure", async (t) => {
+  const { root, repo, outside } = await discoveryFixture(t);
+  execFileSync("git", ["init", "-q", repo]);
+  const todo = join(repo, "TODO.md");
+  await mkdir(todo);
+  await assert.rejects(findTodoPath(repo), /regular file/);
+  await rm(todo, { recursive: true });
+  await writeFile(todo, base, { mode: 0o000 });
+  // Root bypasses mode bits; exercise the real access error as an unprivileged child.
+  await chmod(root, 0o755);
+  const store = join(root, "store.ts");
+  await copyFile(new URL("../local-extensions/todo-queue/store.ts", import.meta.url), store);
+  const code = `import assert from 'node:assert/strict'; import { findTodoPath } from ${JSON.stringify(pathToFileURL(store).href)}; await assert.rejects(findTodoPath(${JSON.stringify(repo)}), { code: 'EACCES' });`;
+  // /proc avoids a root-private nvm parent directory after dropping privileges.
+  const executable = process.platform === "linux" ? "/proc/self/exe" : process.execPath;
+  const child = spawnSync(executable, ["--input-type=module", "-e", code], {
+    encoding: "utf8", timeout: 10000,
+    ...(process.getuid?.() === 0 ? { uid: 65534, gid: 65534 } : {}),
+  });
+  assert.equal(child.status, 0, child.error?.message ?? child.stderr);
+  assert.equal(await readFile(outside, "utf8"), base);
 });

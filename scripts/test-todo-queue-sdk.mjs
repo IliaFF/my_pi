@@ -2,6 +2,7 @@
 // Actual queue tool execution via Pi SDK; temporary TODO and faux provider only.
 import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { findPackageJSON, syncBuiltinESMExports } from "node:module";
 import fs from "node:fs";
@@ -12,7 +13,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const modules = resolve(process.argv[2]);
 const extension = resolve(process.argv[3] || join(dirname(fileURLToPath(import.meta.url)), "../local-extensions/todo-queue/index.ts"));
 const sdkDir = join(modules, "@earendil-works/pi-coding-agent");
-const root = mkdtempSync(join(tmpdir(), "pi-queue-sdk-"));
+const workspace = mkdtempSync(join(tmpdir(), "pi-queue-sdk-"));
+const root = join(workspace, "project");
+mkdirSync(root);
+execFileSync("git", ["init", "-q", root]);
+const foreignTodo = join(workspace, "TODO.md");
+const foreignQueue = "# TODO\n\n## In progress\n- [ ] Foreign current <!-- pi-task:foreign -->\n\n## Pending\n\n## Blocked\n\n## Completed\n";
+writeFileSync(foreignTodo, foreignQueue);
 const previous = process.env.PI_CODING_AGENT_DIR;
 process.env.PI_CODING_AGENT_DIR = join(root, "agent");
 mkdirSync(process.env.PI_CODING_AGENT_DIR);
@@ -54,6 +61,14 @@ try {
     assert.equal(results.length, 1);
     return results[0];
   }
+  const absent = await invoke({ action: "list" });
+  assert.equal(absent.isError, true, "Actual SDK must refuse an unrelated parent queue");
+  assert.match(JSON.stringify(absent.result), /TODO.md not found above/);
+  const beforeMissingList = session.messages.length;
+  await session.prompt("/queue");
+  assert.equal(session.messages.length, beforeMissingList);
+  assert.match(notifications.at(-1).text, /TODO.md not found above/);
+  assert.equal(readFileSync(foreignTodo, "utf8"), foreignQueue);
   const mixed = template.replace("## In progress\n\n", "## In progress\n- [ ] Current <!-- pi-task:current -->\n\n");
   const historyOnly = "# TODO\n\n## Completed\n- [x] Done <!-- pi-task:done -->\n";
   for (const fixture of [mixed, historyOnly]) {
@@ -244,7 +259,9 @@ try {
   await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
   fs.unlinkSync(todo);
   await session.bindExtensions({ mode: "tui", uiContext });
-  assert.equal(watchers.size, 0, "No file at startup means no watcher");
+  assert.equal(watchers.size, 0, "No project file at startup means no foreign parent watcher");
+  assert.equal(widgets.size, 0, "Panel must not display foreign parent tasks");
+  assert.equal(readFileSync(foreignTodo, "utf8"), foreignQueue);
   writeFileSync(todo, mixed);
   await session.prompt("/queue panel");
   assert.equal(watchers.size, 1);
@@ -261,5 +278,5 @@ try {
   syncBuiltinESMExports();
   if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
   else process.env.PI_CODING_AGENT_DIR = previous;
-  rmSync(root, { recursive: true, force: true });
+  rmSync(workspace, { recursive: true, force: true });
 }

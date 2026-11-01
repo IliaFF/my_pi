@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -74,16 +74,26 @@ try {
   result = deploy();
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(join(agent, "AGENTS.md"), "utf8"), installed, "Reinstall must be idempotent");
-  const previousProfile = original + "\n" + firstmateSection + "\n\n## Private section\n\nKEEP PRIVATE CONTENT\n";
+  const legacyFirstmate = firstmateSection.split(" После сжатия")[0];
+  assert.notEqual(legacyFirstmate, firstmateSection, "Fixture must exercise the previously shipped policy");
+  const previousProfile = original + "\n" + legacyFirstmate + "\n\n## Private section\n\nKEEP PRIVATE CONTENT\r\n";
   writeFileSync(join(agent, "AGENTS.md"), previousProfile);
   result = deploy();
   assert.equal(result.status, 0, result.stderr);
   const upgraded = readFileSync(join(agent, "AGENTS.md"), "utf8");
-  assert.ok(upgraded.startsWith(previousProfile));
+  assert.ok(upgraded.startsWith(previousProfile.replace(legacyFirstmate, firstmateSection)), "Only the exact legacy block changes; private CRLF bytes survive");
   assert.equal(upgraded.split(firstmateSection).length - 1, 1);
   assert.equal(upgraded.split(resourceSection).length - 1, 1);
   assert.equal(deploy().status, 0);
   assert.equal(readFileSync(join(agent, "AGENTS.md"), "utf8"), upgraded);
+  const extendedConflict = original + "\n" + firstmateSection + "\nPRIVATE CONFLICT\n";
+  writeFileSync(join(agent, "AGENTS.md"), extendedConflict);
+  assert.notEqual(deploy().status, 0, "A matching prefix must not hide unknown managed-section content");
+  assert.equal(readFileSync(join(agent, "AGENTS.md"), "utf8"), extendedConflict);
+  const legacyConflict = original + "\n" + legacyFirstmate + "\n\n## Resource and effort limits\n\nPRIVATE CONFLICT\n";
+  writeFileSync(join(agent, "AGENTS.md"), legacyConflict);
+  assert.notEqual(deploy().status, 0, "Later conflicts must prevent partial legacy migration");
+  assert.equal(readFileSync(join(agent, "AGENTS.md"), "utf8"), legacyConflict);
   const indentedConflict = original + "\n  ## Resource and effort limits\n\nPRIVATE CONFLICT\n";
   writeFileSync(join(agent, "AGENTS.md"), indentedConflict);
   result = deploy();
@@ -98,6 +108,12 @@ try {
   result = deploy();
   assert.notEqual(result.status, 0, "Conflicting private section must not be silently overwritten");
   assert.equal(readFileSync(join(agent, "AGENTS.md"), "utf8"), original + "\n## Сессии Firstmate\n\nCustom conflicting rule.\n");
+  unlinkSync(join(agent, "AGENTS.md"));
+  const linkedTarget = join(agent, "private-target.md");
+  writeFileSync(linkedTarget, original);
+  symlinkSync(linkedTarget, join(agent, "AGENTS.md"));
+  assert.notEqual(deploy().status, 0, "Linked AGENTS must remain refused");
+  assert.equal(readFileSync(linkedTarget, "utf8"), original);
 } finally {
   rmSync(agent, { recursive: true, force: true });
 }

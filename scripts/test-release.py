@@ -104,7 +104,7 @@ def main() -> int:
             or "pi-canary" in (ROOT / "npm/package-lock.json").read_text()):
         fail("Canary must be absent from the release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
-    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "`TODO.md` is authoritative for tracked task status", "start_task_session", "ask the user if uncertain"]:
+    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "Current project TODO is authoritative for ordinary tracked work", "under the Firstmate supervisor contract use current Firstmate queue/state instead", "start_task_session", "ask the user if uncertain"]:
         if required not in append_system:
             fail(f"tool routing / task policy missing: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:

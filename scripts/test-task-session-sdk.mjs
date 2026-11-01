@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Real native session replacement; temporary persisted sessions and scripted faux provider only.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { findPackageJSON } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -12,7 +13,12 @@ const sdkFile = join(modules, '@earendil-works/pi-coding-agent/dist/index.js');
 const sdk = await import(pathToFileURL(sdkFile));
 const aiDir = dirname(findPackageJSON('@earendil-works/pi-ai', pathToFileURL(sdkFile)));
 const { fauxProvider, fauxAssistantMessage, InMemoryCredentialStore } = await import(pathToFileURL(join(aiDir, 'dist/index.js')));
-const root = mkdtempSync(join(tmpdir(), 'pi-task-session-'));
+const workspace = mkdtempSync(join(tmpdir(), 'pi-task-session-'));
+const root = join(workspace, 'project'); mkdirSync(root);
+execFileSync('git', ['init', '-q', root]);
+const foreignTodo = join(workspace, 'TODO.md');
+const foreignQueue = '# TODO\n\n## In progress\n- [ ] Foreign current <!-- pi-task:foreign -->\n\n## Pending\n\n## Blocked\n\n## Completed\n';
+writeFileSync(foreignTodo, foreignQueue);
 const oldAgent = process.env.PI_CODING_AGENT_DIR, oldHome = process.env.HOME, oldOffline = process.env.PI_OFFLINE;
 process.env.HOME = root; process.env.PI_OFFLINE = '1';
 process.env.PI_CODING_AGENT_DIR = join(root, 'agent'); mkdirSync(process.env.PI_CODING_AGENT_DIR);
@@ -73,7 +79,8 @@ try {
   let releaseSwitch; switchGate = new Promise(resolve => { releaseSwitch = resolve; }); cancel = true;
   const cancelledBefore = notifications.filter(n => /cancelled/.test(n.text)).length;
   const parallel = await Promise.allSettled([1, 2].map(n => handoff.execute(`parallel-${n}`, { task: 'Independent', reason: 'Different goal' }, new AbortController().signal)));
-  assert.equal(parallel.filter(r => r.status === 'fulfilled').length, 1);
+  assert.equal(parallel.filter(r => r.status === 'fulfilled').length, 1, 'Foreign current task must not block native handoff');
+  assert.equal(readFileSync(foreignTodo, 'utf8'), foreignQueue);
   assert.match(parallel.find(r => r.status === 'rejected').reason.message, /already pending/);
   releaseSwitch(); await until(() => notifications.filter(n => /cancelled/.test(n.text)).length > cancelledBefore);
   switchGate = undefined; cancel = false; assert.equal(runtime.session, original);
@@ -156,11 +163,12 @@ try {
   await prompt('Independent ephemeral task', [tool('start_task_session', { task: 'Do not discard ephemeral history', reason: 'Different goal' }), message('Persist history first')]);
   assert.equal(results.at(-1).isError, true); assert.match(JSON.stringify(results.at(-1).result), /requires a persisted session/);
   assert.equal(errors.length, 1, JSON.stringify(errors));
+  assert.equal(readFileSync(foreignTodo, 'utf8'), foreignQueue, 'All SDK handoffs must leave the foreign queue untouched');
   console.log('PASS native task-session SDK: related/uncertain stay, FIFO assessment, cancellation, fresh automatic execution/images, no old transcript, five-task budget across sessions, reload, TODO ownership and surfaced native creation failure');
 } finally {
   await runtime?.dispose();
   if (oldAgent === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = oldAgent;
   if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;
   if (oldOffline === undefined) delete process.env.PI_OFFLINE; else process.env.PI_OFFLINE = oldOffline;
-  rmSync(root, { recursive: true, force: true });
+  rmSync(workspace, { recursive: true, force: true });
 }

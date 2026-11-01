@@ -11,14 +11,16 @@ const { extractIndex, extractCompactionIndex } = await jiti.import(join(modules,
 const request = 'Implement training.\nDo not start GPU without approval.';
 const restore = 'После автосжатия сначала прочитай текущий TODO.md в корне проекта, если продолжаешь многошаговую проектную работу: только он определяет отслеживаемую задачу и следующий шаг. Для такой работы при недоступном TODO.md или неясной задаче остановись и спроси пользователя. Обсуждения и мелкие одношаговые правки не требуют отдельной записи в TODO.md. Для прочих деталей используй compact summary, файлы проекта и точечное восстановление истории через recall_folded.';
 const queued = '[TODO QUEUE task123]\nЭто кандидат из Pending, ещё не взятый в работу.\n\nValidate the archived specifications.\nDo not publish yet.\n\nПосле claim используй настоящий id из результата инструмента, не placeholder кандидата.';
-const inputs = [request, restore, queued, 'После автосжатия обсудим формат отчёта.', '[TODO QUEUE quoted]\nThis is a user quotation, not the full owned envelope.'];
+const newRestore = 'После автосжатия восстанови текущую задачу по её владельцу. В сессии по контракту супервизора Firstmate сначала прочитай актуальную очередь и состояние Firstmate; не требуй корневой TODO.md и не меняй сессию только из-за новой цели.';
+const lookalike = 'После автосжатия восстанови текущую задачу по её владельцу. Это обычная пользовательская цитата.';
+const inputs = [request, restore, queued, 'После автосжатия обсудим формат отчёта.', '[TODO QUEUE quoted]\nThis is a user quotation, not the full owned envelope.', newRestore, lookalike];
 const blocks = inputs.map((text, i) => ({ id: `u${i}`, kind: 'user', text, turn: i + 1, order: i, tokens: text.length / 4 }));
 const result = { id: 'r', kind: 'tool_result', text: 'PASS', toolName: 'bash', turn: 1, order: 6, tokens: 1 };
-const end = { ...result, id: 'r-end', turn: 5, order: 7 };
-const expected = [request.split('\n')[0], 'Validate the archived specifications.', inputs[3], inputs[4].split('\n')[0]];
+const end = { ...result, id: 'r-end', turn: inputs.length, order: inputs.length + 2 };
+const expected = [request.split('\n')[0], 'Validate the archived specifications.', inputs[3], inputs[4].split('\n')[0], lookalike];
 for (const index of [extractIndex({ masked: [result, end], all: [...blocks, result, end] }), extractCompactionIndex([...blocks, result, end])]) {
   assert.deepEqual(index.userMessages.map(u => u.firstLine), expected);
-  assert.deepEqual(index.userMessages.map(u => u.turn), [1, 3, 4, 5]);
+  assert.deepEqual(index.userMessages.map(u => u.turn), [1, 3, 4, 5, 7]);
   // Characterization: later-line restrictions are not preserved by a first-line index.
   assert.ok(!index.userMessages.some(u => u.firstLine.includes('Do not start GPU')));
   assert.ok(!index.userMessages.some(u => u.firstLine.includes('Do not publish yet')));

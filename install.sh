@@ -216,20 +216,45 @@ from pathlib import Path
 
 path, source = map(Path, sys.argv[1:])
 if path.is_symlink():
-    raise SystemExit("FAIL linked AGENTS.md; preserve and review its destination")
-existing = path.read_text() if path.exists() else ""
+    raise SystemExit(
+        "FAIL linked AGENTS.md; preserve and review its destination")
+legacy_firstmate = (
+    "## Сессии Firstmate\n\nВ сессиях, работающих по контракту "
+    "супервизора Firstmate, глобальные инструкции об автоматическом "
+    "запуске новой нативной сессии при смене независимой задачи не "
+    "действуют, включая инструкции инструментов и очереди TODO. Не "
+    "вызывать `start_task_session` только из-за смены цели: сохранять "
+    "текущую сессию и следовать жизненному циклу задач Firstmate. Это "
+    "исключение не отменяет запрет бросать незавершённую работу или "
+    "проверки. В остальных сессиях правила смены задач сохраняются."
+)
+existing = path.read_bytes().decode("utf-8") if path.exists() else ""
+updated = existing
 missing = []
 for block in re.split(r"(?m)(?=^## )", source.read_text()):
     block = block.strip()
-    if not block or block in existing:
+    if not block:
         continue
     heading = block.splitlines()[0]
-    if heading in existing:
-        raise SystemExit(f"FAIL conflicting managed section: {heading}; preserve AGENTS.md")
+    pattern = rf"(?ms)^{re.escape(heading)}\r?\n.*?(?=^## |\Z)"
+    matches = list(re.finditer(pattern, updated))
+    if len(matches) == 1:
+        match = matches[0]
+        current = match.group().rstrip()
+        if current == block:
+            continue
+        if current == legacy_firstmate and heading == "## Сессии Firstmate":
+            updated = (updated[:match.start()] + block
+                       + updated[match.start() + len(current):])
+            continue
+    if matches or heading in updated:
+        raise SystemExit(
+            f"FAIL conflicting managed section: {heading}; preserve AGENTS.md")
     missing.append(block)
 if missing:
-    with path.open("a") as stream:
-        stream.write(("\n\n" if existing else "") + "\n\n".join(missing) + "\n")
+    updated += ("\n\n" if updated else "") + "\n\n".join(missing) + "\n"
+if updated != existing:
+    path.write_bytes(updated.encode("utf-8"))
 PY
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/pi-meantime.json" ]]; then
   cp "$ROOT/configs/pi-meantime.json" "$AGENT_DIR/pi-meantime.json"
