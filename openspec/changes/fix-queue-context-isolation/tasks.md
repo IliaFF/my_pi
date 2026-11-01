@@ -17,7 +17,7 @@
 ## 4. Final integration and evidence
 
 - [x] 4.1 Выполнить обязательный полный npm test на окончательном source scope, strict OpenSpec validation и git diff --check; записать команды, версии, exit codes и ограничения в evidence.md. Не заменять SDK integration строковыми asserts, не заявлять CI/live/fleet PASS без реального запуска.
-- [ ] 4.2 Просмотреть полный owned diff, включая новые файлы, против исходного состояния, подтвердить сохранность чужих TODO/.pi/tasks/Canary изменений и отсутствие логов/секретов/runtime artifacts; создать commit только source/specs/tests/docs исправления и записать commit/evidence без установки production.
+- [x] 4.2 Просмотреть полный owned diff, включая новые файлы, против исходного состояния, подтвердить сохранность чужих TODO/.pi/tasks/Canary изменений и отсутствие логов/секретов/runtime artifacts; создать commit только source/specs/tests/docs исправления и записать commit/evidence без установки production.
 
 ## Workflow follow-up
 
