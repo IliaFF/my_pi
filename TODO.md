@@ -1,7 +1,6 @@
 # TODO
 
 ## In progress
-- [ ] Синхронизировать main с origin/main с сохранением локальных commits; удалить все browser integrations из source и личного runtime, сохранив SSH/paper-search/settings/credentials; OpenSpec, regression и npm test, backup и установка, evidence, commit и push. Исходный snapshot: /root/.pi/pi-update-initial.ws07po. <!-- pi-task:17332e31d5d8 -->
 
 ## Blocked
 
@@ -11,5 +10,7 @@
 - [x] Актуализировать сборку по active Pi 0.87.1: обновлены exact lock и 12 extensions, порог compaction 170k, default-off `tools.ts`, patch RPIV 2.11.0; release, dry-run, isolated install/verify и fresh RPC PASS; отправлено в `origin/main`.
 - [x] Синхронизировать текущую Pi-сборку с `IliaFF/my_pi`, проверить и отправить в `origin/main`
 - [x] Синхронизировать `my_pi` с `origin/main`, обновить Pi и все расширения до последних доступных версий, проверить runtime и тесты. <!-- pi-task:e162da1b48c1 -->
+
+- [x] Синхронизировать main с origin/main с сохранением локальных commits; удалить все browser integrations из source и личного runtime, сохранив SSH/paper-search/settings/credentials; OpenSpec, regression и npm test, backup и установка, evidence, commit и push. Исходный snapshot: /root/.pi/pi-update-initial.ws07po. <!-- pi-task:17332e31d5d8 -->
 
 ## Pending

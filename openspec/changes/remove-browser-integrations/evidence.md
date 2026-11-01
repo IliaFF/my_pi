@@ -33,7 +33,7 @@
 - Final `npm test`: PASS 27/27; final `npm test -- --agent /root/.pi/agent`: PASS 27/27 after runtime quarantine. Both include real SDK/RPC checks, with results in private final-source-results.json and final-host-results.json.
 - Local source npm environment pruned with --ignore-scripts: exactly the three retired packages removed; no project npm override exists. No source code changed between these successful gates and delivery; only task/evidence metadata finalized.
 - Strict OpenSpec validation: PASS 31/31; final shell/diff checks: PASS. Preserved code input SHA256 verified after final gates.
-- Pre-push fetch: local branch ahead by 3 commits, behind by 0; fetched remote still 118b4e3. Delivery commits and remote comparison will be recorded after successful publication.
+- Pre-push fetch: local branch ahead by 3 commits, behind by 0; fetched remote still 118b4e3. Source/specs/tests/evidence commit 213b0b6aa72bd91617a584fecc485ce663ea8661 pushed without force; ls-remote origin main exactly matched that commit. Both 591bf09 and 6d44d44 verified as ancestors. Only this task entry from TODO was staged; unrelated TODO history, .pi/tasks and Canary artifacts remain local. A follow-up metadata-only commit records completion; final HEAD/remote equality is rechecked after it.
 
 Offline results do not establish live SSH/MCP/provider availability or answer quality. CI for this delivery has not been checked. No paid/live model calls, browser actions or external MCP tool calls were made. System browsers, personal browser data, shared caches, Firstmate state and unrelated project work were not targeted. The current Pi process can still hold old tools/transports in memory; restart is required after finishing this session.
 

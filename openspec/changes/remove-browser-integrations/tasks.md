@@ -22,7 +22,7 @@
 ## 4. Evidence and delivery
 
 - [x] 4.1 Записать итоговые source/host checks, revision, versions, backup/rollback и непроверенные CI/live аспекты в evidence; проверить весь финальный owned diff против initial state и актуальность успешных checks.
-- [ ] 4.2 Commit source/specs/tests/evidence и только owned TODO task change; исключить чужой TODO diff, .pi/tasks, Canary, logs и credentials. Push origin/main без force и проверить совпадение remote HEAD и ancestry сохранённых локальных commits.
+- [x] 4.2 Commit source/specs/tests/evidence и только owned TODO task change; исключить чужой TODO diff, .pi/tasks, Canary, logs и credentials. Push origin/main без force и проверить совпадение remote HEAD и ancestry сохранённых локальных commits.
 
 ## Workflow follow-up
 
