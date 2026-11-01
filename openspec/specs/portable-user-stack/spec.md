@@ -45,3 +45,25 @@ Paper-search MUST use its verified upstream commit plus the exact reviewed insta
 #### Scenario: Source differs from deployed server
 - **WHEN** the installed server differs from both local HEAD and working tree
 - **THEN** the published patch reproduces the installed module rather than silently selecting either source variant
+
+### Requirement: Release artifact downloads tolerate bounded slow transfers
+Direct release-artifact downloads MUST allow up to 540 seconds while retaining the enclosing 600-second command limit, finite connection deadline, HTTPS restriction, maximum artifact size and checksum verification before installation.
+
+#### Scenario: Slow successful artifact download
+- **WHEN** a pinned artifact needs more than 240 but fewer than 540 seconds to download
+- **THEN** the downloader permits completion and still validates its SHA-256 before installing it
+
+#### Scenario: Download exceeds its deadline
+- **WHEN** the transfer exceeds 540 seconds
+- **THEN** download failure propagates through the existing incomplete-store retention and installer rollback behavior
+
+### Requirement: Explicit Pi-only installation
+The installer MUST provide --skip-stack to update managed Pi packages, patches and configuration without provisioning or requiring the separate Firstmate/MCP/browser stack. Default full-stack installation MUST remain unchanged. Backup, rollback and mandatory source/host gates MUST remain active.
+
+#### Scenario: Existing Pi without a private stack
+- **WHEN** installation is explicitly invoked with --skip-stack
+- **THEN** private-stack preflight and bootstrap are not invoked, no private Playwright browser is downloaded and no missing Jev/paper private-launcher MCP entry is added
+
+#### Scenario: Existing custom MCP configuration
+- **WHEN** Pi-only installation encounters existing MCP server entries
+- **THEN** those entries remain intact, including previously configured Jev and paper-search entries

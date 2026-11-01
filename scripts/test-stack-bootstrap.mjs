@@ -21,7 +21,13 @@ const calls = [];
 let corrupt = false, dirty = false;
 const run = (command, args, options = {}) => {
   calls.push([command, ...args]);
-  if (command === "curl" && args.includes("--output")) writeFileSync(args[args.indexOf("--output") + 1], corrupt ? "corrupt" : binary);
+  if (command === "curl" && args.includes("--output")) {
+    assert.equal(args[args.indexOf("--max-time") + 1], "540", "Slow artifact downloads need more than four minutes within the 600-second command bound");
+    assert.equal(args[args.indexOf("--connect-timeout") + 1], "20");
+    assert.equal(args[args.indexOf("--max-filesize") + 1], "134217728");
+    assert.equal(args[args.indexOf("--proto") + 1], "=https");
+    writeFileSync(args[args.indexOf("--output") + 1], corrupt ? "corrupt" : binary);
+  }
   if (command === "git" && args[0] === "-C") {
     const directory = args[1];
     if (args.includes("checkout") && directory.endsWith("paper-source")) {
