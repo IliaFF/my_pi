@@ -9,13 +9,15 @@ CONTEXT_SETTINGS="$AGENT_DIR/my-pi-settings.json"
 INSTALL_CORE=0
 DRY_RUN=0
 PRESERVE_SETTINGS=0
+SKIP_STACK=0
 
 usage() {
   cat <<'EOF'
-Usage: ./install.sh [--install-core] [--dry-run] [--preserve-settings]
+Usage: ./install.sh [--install-core] [--dry-run] [--preserve-settings] [--skip-stack]
 
 --install-core  Install exact global Pi core when missing or mismatched.
 --preserve-settings  Keep personal settings/instructions/policy; align managed npm pins.
+--skip-stack    Update Pi only; do not provision Firstmate/MCP/browser environments.
 --dry-run       Validate release and print planned changes without modifying host.
 
 Environment:
@@ -29,6 +31,7 @@ while (($#)); do
     --install-core) INSTALL_CORE=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --preserve-settings) PRESERVE_SETTINGS=1 ;;
+    --skip-stack) SKIP_STACK=1 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -50,6 +53,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.7.0 and @spences10/pi-context@0.1.16"
   echo "DRY-RUN preserve personal configuration: $PRESERVE_SETTINGS"
+  echo "DRY-RUN skip private Firstmate/MCP/browser stack: $SKIP_STACK"
   echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + local extensions (including task-session handoff) + OpenAlex skill"
   echo "DRY-RUN patches: manifest exact-version patches"
   exit 0
@@ -59,7 +63,9 @@ if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
   exit 1
 fi
 
-node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR" --preflight
+if ((!SKIP_STACK)); then
+  node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR" --preflight
+fi
 
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "AGENTS.md" "my-pi-settings.json" "fabric.json"
@@ -164,16 +170,19 @@ PYCONFIG
 else
   cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"
 fi
-python3 - "$AGENT_DIR" "$ROOT/configs" <<'PY'
+SKIP_STACK="${SKIP_STACK:-0}" python3 - "$AGENT_DIR" "$ROOT/configs" <<'PY'
 import json, os, sys
 from pathlib import Path
 agent, configs = map(Path, sys.argv[1:])
+skip_stack = os.environ.get("SKIP_STACK", "0") == "1"
 path = agent / "mcp.json"
 if path.is_symlink():
     raise SystemExit("FAIL linked mcp.json; preserve and review its destination")
 data = json.loads(path.read_text()) if path.exists() else {}
 servers = data.setdefault("mcpServers", {})
 for name, config in json.loads((configs / "mcp.json").read_text())["mcpServers"].items():
+    if skip_stack and name in ("jev-browser", "paper-search"):
+        continue
     if "command" in config:
         config["command"] = config["command"].replace("~/.pi/agent/", str(agent) + "/", 1)
     config["args"] = [arg.replace("~/.pi/agent/", str(agent) + "/", 1) for arg in config.get("args", [])]
@@ -288,7 +297,9 @@ for skill in cpp-styleguide python-styleguide latex-simple-style; do
   fi
   cp "$ROOT/skills/$skill/SKILL.md" "$AGENT_DIR/skills/$skill/SKILL.md"
 done
-node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR"
+if ((!SKIP_STACK)); then
+  node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR"
+fi
 
 rm -rf "$AGENT_DIR/maintenance"
 mkdir -p "$AGENT_DIR/maintenance"

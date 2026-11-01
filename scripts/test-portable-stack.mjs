@@ -46,11 +46,26 @@ assert.ok(!policy.includes("Use the least costly approach sufficient"), "New def
 assert.ok(fallback.includes("В остальных сессиях правила смены задач сохраняются"));
 assert.ok(!/SSH|ProxyJump|\/home\/|\/mnt\/|\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(fallback));
 const installer = readFileSync(join(root, "install.sh"), "utf8");
+const modeHelp = spawnSync("bash", [join(root, "install.sh"), "--skip-stack", "--help"], { encoding: "utf8", timeout: 10000 });
+assert.equal(modeHelp.status, 0, modeHelp.stderr);
+assert.ok(modeHelp.stdout.includes("--skip-stack"));
+const stackGuards = installer.match(/if \(\(!SKIP_STACK\)\); then\n  node [^\n]*install-stack\.mjs[^\n]*\nfi/g);
+assert.equal(stackGuards?.length, 2, "Both private-stack preflight and bootstrap must be guarded");
+for (const guard of stackGuards) {
+  for (const skip of ["0", "1"]) {
+    const result = spawnSync("bash", ["-euc", 'node() { echo invoked; return 47; };\n' + guard], {
+      env: { ...process.env, SKIP_STACK: skip, ROOT: root, AGENT_DIR: "/unused-fixture" },
+      encoding: "utf8", timeout: 10000,
+    });
+    assert.equal(result.status, skip === "1" ? 0 : 47, result.stderr);
+    assert.equal(result.stdout.includes("invoked"), skip === "0");
+  }
+}
 const script = installer.slice(installer.indexOf("# Personal configuration start"), installer.indexOf("# Personal configuration end"));
 const agent = mkdtempSync(join(tmpdir(), "pi-stack-instructions-"));
 try {
-  const deploy = () => spawnSync("bash", ["-euc", script], {
-    env: { ...process.env, ROOT: root, AGENT_DIR: agent, CONTEXT_SETTINGS: join(agent, "my-pi-settings.json"), PRESERVE_SETTINGS: "1" },
+  const deploy = (skipStack = "0") => spawnSync("bash", ["-euc", script], {
+    env: { ...process.env, ROOT: root, AGENT_DIR: agent, CONTEXT_SETTINGS: join(agent, "my-pi-settings.json"), PRESERVE_SETTINGS: "1", SKIP_STACK: skipStack },
     encoding: "utf8", timeout: 30000,
   });
   const original = "# Private instructions\n\nKeep my private rule exactly.\n";
@@ -70,6 +85,14 @@ try {
   assert.equal(configured["jev-browser"].command, "PRIVATE EXISTING COMMAND");
   assert.equal(configured.private.command, "private-server");
   assert.equal(configured["paper-search"].command, join(agent, "bin/paper-search-mcp"));
+  assert.equal(deploy("1").status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(agent, "mcp.json"), "utf8")).mcpServers, configured, "Pi-only mode must preserve existing MCP servers");
+  unlinkSync(join(agent, "mcp.json"));
+  assert.equal(deploy("1").status, 0);
+  const piOnly = JSON.parse(readFileSync(join(agent, "mcp.json"), "utf8")).mcpServers;
+  assert.ok(!("jev-browser" in piOnly));
+  assert.ok(!("paper-search" in piOnly));
+  assert.ok("chrome" in piOnly, "Pi-only mode retains non-private defaults");
   assert.equal(readFileSync(join(agent, "APPEND_SYSTEM.md"), "utf8"), "PRIVATE APPEND\n");
   result = deploy();
   assert.equal(result.status, 0, result.stderr);

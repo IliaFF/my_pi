@@ -214,6 +214,8 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 
 ```bash
 ./install.sh --preserve-settings --install-core
+# Только Pi, без нового Firstmate/MCP/browser окружения:
+./install.sh --preserve-settings --install-core --skip-stack
 ```
 
 Сохраняются settings/APPEND/context policy; известные npm pins выравниваются по source lock, прежний default Herdr Pi plugin убирается, workspace-history добавляется. Portable Firstmate и resource-consent blocks дописываются в глобальный AGENTS без замены личных правил; полное ресурсное правило не дублируется в новом APPEND template. Отличающиеся новые provider/skills, чужие launchers или другой managed stack требуют review. После установки нужен restart Pi; текущая сессия не перезагружается автоматически.

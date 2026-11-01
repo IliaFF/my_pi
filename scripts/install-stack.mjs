@@ -104,7 +104,7 @@ export function installStack(root, agent, run = execute) {
     for (const artifact of lock.artifacts) {
       if (!/^[a-f0-9]{64}$/.test(artifact.sha256) || !artifact.url.startsWith("https://github.com/")) throw new Error("Invalid artifact pin");
       const archive = join(destination, `${artifact.name}.download`);
-      run("curl", ["--fail", "--location", "--proto", "=https", "--connect-timeout", "20", "--max-time", "240", "--max-filesize", "134217728", "--output", archive, artifact.url]);
+      run("curl", ["--fail", "--location", "--proto", "=https", "--connect-timeout", "20", "--max-time", "540", "--max-filesize", "134217728", "--output", archive, artifact.url]);
       if (digest(readFileSync(archive)) !== artifact.sha256) throw new Error(`Checksum mismatch: ${artifact.name}`);
       const binary = join(destination, "bin", artifact.name);
       if (artifact.member) {

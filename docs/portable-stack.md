@@ -26,6 +26,8 @@
 
 Обычный `./install.sh --install-core` сначала проверяет source release и prerequisites, затем создаёт backup управляемых файлов. Fresh source preflight не требует ещё не установленные Pi/context-fold: его internal source-only mode пропускает только установленный-runtime compaction SDK check. Структурные, privacy, registry patch и независимые harness checks остаются; полный `npm test` явно выключает этот режим и выполняет настоящий SDK check. `--preserve-settings` сохраняет выбор модели/провайдера и личные инструкции; известные package pins выравниваются, retired default удаляется, workspace-history добавляется. Для другого agent directory используйте `PI_CODING_AGENT_DIR`, как в основном README.
 
+Для обновления только Pi без отдельного Firstmate/MCP/browser окружения используйте `./install.sh --preserve-settings --install-core --skip-stack`. Этот режим не запускает private-stack preflight/bootstrap и не добавляет отсутствующие `jev-browser`/`paper-search` MCP entries с private launchers. Все существующие MCP entries сохраняются, как и backup/rollback, проверка исходников и полный host gate. Режим ничего не удаляет из существующих private stores, общих browser caches или независимых проектов. По умолчанию без флага устанавливается полный стек.
+
 Firstmate и его runtime создаются **не** поверх существующего независимого checkout, а в `<agent>/stack/<identity>/firstmate`. В нём initial backend — Herdr, `config/crew-harness` — `pi`; primary запускается командой Pi по upstream Quick Start. Его `.pi/extensions` остаются project-scoped; глобальные extensions Firstmate не копируются. При первом запуске Pi может запросить project trust — установка не одобряет его автоматически.
 
 Запуск после установки:
