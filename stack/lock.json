@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "platform": "linux-x64",
   "python": "3.13.7",
   "firstmate": {

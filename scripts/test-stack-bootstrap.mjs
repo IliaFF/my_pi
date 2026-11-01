@@ -2,10 +2,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { installStack, preflight, stackIdentity } from "./install-stack.mjs";
+import { retireBrowserStack } from "./retire-browser-stack.mjs";
 
 const hash = text => createHash("sha256").update(text).digest("hex");
 const temp = mkdtempSync(join(tmpdir(), "pi-stack-bootstrap-"));
@@ -43,7 +44,7 @@ const run = (command, args, options = {}) => {
 };
 try {
   mkdirSync(join(root, "stack"), { recursive: true });
-  for (const [name, value] of Object.entries({ "lock.json": JSON.stringify(lock), "package.json": "{}\n", "package-lock.json": "{}\n", "paper-requirements.txt": "mcp==1.27.2\n", "paper-search-installed.patch": "reviewed fixture patch\n" })) {
+  for (const [name, value] of Object.entries({ "lock.json": JSON.stringify(lock), "paper-requirements.txt": "mcp==1.27.2\n", "paper-search-installed.patch": "reviewed fixture patch\n" })) {
     writeFileSync(join(root, "stack", name), value);
   }
   const unrelated = join(temp, "independent-firstmate");
@@ -56,7 +57,8 @@ try {
   assert.equal(readFileSync(join(destination, "bin/herdr"), "utf8"), binary);
   assert.equal(readFileSync(join(unrelated, "fleet-state"), "utf8"), "KEEP PRIVATE STATE\n");
   assert.ok(calls.some(([command, ...args]) => command === "uv" && args[0] === "venv" && args.includes("3.13.7")));
-  assert.ok(calls.some(([command, ...args]) => command === "npm" && args[0] === "ci" && args.includes("--ignore-scripts")));
+  assert.ok(!calls.some(([command, ...args]) => (command === "npm" && args[0] !== "--version") || /playwright|chromium|jev-browser/.test(args.join(" "))), "No browser dependencies or downloads");
+  assert.ok(!existsSync(join(agent, "bin/jev-browser")));
   assert.ok(!calls.some(([command]) => ["herdr", "treehouse", "pi"].includes(command)), "Installation must not launch agents");
   const launcher = readFileSync(join(agent, "bin/firstmate"), "utf8");
   assert.ok(launcher.includes(destination) && launcher.includes('"$@"'));
@@ -110,6 +112,48 @@ try {
   symlinkSync(unrelated, join(linkedAgent, "stack"));
   assert.throws(() => preflight(root, linkedAgent, run), /unsafe stack store/);
   assert.equal(readFileSync(join(unrelated, "fleet-state"), "utf8"), "KEEP PRIVATE STATE\n");
+  const migrationAgent = join(temp, "migration-agent"), backup = join(temp, "backup");
+  const identity = "8869ae7da95170063bfd";
+  const oldStore = join(migrationAgent, "stack", identity);
+  mkdirSync(join(oldStore, "mcp/node_modules"), { recursive: true });
+  mkdirSync(join(oldStore, "browsers/chromium-1248"), { recursive: true });
+  mkdirSync(backup, { mode: 0o700 });
+  writeFileSync(join(oldStore, "complete.json"), JSON.stringify({ identity }));
+  writeFileSync(join(oldStore, "mcp/package.json"), JSON.stringify({ name: "my-pi-mcp-stack", dependencies: { "@jkudish/jev-browser": "0.8.3" } }));
+  const payload = join(oldStore, "browsers/chromium-1248/INSTALLATION_COMPLETE");
+  writeFileSync(payload, "binary fixture", { mode: 0o755 });
+  writeFileSync(join(oldStore, "private-firstmate-state"), "KEEP FIRSTMATE");
+  writeFileSync(join(oldStore, "mcp/PRIVATE DATA"), "KEEP PRIVATE DATA");
+  assert.throws(() => retireBrowserStack(migrationAgent, backup), /Unclassified/);
+  assert.ok(existsSync(payload), "Preflight must finish before moving any payload");
+  rmSync(join(oldStore, "mcp/PRIVATE DATA"));
+  writeFileSync(join(oldStore, "browsers/chromium-1248/Local State"), "PRIVATE PROFILE");
+  assert.throws(() => retireBrowserStack(migrationAgent, backup), /Personal browser data/);
+  rmSync(join(oldStore, "browsers/chromium-1248/Local State"));
+  symlinkSync(unrelated, join(oldStore, "browsers/unknown-link"));
+  assert.throws(() => retireBrowserStack(migrationAgent, backup), /Unsafe directory/);
+  rmSync(join(oldStore, "browsers/unknown-link"));
+  mkdirSync(join(migrationAgent, "bin"));
+  symlinkSync(join(unrelated, "fleet-state"), join(migrationAgent, "bin/jev-browser"));
+  assert.throws(() => retireBrowserStack(migrationAgent, backup), /Unsafe browser launcher/);
+  rmSync(join(migrationAgent, "bin/jev-browser"));
+  writeFileSync(join(migrationAgent, "bin/jev-browser"), "PRIVATE LAUNCHER");
+  assert.throws(() => retireBrowserStack(migrationAgent, backup), /Customized browser launcher/);
+  rmSync(join(migrationAgent, "bin/jev-browser"));
+  writeFileSync(join(migrationAgent, "bin/jev-browser"), `#!/usr/bin/env bash\n# Managed by my-pi portable-stack\nset -euo pipefail\nexport PLAYWRIGHT_BROWSERS_PATH='${oldStore}/browsers'\nexec node '${oldStore}/mcp/node_modules/@jkudish/jev-browser/dist/index.js' "$@"\n`, { mode: 0o755 });
+  const inode = statSync(payload).ino;
+  const retired = retireBrowserStack(migrationAgent, backup);
+  assert.deepEqual(retired, ["stack/" + identity + "/mcp", "stack/" + identity + "/browsers", "bin/jev-browser"]);
+  assert.ok(!existsSync(payload));
+  const savedPayload = join(backup, "browser-payloads/stack", identity, "browsers/chromium-1248/INSTALLATION_COMPLETE");
+  assert.equal(statSync(savedPayload).ino, inode, "Quarantine keeps the original bytes/inode without copying");
+  assert.deepEqual(retireBrowserStack(migrationAgent, backup), [], "Repeated cleanup is a no-op");
+  // Exercise documented copy-back restore, retaining the original quarantine backup.
+  for (const target of retired) cpSync(join(backup, "browser-payloads", target), join(migrationAgent, target), { recursive: true, verbatimSymlinks: true });
+  assert.equal(readFileSync(payload, "utf8"), "binary fixture");
+  assert.equal(statSync(payload).mode & 0o777, 0o755);
+  assert.ok(existsSync(savedPayload));
+  assert.equal(readFileSync(join(oldStore, "private-firstmate-state"), "utf8"), "KEEP FIRSTMATE");
   console.log("PASS offline stack bootstrap: exact revisions, checksum-before-install, no agent launch, repeat/dirty/incomplete/link/private refusal and retained independent data (mocked downloads/installers)");
 } finally {
   rmSync(temp, { recursive: true, force: true });

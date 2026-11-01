@@ -37,6 +37,8 @@ Git откатывает source, **не установленный runtime**. Н
 
 ## Вернуть runtime
 
+Для удаления legacy browser payloads дополнительно используйте [scoped migration и rollback](portable-stack.md#удаление-прежнего-browser-stack): installer archive не покрывает stack; quarantine backup сохраняется отдельно.
+
 Перед явной установкой installer сохраняет backup и сообщает путь. `uninstall.sh` принимает созданный installer backup: прочитать `./uninstall.sh --help` и проверить принадлежность agent directory. Путь последнего install backup хранится локально в `~/.pi/agent/.my-pi-last-backup`.
 
 Manual и automatic installer rollback используют один `uninstall.sh`. Он полностью распаковывает archive в приватный staging, проверяет разрешённые managed пути/типы и ссылки до удаления текущих файлов. Обычные внутренние npm-ссылки с `..` допустимы; выход за agent или managed scope, опасные destination parents, missing/corrupt payload отклоняются до замены. Staging требует дополнительного места. После копирования проверяются bytes, link targets и executable bits; исходный backup сохраняется. Замена нескольких директорий не является общей атомарной транзакцией: при ошибке копирования восстановление не подтверждено, нужно остановиться и проверить состояние.

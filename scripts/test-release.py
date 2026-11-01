@@ -200,10 +200,13 @@ def main() -> int:
         fail("native codemode must be enabled")
     if "npm:pi-ssh-remote@0.1.15" not in active_sources:
         fail("SSH package must be exactly pinned")
-    chrome = json.loads((ROOT / "configs/mcp.json").read_text())["mcpServers"]["chrome"]
-    if chrome.get("exposure") != "codemode":
-        fail("Chrome tools must be exposed through codemode")
-    merge_test = subprocess.run([sys.executable, str(ROOT / "scripts/test-portable-configs.py")], capture_output=True, text=True)
+    servers = json.loads((ROOT / "configs/mcp.json").read_text())["mcpServers"]
+    if "chrome" in servers or "jev-browser" in servers:
+        fail("Retired browser MCP must not be configured")
+    if "@amaster.ai/pi-browser-use" in package_json["dependencies"]:
+        fail("Retired browser package must not be installed")
+    merge_test = subprocess.run([sys.executable, str(
+        ROOT / "scripts/test-portable-configs.py")], capture_output=True, text=True)
     if merge_test.returncode:
         fail(f"portable config merge failed: {merge_test.stdout}{merge_test.stderr}")
     print(merge_test.stdout.strip())

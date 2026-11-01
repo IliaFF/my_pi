@@ -1,6 +1,7 @@
 # TODO
 
 ## In progress
+- [ ] Синхронизировать main с origin/main с сохранением локальных commits; удалить все browser integrations из source и личного runtime, сохранив SSH/paper-search/settings/credentials; OpenSpec, regression и npm test, backup и установка, evidence, commit и push. Исходный snapshot: /root/.pi/pi-update-initial.ws07po. <!-- pi-task:17332e31d5d8 -->
 
 ## Blocked
 

@@ -16,7 +16,6 @@ const execute = (command, args, options = {}) => execFileSync("timeout", ["-k", 
 function launcherContents(agent, destination) {
   const wrappers = {
     firstmate: `export PATH=${quote(join(destination, "bin"))}:"$PATH"\nexport PI_CODING_AGENT_DIR=${quote(agent)}\nexport FM_HOME=${quote(join(destination, "firstmate"))}\nexport FM_PI_HARNESS=pi\nunset FM_ROOT_OVERRIDE FM_CONFIG_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_PROJECTS_OVERRIDE\ncd "$FM_HOME"\nexec pi "$@"`,
-    "jev-browser": `export PLAYWRIGHT_BROWSERS_PATH=${quote(join(destination, "browsers"))}\nexec node ${quote(join(destination, "mcp/node_modules/@jkudish/jev-browser/dist/index.js"))} "$@"`,
     "paper-search-mcp": `exec ${quote(join(destination, "paper/bin/paper-search-mcp"))} "$@"`,
   };
   return Object.fromEntries(Object.entries(wrappers).map(([name, body]) => [name, `#!/usr/bin/env bash\n# Managed by my-pi portable-stack\nset -euo pipefail\n${body}\n`]));
@@ -24,7 +23,7 @@ function launcherContents(agent, destination) {
 
 export function stackIdentity(root) {
   // shortcut: identity covers declared inputs; bump lock schemaVersion when changing the installed layout.
-  return digest(["lock.json", "package-lock.json", "paper-requirements.txt", "paper-search-installed.patch"]
+  return digest(["lock.json", "paper-requirements.txt", "paper-search-installed.patch"]
     .map(name => readFileSync(join(root, "stack", name))).join("\n")).slice(0, 20);
 }
 
@@ -115,12 +114,6 @@ export function installStack(root, agent, run = execute) {
       binaries[artifact.name] = digest(readFileSync(binary));
       unlinkSync(archive);
     }
-    const mcp = join(destination, "mcp");
-    mkdirSync(mcp);
-    for (const name of ["package.json", "package-lock.json"]) copyFileSync(join(root, "stack", name), join(mcp, name));
-    const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: join(destination, "browsers"), JEV_BROWSER_SKIP_BROWSER_DOWNLOAD: "1" };
-    run("npm", ["ci", "--ignore-scripts", "--no-audit", "--no-fund", "--prefix", mcp], { env });
-    run("node", [join(mcp, "node_modules/playwright/cli.js"), "install", "chromium"], { env });
     const paperSource = checkout("paper-source", lock.paper);
     const patch = readFileSync(join(root, "stack/paper-search-installed.patch"));
     run("git", ["-C", paperSource, "apply", "--check", "-"], { input: patch });

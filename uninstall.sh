@@ -60,6 +60,7 @@ allowed.add("herdr-agents/config.json")
 herdr_config = allowed.copy()
 allowed.add("AGENTS.md")
 instruction_policy = allowed.copy()
+# Keep legacy browser launcher backups restorable; new installs do not create it.
 allowed.update({"extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
                 "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
                 "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp"})

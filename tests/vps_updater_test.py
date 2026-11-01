@@ -17,19 +17,23 @@ updater = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(updater)
 
 
-def browser_fixture(tree, version):
+def history_fixture(tree, version):
+    """Prepare a pinned retained-package update without network access."""
     result = dict(tree)
     package = json.loads(tree["npm/package.json"][0])
-    targets = {**package["dependencies"], "@amaster.ai/pi-browser-use": version}
-    result["configs/settings.json"] = updater.settings_for_targets(tree, targets)
+    targets = {**package["dependencies"], "pi-workspace-history": version}
+    result["configs/settings.json"] = updater.settings_for_targets(
+        tree, targets)
     package["dependencies"] = targets
     lock = json.loads(tree["npm/package-lock.json"][0])
     lock["packages"][""]["dependencies"] = targets
-    entry = lock["packages"]["node_modules/@amaster.ai/pi-browser-use"]
-    entry["resolved"] = entry["resolved"].replace(f"-{entry['version']}.tgz", f"-{version}.tgz")
+    entry = lock["packages"]["node_modules/pi-workspace-history"]
+    entry["resolved"] = entry["resolved"].replace(
+        f"-{entry['version']}.tgz", f"-{version}.tgz")
     entry["version"] = version
     for path, data in [("npm/package.json", package), ("npm/package-lock.json", lock)]:
-        result[path] = ((json.dumps(data, indent=2) + "\n").encode(), tree[path][1])
+        result[path] = ((json.dumps(data, indent=2) +
+                        "\n").encode(), tree[path][1])
     return result
 
 
@@ -70,7 +74,7 @@ class UpdaterTests(unittest.TestCase):
                        lambda d: d["packages"].append("npm:evil@1.0.0"),
                        lambda d: d["packages"].reverse(),
                        lambda d: next(p for p in d["packages"] if isinstance(p, dict) and p["source"] == "npm:pine-of-glass").update(extensions=[]),
-                       lambda d: next(p for p in d["packages"] if isinstance(p, dict) and "pi-browser-use" in p["source"]).update(source="npm:@amaster.ai/pi-browser-use@99.0.0")]:
+                       lambda d: next(p for p in d["packages"] if isinstance(p, dict) and "pi-background-tasks" in p["source"]).update(source="npm:pi-background-tasks@99.0.0")]:
             after = dict(tree)
             data = json.loads(tree["configs/settings.json"][0]); mutate(data)
             after["configs/settings.json"] = (json.dumps(data).encode(), False)
@@ -88,9 +92,9 @@ class UpdaterTests(unittest.TestCase):
     def test_exact_settings_pin_update_passes_scope_and_pins(self):
         tree = updater.read_tree(ROOT)
         targets = json.loads(tree["npm/package.json"][0])["dependencies"]
-        major, minor, patch_version = map(int, targets["@amaster.ai/pi-browser-use"].split("."))
-        targets["@amaster.ai/pi-browser-use"] = f"{major}.{minor}.{patch_version + 1}"
-        after = browser_fixture(tree, targets["@amaster.ai/pi-browser-use"])
+        major, minor, patch_version = map(int, targets["pi-workspace-history"].split("."))
+        targets["pi-workspace-history"] = f"{major}.{minor}.{patch_version + 1}"
+        after = history_fixture(tree, targets["pi-workspace-history"])
         self.assertNotEqual(after["configs/settings.json"], tree["configs/settings.json"])
         updater.check_scope(tree, after, "openspec/changes/archive/update/")
         updater.check_pins(tree, after, targets)
@@ -102,7 +106,7 @@ class UpdaterTests(unittest.TestCase):
         read_tree = updater.read_tree
         tree = read_tree(ROOT)
         for version in ["0.1.28", "9.8.7"]:
-            baseline = browser_fixture(tree, version)
+            baseline = history_fixture(tree, version)
             for name in ["test_exact_settings_pin_update_passes_scope_and_pins",
                          "test_repair_receives_prepared_settings_and_incomplete_work_never_reaches_gate"]:
                 with self.subTest(version=version, fixture=name), patch.object(
@@ -409,8 +413,8 @@ while True: os.write(fd,b"x"*1024)
                 os.utime(old, (index + 1, index + 1))
             tree = updater.read_tree(ROOT)
             current = json.loads(tree["npm/package.json"][0])["dependencies"]
-            major, minor, patch_version = map(int, current["@amaster.ai/pi-browser-use"].split("."))
-            targets = {**current, "@amaster.ai/pi-browser-use": f"{major}.{minor}.{patch_version + 1}"}
+            major, minor, patch_version = map(int, current["pi-workspace-history"].split("."))
+            targets = {**current, "pi-workspace-history": f"{major}.{minor}.{patch_version + 1}"}
             latest = [{"version": targets[name]} for name in current]
             auth = {"openai": {"access": "fixture-access-token", "refresh": "fixture-refresh-token"}}
 

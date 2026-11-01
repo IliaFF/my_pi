@@ -17,7 +17,7 @@ Usage: ./install.sh [--install-core] [--dry-run] [--preserve-settings] [--skip-s
 
 --install-core  Install exact global Pi core when missing or mismatched.
 --preserve-settings  Keep personal settings/instructions/policy; align managed npm pins.
---skip-stack    Update Pi only; do not provision Firstmate/MCP/browser environments.
+--skip-stack    Update Pi only; do not provision Firstmate/paper MCP environments.
 --dry-run       Validate release and print planned changes without modifying host.
 
 Environment:
@@ -53,8 +53,8 @@ if ((DRY_RUN)); then
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN extensions: npm ci from exact package-lock.json, with context-fold@0.7.0 and @spences10/pi-context@0.1.16"
   echo "DRY-RUN preserve personal configuration: $PRESERVE_SETTINGS"
-  echo "DRY-RUN skip private Firstmate/MCP/browser stack: $SKIP_STACK"
-  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + native Chrome MCP + local extensions (including task-session handoff) + OpenAlex skill"
+  echo "DRY-RUN skip private Firstmate/paper MCP stack: $SKIP_STACK"
+  echo "DRY-RUN configs: one default profile + balanced searchable-context policy + paper-search MCP + local extensions (including task-session handoff) + OpenAlex skill"
   echo "DRY-RUN patches: manifest exact-version patches"
   exit 0
 fi
@@ -67,6 +67,7 @@ if ((!SKIP_STACK)); then
   node "$ROOT/scripts/install-stack.mjs" "$AGENT_DIR" --preflight
 fi
 
+# bin/jev-browser is retained only for legacy backup/rollback compatibility.
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "AGENTS.md" "my-pi-settings.json" "fabric.json"
   "mcp.json" "train-agents/config.json" "herdr-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
@@ -136,6 +137,8 @@ if ((PRESERVE_SETTINGS)) && [[ -f "$AGENT_DIR/settings.json" ]]; then
 import json, sys
 from pathlib import Path
 path, lock = map(Path, sys.argv[1:])
+if path.is_symlink():
+    raise SystemExit("FAIL linked settings.json; preserve and review its destination")
 data = json.loads(path.read_text())
 deps = json.loads(lock.read_text())["dependencies"]
 if not isinstance(data, dict) or not isinstance(data.get("packages", []), list):
@@ -151,7 +154,10 @@ packages = data.get("packages", [])
 aligned = []
 for item in packages:
     source = source_of(item)
-    if source in ("npm:pi-herdr-agents", "npm:pi-herdr-agents@3.3.1"):
+    if (source in ("npm:pi-herdr-agents", "npm:pi-herdr-agents@3.3.1")
+            or (isinstance(source, str)
+                and (source == "npm:@amaster.ai/pi-browser-use"
+                     or source.startswith("npm:@amaster.ai/pi-browser-use@")))):
         continue
     if isinstance(source, str) and source.startswith("npm:"):
         specifier = source[4:]
@@ -163,9 +169,9 @@ for item in packages:
 history = f"npm:pi-workspace-history@{deps['pi-workspace-history']}"
 if not any(source_of(item) == history for item in aligned):
     aligned.append(history)
-if aligned != packages:
-    data["packages"] = aligned
-    path.write_text(json.dumps(data, indent=2) + "\n")
+data.pop("pi-browser-use", None)
+data["packages"] = aligned
+path.write_text(json.dumps(data, indent=2) + "\n")
 PYCONFIG
 else
   cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"
@@ -180,13 +186,15 @@ if path.is_symlink():
     raise SystemExit("FAIL linked mcp.json; preserve and review its destination")
 data = json.loads(path.read_text()) if path.exists() else {}
 servers = data.setdefault("mcpServers", {})
+for name in ("chrome", "jev-browser"):
+    servers.pop(name, None)
 for name, config in json.loads((configs / "mcp.json").read_text())["mcpServers"].items():
-    if skip_stack and name in ("jev-browser", "paper-search"):
+    if skip_stack and name == "paper-search":
         continue
     if "command" in config:
         config["command"] = config["command"].replace("~/.pi/agent/", str(agent) + "/", 1)
     config["args"] = [arg.replace("~/.pi/agent/", str(agent) + "/", 1) for arg in config.get("args", [])]
-    servers.setdefault(name, config)  # Preserve existing servers, including a custom Chrome entry.
+    servers.setdefault(name, config)  # Preserve unrelated existing servers.
 path.write_text(json.dumps(data, indent=2) + "\n")
 os.chmod(path, 0o600)
 train = agent / "train-agents/config.json"

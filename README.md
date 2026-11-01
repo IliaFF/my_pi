@@ -100,7 +100,6 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 | `pine-of-glass` | `0.18.4` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
 | `pi-markdown-preview` | `0.25.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
 | `pi-train-agents` | `0.2.7` | загружен, pinned/patched | Ручное обучение глобальных правил по истории всех проектов. |
-| `@amaster.ai/pi-browser-use` | `0.1.32` | установлен, extension выключен | Закреплённый поставщик Chrome MCP dependency; browser tools доступны через native codemode. |
 
 | `pi-ssh-remote` | `0.1.15` | загружен, pinned | Постоянное SSH-соединение, reconnect, remote read/write/edit/bash, пароль/ключи/agent и ProxyJump. |
 
@@ -122,15 +121,13 @@ Offline gate проверяет настоящий SDK с faux provider, но н
 
 Без `-i` расширение пробует SSH-agent и ключи, затем запрашивает пароль. Пароли и passphrases хранятся только в памяти процесса; `/remote forget` очищает их. На сервере нужны Bash, SFTP и GNU `timeout`. Сохранённые endpoints, host keys, server memory и credentials в сборку не включены. Установка и регистрация tools проверены; реальное SSH-подключение не проверялось.
 
-### Chrome в WSL
+### MCP без отдельных browser integrations
 
-`@amaster.ai/pi-browser-use@0.1.32` остаётся закреплённым поставщиком MCP dependency; его extension выключен через `packages.extensions: []`, без patch и переустановки. Браузер подключён native Pi MCP из `mcp.json`: `chrome`, `exposure: codemode`. 27 tools находятся через `searchTools()`/`describeNamespace("chrome")` и вызываются как `tools.mcp__chrome__*`, но не объявлены модели и не перечисляются в description codemode. Coding tools остаются direct, codemode.mode=on.
+pi-browser-use, Chrome MCP и Jev browser MCP удалены из сборки. Installer удаляет их записи из settings/mcp даже в preservation mode; SSH, paper-search и остальные настройки сохраняются. Для ранее установленного private stack после backup используйте [адресную миграцию](docs/portable-stack.md#удаление-прежнего-browser-stack).
 
-Сохранены headless, isolated profile на сессию, executable `/usr/bin/google-chrome`, pageId routing, выключенные usageStatistics/CrUX/experimentalVision и включённый network headers redact. Старый блок `pi-browser-use` в settings не управляет native сервером: менять браузерные flags нужно в `mcp.json`. Chrome должен быть установлен отдельно. MCP подключается на session_start, Chrome запускается при первом браузерном действии; это не on-demand запуск самого MCP process.
+`configs/mcp.json` содержит только paper-search baseline; `--skip-stack` сохраняет существующий paper-search, но не добавляет отсутствующий private wrapper. Maintenance не импортирует личный MCP config в source. После обновления нужен restart Pi: уже загруженные процессы/tools и история не исчезают от изменения файлов.
 
-На рабочем Pi1.0.0 подтверждены real Chrome150/MCP1.10.1 и 9 nested browser calls через настоящий codemode/AgentSession: snapshot, fill, click, DOM, image и закрытие страницы. В каждой scripted model request: 0 браузерных schemas; прежний wrapper объявлял 16 schemas/15 263 JSON characters. Description codemode остался 1 059 characters в изолированном сравнении. Это символы, не измеренные provider tokens. Fresh полный RPC: stderr0, native `/mcp` присутствует, `/browser-tools` отсутствует, 0 messages/model runs. LLM planning, произвольные сайты, полный interacting tool loop всех extensions и Windows CDP этим не сертифицируются; произвольные сайты требуют отдельной проверки.
-
-`configs/mcp.json` — переносимый baseline. Installer добавляет отсутствующие `chrome`, `jev-browser` и `paper-search`, сохраняя существующие servers и записи с теми же именами; пути MCP адаптируются к agent directory. Новый Jev entry выключен до отдельной настройки ключа и включения; paper-search и Jev используют private stack wrappers. Состав, credentials и ограничения описаны в [portable stack](docs/portable-stack.md). Maintenance не перезаписывает пользовательский `mcp.json`. После изменения — `/reload`; состояние — `pi mcp list` или `/mcp`. Браузерные schemas из уже записанной истории сессии задним числом не исчезают.
+По отдельному выбору пользователя `pi-markdown-preview` и `pi-web-access` оставлены без изменений, включая их опциональные browser launch/cookie функции. Системные браузеры, личные данные и общие кэши не удаляются.
 
 ### pi-train-agents: глобальные правила
 

@@ -12,23 +12,28 @@ start = source.index('python3 - "$AGENT_DIR" "$ROOT/configs" <<\'PY\'\n')
 script = source[start:].split("\n", 1)[1].split("\nPY\n", 1)[0]
 with tempfile.TemporaryDirectory(prefix="pi-config-merge-") as temp:
     agent = Path(temp)
+
     def merge():
-        subprocess.run([sys.executable, "-", str(agent), str(root / "configs")], input=script, text=True, check=True)
+        subprocess.run([sys.executable, "-", str(agent),
+                       str(root / "configs")], input=script, text=True, check=True)
     merge()
     config = json.loads((agent / "mcp.json").read_text())
-    chrome = config["mcpServers"]["chrome"]
-    assert chrome["exposure"] == "codemode"
-    assert chrome["args"][0].startswith(str(agent) + "/npm/")
+    paper = config["mcpServers"]["paper-search"]
+    assert paper["exposure"] == "codemode"
+    assert paper["command"] == str(agent / "bin/paper-search-mcp")
     train = agent / "train-agents/config.json"
     assert json.loads(train.read_text())["sessionScope"] == "all"
-    custom = {"mcpServers": {"chrome": {"command": "custom"}, "existing": {"command": "keep"}}}
+    custom = {"mcpServers": {"chrome": {"command": "custom"},
+                             "existing": {"command": "keep"}}}
     (agent / "mcp.json").write_text(json.dumps(custom))
     train.write_text('{"targetFile":"custom.md"}')
     expected = {"mcpServers": {**config["mcpServers"],
                                **custom["mcpServers"]}}
+    expected["mcpServers"].pop("chrome")
     merge()
     assert json.loads((agent / "mcp.json").read_text()) == expected
     assert json.loads(train.read_text()) == {"targetFile": "custom.md"}
-print("PASS installer: custom agent path; existing MCP servers/Chrome and training config preserved")
+print("PASS installer: custom agent path; browser entries removed; private MCP and training config preserved")
 
-subprocess.run([sys.executable, str(root / "scripts/test-install-preservation.py")], check=True)
+subprocess.run([sys.executable, str(
+    root / "scripts/test-install-preservation.py")], check=True)

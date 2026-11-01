@@ -4,7 +4,6 @@
   "private": true,
   "description": "Exact extension set for IliaFF/my_pi",
   "dependencies": {
-    "@amaster.ai/pi-browser-use": "0.1.34",
     "@beyona/pi-zai-usage": "1.1.0",
     "@dietrichgebert/ponytail": "5.3.3",
     "@earendil-works/pi-coding-agent": "1.4.0",
