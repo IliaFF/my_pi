@@ -20,7 +20,7 @@
 
 `pi-build/` — Git-источник: код, portable configs, exact locks, patches, OpenSpec, тесты. `~/.pi/agent/` — личный установленный runtime. `~/.pi/agent/maintenance` — установленная копия исходников. Source не устанавливается автоматически; в change align-latest-stable-runtime пользователь отдельно разрешил установку latest stable с backup и сохранением личных настроек.
 
-Baseline закрепляет ядро Pi и pi-tui **1.4.0**. Direct extension pins и version-gated patches находятся в `npm/package.json` и `manifest.json`. Обновление stable stack описано в change `update-stack-1-4-0`; результаты source/host gates и установки записываются в его evidence. Номер SDK в dependencies сам по себе не подтверждает версию CLI из PATH: проверяйте оба entry point.
+Baseline закрепляет ядро Pi и pi-tui **1.5.0**. Direct extension pins и version-gated patches находятся в `npm/package.json` и `manifest.json`. Обновление stable stack описано в change `update-pi-1-5-0`; результаты source/host gates и установки записываются в его evidence. Номер SDK в dependencies сам по себе не подтверждает версию CLI из PATH: проверяйте оба entry point.
 
 ## При поломке
 

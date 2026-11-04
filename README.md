@@ -39,7 +39,7 @@ npm test -- --agent "$HOME/.pi/agent"  # реальные dependencies + drift, 
 npm run verify:host                  # только patches/snapshots integrity
 ```
 
-Новый source закрепляет Pi core/pi-tui **1.4.0**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
+Новый source закрепляет Pi core/pi-tui **1.5.0**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
 
 Ponytail 5.3.3 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
 
@@ -55,7 +55,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ---
 
-Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.4.0; текущие результаты — в OpenSpec evidence и `test-results/`.
+Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.5.0; текущие результаты — в OpenSpec evidence и `test-results/`.
 
 # my_pi
 
@@ -63,7 +63,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@1.4.0`
+- Pi core `@earendil-works/pi-coding-agent@1.5.0`
 - Node.js `>=24.0.0`
 - 20 прямых npm dependencies с точными версиями: 17 settings entries и exact runtime peers; полный `package-lock.json`
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
@@ -81,7 +81,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` удалён и не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.4.0`/`1.4.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` удалён и не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.5.0`/`1.5.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
@@ -201,7 +201,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --install-core
 ```
 
-Если Pi `1.4.0` уже доступен через `PATH`:
+Если Pi `1.5.0` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -348,11 +348,11 @@ Update script создаёт backup npm tree, обновляет расшире�
 
 Обычный `pi update --extensions` заменяет npm-пакеты и **не восстанавливает наши патчи**, включая отдельные project overrides. Для user runtime используйте safe updater **вне проекта с собственными packages**, как в примерах выше: его gate проверяет user runtime, не project overrides. Проектный Ponytail обновляется отдельно с backup/patch/actual SDK gate. Перенос на новую patched version делается сначала в source с полным gate.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.4.0`; обновление core нужно сначала проверить и зафиксировать здесь.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.5.0`; обновление core нужно сначала проверить и зафиксировать здесь.
 
-Stable baseline обновлён до Pi 1.4.0; актуальные direct версии приведены в таблице выше и exact lock. Установка каждого runtime подтверждается отдельно в OpenSpec evidence. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
+Stable baseline обновлён до Pi 1.5.0; актуальные direct версии приведены в таблице выше и exact lock. Установка каждого runtime подтверждается отдельно в OpenSpec evidence. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
 
-Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. `npm audit --omit=dev --legacy-peer-deps` для candidate 1.4.0 отметил 8 affected packages (5 high, 3 moderate); часть цепочек закреплена upstream exact pins/ranges. Автоматический downgrade/major override не применялся. Это известный риск dependency tree, не подтверждение эксплуатации; подробности в evidence `update-stack-1-4-0`.
+Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. `npm audit --omit=dev --legacy-peer-deps` для исторического candidate 1.4.0 отметил 8 affected packages (5 high, 3 moderate); часть цепочек закреплена upstream exact pins/ranges. Автоматический downgrade/major override не применялся. Это известный риск dependency tree, не подтверждение эксплуатации; подробности в evidence `update-stack-1-4-0`.
 
 ## Откат
 
