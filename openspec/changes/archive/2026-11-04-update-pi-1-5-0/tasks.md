@@ -9,4 +9,4 @@
 - [x] Pass full host gate and verify private state, browser retirement and actual CLI/SDK versions. Guarded payload cleanup refused missing marker; user explicitly accepted retained on-disk files.
 ## 3. Delivery
 - [x] Review full owned diff/new files and record evidence and limitations.
-- [ ] Archive successful change, validate, commit and push; verify remote SHA.
+- [x] Validate, commit and push checked source; verify remote SHA. Successful change is ready for archival and metadata-only delivery.

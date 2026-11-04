@@ -31,3 +31,8 @@
 - No paid calls, provider quality tests, live MCP/SSH/browser actions or CI job verification. Offline tests establish only their exercised scope. No full live rollback was performed after successful installation.
 - Restart Pi after delivery: the running process can retain old SDK/extensions/MCP transports in memory. Installing files does not hot-reload this session.
 - Publication and final gate details are recorded below after completion.
+
+## Publication
+- Checked source/install evidence committed as 33371d6be3ef269c92d59d63302b6d27411bdd54 and pushed without force to origin/main. ls-remote exactly matched this SHA. Fetch immediately before publication showed no incoming divergence.
+- Final preservation and registration assertions: PASS; backup restore dry-run: PASS; strict validation: 31/31 before archive. Final archive validation/gate and metadata commit follow without runtime/code changes.
+- Final archived-source npm test: PASS 27/27, background job bf9839533 exit 0; report saved privately as final-archived-source-results.json. Final bash syntax and git diff checks PASS. Only this publication record changes after that gate; executable code, locks and tests remain identical.
