@@ -6,7 +6,29 @@ export type QueueTask = { id?: string; text: string; checked: boolean; section: 
 export type QueueSnapshot = { current?: QueueTask; pending: QueueTask[]; blocked: QueueTask[]; completed: QueueTask[] };
 
 const SECTIONS: SectionName[] = ["In progress", "Pending", "Blocked", "Completed"];
+const ACTIVE_SECTIONS: SectionName[] = ["In progress", "Pending", "Blocked"];
+const SECTION_ALIASES: Record<string, SectionName> = {
+  "In progress": "In progress",
+  "В работе": "In progress",
+  Pending: "Pending",
+  Ожидает: "Pending",
+  Blocked: "Blocked",
+  Блокировано: "Blocked",
+  Completed: "Completed",
+  Завершено: "Completed",
+};
 const TASK_RE = /^- \[([ xX])\] (.*?)(?:\s+<!-- pi-task:([A-Za-z0-9_-]+) -->)?\s*$/;
+const PLAIN_TASK_RE = /^- (?!\[[ xX]\] )(.*?)(?:\s+<!-- pi-task:([A-Za-z0-9_-]+) -->)?\s*$/;
+
+type TaskRow = { index: number; task: QueueTask };
+type SectionDocument = {
+  lines: string[];
+  newline: string;
+  finalNewline: boolean;
+  headers: Map<SectionName, number>;
+  rows: Map<SectionName, TaskRow[]>;
+  anchors: Map<SectionName, number>;
+};
 
 function splitDocument(text: string): { lines: string[]; newline: string; finalNewline: boolean } {
   const newline = text.includes("\r\n") ? "\r\n" : "\n";
@@ -20,20 +42,54 @@ function joinDocument(lines: string[], newline: string, finalNewline: boolean): 
   return newline === "\n" ? normalized : normalized.replace(/\n/g, "\r\n");
 }
 
-function sectionHeaders(lines: string[]): Map<SectionName, number> {
-  const result = new Map<SectionName, number>();
+function headingOf(line: string): string | undefined {
+  return line.match(/^##\s+(.+?)\s*$/)?.[1];
+}
+
+function taskAt(line: string, section: SectionName): QueueTask | undefined {
+  const match = line.match(TASK_RE);
+  if (match) return { checked: match[1].toLowerCase() === "x", text: match[2].trim(), id: match[3], section };
+  if (!ACTIVE_SECTIONS.includes(section)) return undefined;
+  const plain = line.match(PLAIN_TASK_RE);
+  if (!plain || !plain[1].trim()) return undefined;
+  return { checked: false, text: plain[1].trim(), id: plain[2], section };
+}
+
+// One logical section may use several headings ("Ожидает" and "Pending"); identical spelling stays an error.
+function parseSections(lines: string[]): Pick<SectionDocument, "headers" | "rows" | "anchors"> {
+  const headers = new Map<SectionName, number>();
+  const rows = new Map<SectionName, TaskRow[]>(SECTIONS.map((name) => [name, []]));
+  const anchors = new Map<SectionName, number>();
+  const seen = new Set<string>();
+  let current: SectionName | undefined;
+  let currentHeading = -1;
   for (let index = 0; index < lines.length; index += 1) {
-    const match = lines[index].match(/^## (In progress|Pending|Blocked|Completed)\s*$/);
-    if (!match) continue;
-    const name = match[1] as SectionName;
-    if (result.has(name)) throw new Error(`Duplicate TODO section: ${name}`);
-    result.set(name, index);
+    const heading = headingOf(lines[index]);
+    if (heading !== undefined) {
+      const name = SECTION_ALIASES[heading];
+      if (!name) {
+        current = undefined;
+        continue;
+      }
+      if (seen.has(heading)) throw new Error(`Duplicate TODO section: ${heading}`);
+      seen.add(heading);
+      // A group spanning several spellings keeps the Latin heading as its anchor; otherwise the first one.
+      if (heading === name || !headers.has(name)) headers.set(name, index);
+      current = name;
+      currentHeading = index;
+      continue;
+    }
+    if (!current) continue;
+    const task = taskAt(lines[index], current);
+    if (!task) continue;
+    rows.get(current)!.push({ index, task });
+    if (headers.get(current) === currentHeading) anchors.set(current, index);
   }
-  return result;
+  return { headers, rows, anchors };
 }
 
 function addMissingSections(lines: string[]): void {
-  const headers = sectionHeaders(lines);
+  const { headers } = parseSections(lines);
   for (const name of SECTIONS) {
     if (headers.has(name)) continue;
     if (lines.at(-1) !== "") lines.push("");
@@ -41,47 +97,15 @@ function addMissingSections(lines: string[]): void {
   }
 }
 
-function taskAt(lines: string[], index: number, section: SectionName): QueueTask | undefined {
-  const match = lines[index]?.match(TASK_RE);
-  if (!match) return undefined;
-  return { checked: match[1].toLowerCase() === "x", text: match[2].trim(), id: match[3], section };
-}
-
-function sectionBounds(lines: string[], headers: Map<SectionName, number>, name: SectionName): [number, number] {
-  const start = headers.get(name)! + 1;
-  const nextHeader = lines.findIndex((line, index) => index >= start && /^##\s+/.test(line));
-  return [start, nextHeader < 0 ? lines.length : nextHeader];
-}
-
-function sectionTasks(lines: string[], headers: Map<SectionName, number>, name: SectionName): Array<{ index: number; task: QueueTask }> {
-  const [start, end] = sectionBounds(lines, headers, name);
-  const result: Array<{ index: number; task: QueueTask }> = [];
-  for (let index = start; index < end; index += 1) {
-    const task = taskAt(lines, index, name);
-    if (task) result.push({ index, task });
-  }
-  return result;
-}
-
-function validateIds(lines: string[], headers: Map<SectionName, number>): void {
-  const seen = new Set<string>();
-  for (const section of SECTIONS) {
-    for (const { task } of sectionTasks(lines, headers, section)) {
-      if (!task.id) continue;
-      if (seen.has(task.id)) throw new Error(`Duplicate pi-task id: ${task.id}`);
-      seen.add(task.id);
-    }
-  }
-}
-
 function renderTask(task: QueueTask): string {
   return `- [${task.checked ? "x" : " "}] ${task.text}${task.id ? ` <!-- pi-task:${task.id} -->` : ""}`;
 }
 
-function insertionIndex(lines: string[], headers: Map<SectionName, number>, name: SectionName, atFront = false): number {
-  const tasks = sectionTasks(lines, headers, name);
-  if (atFront || tasks.length === 0) return headers.get(name)! + 1;
-  return tasks[tasks.length - 1].index + 1;
+// New tasks go under the Latin heading when the group has one, so an alias section stays untouched.
+function insertionIndex(document: Pick<SectionDocument, "headers" | "anchors">, name: SectionName, atFront = false): number {
+  const anchor = document.headers.get(name)!;
+  if (atFront) return anchor + 1;
+  return (document.anchors.get(name) ?? anchor) + 1;
 }
 
 function cleanTaskText(value: string): string {
@@ -96,23 +120,42 @@ function newId(): string {
   return randomUUID().replace(/-/g, "").slice(0, 12);
 }
 
-function parseForMutation(text: string) {
+function validateIds(rows: Map<SectionName, TaskRow[]>): void {
+  const seen = new Set<string>();
+  for (const section of SECTIONS) {
+    for (const { task } of rows.get(section)!) {
+      if (!task.id) continue;
+      if (seen.has(task.id)) throw new Error(`Duplicate pi-task id: ${task.id}`);
+      seen.add(task.id);
+    }
+  }
+}
+
+function parseForMutation(text: string): SectionDocument {
   const document = splitDocument(text);
   addMissingSections(document.lines);
-  const headers = sectionHeaders(document.lines);
-  validateIds(document.lines, headers);
-  return { ...document, headers };
+  const { headers, rows, anchors } = parseSections(document.lines);
+  validateIds(rows);
+  return { ...document, headers, rows, anchors };
+}
+
+function reparsed(document: SectionDocument): Pick<SectionDocument, "headers" | "anchors"> {
+  return parseSections(document.lines);
+}
+
+function unfinished(document: SectionDocument, name: SectionName): TaskRow[] {
+  return document.rows.get(name)!.filter(({ task }) => !task.checked);
 }
 
 export function inspectTodo(text: string): QueueSnapshot {
-  const { lines, headers } = parseForMutation(text);
-  const currentRows = sectionTasks(lines, headers, "In progress").filter(({ task }) => !task.checked);
+  const document = parseForMutation(text);
+  const currentRows = unfinished(document, "In progress");
   if (currentRows.length > 1) throw new Error("TODO has more than one task in In progress");
   return {
     current: currentRows[0]?.task,
-    pending: sectionTasks(lines, headers, "Pending").filter(({ task }) => !task.checked).map(({ task }) => task),
-    blocked: sectionTasks(lines, headers, "Blocked").filter(({ task }) => !task.checked).map(({ task }) => task),
-    completed: sectionTasks(lines, headers, "Completed").filter(({ task }) => task.checked).map(({ task }) => task),
+    pending: unfinished(document, "Pending").map(({ task }) => task),
+    blocked: unfinished(document, "Blocked").map(({ task }) => task),
+    completed: document.rows.get("Completed")!.filter(({ task }) => task.checked).map(({ task }) => task),
   };
 }
 
@@ -136,47 +179,45 @@ export function formatQueuePanel(state: QueueSnapshot, collapsed: boolean, maxLi
 export function addTask(text: string, taskText: string, id = newId()): { text: string; task: QueueTask } {
   const document = parseForMutation(text);
   const task: QueueTask = { id, text: cleanTaskText(taskText), checked: false, section: "Pending" };
-  document.lines.splice(insertionIndex(document.lines, document.headers, "Pending"), 0, renderTask(task));
+  document.lines.splice(insertionIndex(document, "Pending"), 0, renderTask(task));
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 
 export function claimNext(text: string, forcedId?: string, targetId?: string): { text: string; task?: QueueTask } {
   const document = parseForMutation(text);
-  const current = sectionTasks(document.lines, document.headers, "In progress").filter(({ task }) => !task.checked);
+  const current = unfinished(document, "In progress");
   if (current.length > 0) throw new Error(`Task already in progress: ${current[0].task.text}`);
-  const rows = sectionTasks(document.lines, document.headers, "Pending").filter(({ task }) => !task.checked);
+  const rows = unfinished(document, "Pending");
   const pending = targetId === undefined ? rows[0] : rows.find(({ task }) => task.id === targetId);
   if (targetId !== undefined && !pending) throw new Error(`Pending task id not found: ${targetId}`);
   if (!pending) return { text };
   const task: QueueTask = { ...pending.task, id: pending.task.id ?? forcedId ?? newId(), section: "In progress" };
   document.lines.splice(pending.index, 1);
-  const headers = sectionHeaders(document.lines);
-  document.lines.splice(insertionIndex(document.lines, headers, "In progress"), 0, renderTask(task));
+  document.lines.splice(insertionIndex(reparsed(document), "In progress"), 0, renderTask(task));
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 
 export function reopenBlocked(text: string, id: string): { text: string; task: QueueTask } {
   const document = parseForMutation(text);
   if (inspectTodo(text).current) throw new Error("A task is already in progress");
-  const row = sectionTasks(document.lines, document.headers, "Blocked").find(({ task }) => !task.checked && task.id === id);
+  const row = unfinished(document, "Blocked").find(({ task }) => task.id === id);
   if (!row) throw new Error(`Blocked task id not found: ${id}`);
   const task: QueueTask = { ...row.task, section: "In progress" };
   document.lines.splice(row.index, 1);
-  document.lines.splice(insertionIndex(document.lines, sectionHeaders(document.lines), "In progress"), 0, renderTask(task));
+  document.lines.splice(insertionIndex(reparsed(document), "In progress"), 0, renderTask(task));
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 
 function moveCurrent(text: string, id: string, target: SectionName, options: { checked: boolean; suffix?: string; front?: boolean }): { text: string; task: QueueTask } {
   const document = parseForMutation(text);
-  const current = sectionTasks(document.lines, document.headers, "In progress").filter(({ task }) => !task.checked);
+  const current = unfinished(document, "In progress");
   if (current.length !== 1) throw new Error("No unique task in progress");
   const row = current[0];
   if (!row.task.id || row.task.id !== id) throw new Error(`Current task id does not match ${id}`);
   const suffix = options.suffix ? ` — ${cleanTaskText(options.suffix)}` : "";
   const task: QueueTask = { ...row.task, text: `${row.task.text}${suffix}`, checked: options.checked, section: target };
   document.lines.splice(row.index, 1);
-  const headers = sectionHeaders(document.lines);
-  document.lines.splice(insertionIndex(document.lines, headers, target, options.front), 0, renderTask(task));
+  document.lines.splice(insertionIndex(reparsed(document), target, options.front), 0, renderTask(task));
   return { text: joinDocument(document.lines, document.newline, document.finalNewline), task };
 }
 
@@ -196,11 +237,11 @@ export type MoveDirection = "up" | "down" | "top" | "bottom";
 
 function editableRow(document: ReturnType<typeof parseForMutation>, id: string) {
   for (const section of ["Pending", "Blocked"] as const) {
-    const row = sectionTasks(document.lines, document.headers, section).find(({ task }) => task.id === id);
+    const row = document.rows.get(section)!.find(({ task }) => task.id === id);
     if (row) return row;
   }
   const protectedTask = (["In progress", "Completed"] as const)
-    .flatMap((section) => sectionTasks(document.lines, document.headers, section))
+    .flatMap((section) => document.rows.get(section)!)
     .find(({ task }) => task.id === id);
   if (protectedTask) throw new Error(`Task ${id} in ${protectedTask.task.section} cannot be edited or deleted`);
   throw new Error(`Task ${id} not found in Pending or Blocked`);
@@ -223,7 +264,7 @@ export function deleteTask(text: string, id: string): { text: string; task: Queu
 
 export function movePendingTask(text: string, id: string, direction: MoveDirection): { text: string; task: QueueTask; changed: boolean } {
   const document = parseForMutation(text);
-  const rows = sectionTasks(document.lines, document.headers, "Pending").filter(({ task }) => !task.checked);
+  const rows = unfinished(document, "Pending");
   const from = rows.findIndex(({ task }) => task.id === id);
   if (from < 0) throw new Error(`Pending task ${id} not found`);
   let to = from;

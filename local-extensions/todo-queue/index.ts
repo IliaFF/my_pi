@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { queueChecks } from "./checks.ts";
 import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, reopenBlocked, type MoveDirection, type QueueTask } from "./core.ts";
-import { findTodoPath, mutateTodo } from "./store.ts";
+import { ensureTodoPath, findTodoPath, mutateTodo } from "./store.ts";
 import { createQueuePanel } from "./panel.ts";
 
 const MAX_RUN_TASKS = 5;
@@ -98,6 +98,12 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
     return findTodoPath(ctx.cwd);
   };
 
+  // Writers create the standard queue when the project has none; readers keep reporting it as missing.
+  const writableTodoPath = async (ctx: Context) => {
+    if (!trusted(ctx)) throw new Error("Project is not trusted; TODO queue mutation refused");
+    return ensureTodoPath(ctx.cwd);
+  };
+
   const snapshot = async (ctx: Context) => inspectTodo(await readFile(await todoPath(ctx), "utf8"));
 
   const notifyError = (ctx: Context, error: unknown) => {
@@ -157,7 +163,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
       return { action: "handled" as const };
     }
     try {
-      const path = await todoPath(ctx);
+      const path = await writableTodoPath(ctx);
       const task = await mutateTodo(path, (content) => {
         const changed = addTask(content, text);
         return { text: changed.text, value: changed.task };
@@ -181,7 +187,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         }
         if (command === "add") {
           const text = requireText(rest.join(" "), "task text");
-          const path = await todoPath(ctx);
+          const path = await writableTodoPath(ctx);
           const task = await mutateTodo(path, (content) => {
             const changed = addTask(content, text);
             return { text: changed.text, value: changed.task };
@@ -195,7 +201,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         }
         if (command === "edit") {
           const [id, ...words] = rest;
-          const path = await todoPath(ctx);
+          const path = await writableTodoPath(ctx);
           const task = await mutateTodo(path, (content) => {
             const update = editTask(content, requireText(id, "id"), requireText(words.join(" "), "task text"));
             return { text: update.text, value: update.task };
@@ -205,7 +211,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         }
         if (command === "delete") {
           if (rest.length !== 1) throw new Error("Usage: /queue delete <id>");
-          const path = await todoPath(ctx);
+          const path = await writableTodoPath(ctx);
           const task = await mutateTodo(path, (content) => {
             const update = deleteTask(content, requireText(rest[0], "id"));
             return { text: update.text, value: update.task };
@@ -215,7 +221,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
         }
         if (command === "move") {
           if (rest.length !== 2 || !["up", "down", "top", "bottom"].includes(rest[1])) throw new Error("Usage: /queue move <id> up|down|top|bottom");
-          const path = await todoPath(ctx);
+          const path = await writableTodoPath(ctx);
           const moved = await mutateTodo(path, (content) => {
             const update = movePendingTask(content, requireText(rest[0], "id"), rest[1] as MoveDirection);
             return { text: update.text, value: update };
@@ -282,7 +288,7 @@ export default function todoQueueExtension(pi: ExtensionAPI): void {
     reachesTools: () => ["bg_run", "bg_status"],
     parameters: TaskQueueParams,
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const path = await todoPath(ctx);
+      const path = params.action === "list" || params.action === "checks" ? await todoPath(ctx) : await writableTodoPath(ctx);
       if (params.action === "list") {
         const state = inspectTodo(await readFile(path, "utf8"));
         return result(formatList(state, autoRun, completedThisRun), state as unknown as Record<string, unknown>);

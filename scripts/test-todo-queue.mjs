@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chmod, copyFile, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { execFileSync, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { addTask, blockCurrent, claimNext, completeCurrent, deleteTask, editTask, inspectTodo, movePendingTask, releaseCurrent, formatQueuePanel } from "../local-extensions/todo-queue/core.ts";
-import { findTodoPath, mutateTodo } from "../local-extensions/todo-queue/store.ts";
+import { ensureTodoPath, findTodoPath, mutateTodo } from "../local-extensions/todo-queue/store.ts";
 
 const base = `# TODO
 
@@ -300,4 +300,122 @@ test("store does not substitute another queue on unusable TODO or access failure
   });
   assert.equal(child.status, 0, child.error?.message ?? child.stderr);
   assert.equal(await readFile(outside, "utf8"), base);
+});
+
+const aliased = `# Задачи
+
+## В работе
+
+## Ожидает
+- Скачать тренировочный CSV
+- [ ] Проверить отчёт
+
+## Завершено
+- Плоский исторический пункт
+- [x] Закрыто
+
+## Blocked
+`;
+
+test("section aliases and plain active bullets are recognized", () => {
+  const state = inspectTodo(aliased);
+  assert.deepEqual(state.pending.map((task) => task.text), ["Скачать тренировочный CSV", "Проверить отчёт"]);
+  assert.equal(state.blocked.length, 0);
+  assert.deepEqual(state.completed.map((task) => task.text), ["Закрыто"]);
+  const claimed = claimNext(aliased, "alias1");
+  assert.equal(claimed.task?.text, "Скачать тренировочный CSV");
+  assert.match(claimed.text, /## В работе\n- \[ \] Скачать тренировочный CSV <!-- pi-task:alias1 -->/);
+  assert.equal(inspectTodo(claimed.text).pending.length, 1);
+  const done = completeCurrent(claimNext(aliased, "alias2").text, "alias2");
+  assert.deepEqual(inspectTodo(done.text).completed.map((task) => task.text).slice(-1), ["Скачать тренировочный CSV"]);
+  assert.match(done.text, /## Завершено\n/);
+});
+
+test("one logical section may use several spellings and plain history stays out", () => {
+  const merged = `# TODO
+
+## Ожидает
+- Русский пункт
+
+## Pending
+- [ ] Latin task
+
+## In progress
+
+## Blocked
+
+## Completed
+- [x] Done
+`;
+  assert.deepEqual(inspectTodo(merged).pending.map((task) => task.text), ["Русский пункт", "Latin task"]);
+  const added = addTask(merged, "New task", "new1").text;
+  const lines = added.split("\n");
+  const pendingHeader = lines.indexOf("## Pending");
+  const latinIndex = lines.findIndex((line) => line.includes("Latin task"));
+  const newIndex = lines.findIndex((line) => line.includes("New task"));
+  assert.ok(pendingHeader < latinIndex && latinIndex < newIndex, added);
+  assert.equal(inspectTodo(added).pending.at(-1)?.id, "new1");
+  assert.throws(() => inspectTodo(`${merged}\n## Pending\n`), /Duplicate TODO section/);
+  const historyOnly = `# TODO\n\n## In progress\n\n## Pending\n\n## Blocked\n\n## Completed\n- Итог без чекбокса\n`;
+  assert.equal(inspectTodo(historyOnly).completed.length, 0);
+  const latinFirst = `# TODO\n\n## Pending\n- [ ] Latin task\n\n## Ожидает\n- Русский пункт\n\n## In progress\n\n## Blocked\n\n## Completed\n`;
+  const anchored = addTask(latinFirst, "New task", "new2").text;
+  const anchoredLines = anchored.split("\n");
+  const insertedIndex = anchoredLines.findIndex((line) => line.includes("New task"));
+  assert.ok(insertedIndex > anchoredLines.indexOf("## Pending") && insertedIndex < anchoredLines.indexOf("## Ожидает"), anchored);
+  assert.deepEqual(inspectTodo(anchored).pending.map((task) => task.id ?? task.text), ["Latin task", "new2", "Русский пункт"]);
+  const notes = "# TODO\n\n## Notes\n- a\n\n## Notes\n- b\n\n## In progress\n\n## Pending\n\n## Blocked\n\n## Completed\n";
+  assert.equal(inspectTodo(notes).pending.length, 0);
+});
+
+async function markedFixture(t) {
+  const root = await mkdtemp(join(tmpdir(), "todo-marked-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, "AGENTS.md"), "# Rules\n");
+  const nested = join(root, "work", "inner");
+  await mkdir(nested, { recursive: true });
+  return { root, nested };
+}
+
+const skeleton = "# TODO\n\n## In progress\n\n## Pending\n\n## Blocked\n\n## Completed\n";
+
+test("marked non-Git project root serves nested directories", async (t) => {
+  const { root, nested } = await markedFixture(t);
+  await assert.rejects(findTodoPath(nested), /TODO.md not found above/);
+  await writeFile(join(root, "TODO.md"), base);
+  assert.equal(await findTodoPath(nested), join(root, "TODO.md"));
+});
+
+test("missing TODO is created at the project root, not in the nested directory", async (t) => {
+  const { root, nested } = await markedFixture(t);
+  assert.equal(await ensureTodoPath(nested), join(root, "TODO.md"));
+  assert.equal(await readFile(join(root, "TODO.md"), "utf8"), skeleton);
+  assert.equal(await exists(join(nested, "TODO.md")), false);
+  assert.equal(inspectTodo(await readFile(join(root, "TODO.md"), "utf8")).pending.length, 0);
+  await writeFile(join(root, "TODO.md"), base);
+  assert.equal(await ensureTodoPath(nested), join(root, "TODO.md"));
+  assert.equal(await readFile(join(root, "TODO.md"), "utf8"), base);
+  const unreadable = join(root, "unusable");
+  await mkdir(unreadable);
+  await mkdir(join(unreadable, "TODO.md"));
+  await assert.rejects(ensureTodoPath(unreadable), /regular file/);
+});
+
+async function exists(path) {
+  return lstat(path).then(() => true, (error) => error.code !== "ENOENT");
+}
+
+test("queue is never created in protected locations", async (t) => {
+  await assert.rejects(ensureTodoPath(tmpdir()), /TODO.md not found above/);
+  const home = join(await mkdtemp(join(tmpdir(), "todo-home-")), "home");
+  t.after(() => rm(dirname(home), { recursive: true, force: true }));
+  await mkdir(home);
+  const store = join(dirname(home), "store.ts");
+  await copyFile(new URL("../local-extensions/todo-queue/store.ts", import.meta.url), store);
+  const code = `import assert from 'node:assert/strict'; import { ensureTodoPath } from ${JSON.stringify(pathToFileURL(store).href)}; await assert.rejects(ensureTodoPath(process.env.HOME), /TODO.md not found above/);`;
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
+    encoding: "utf8", timeout: 20000, env: { ...process.env, HOME: home },
+  });
+  assert.equal(child.status, 0, child.error?.message ?? child.stderr);
+  assert.equal(await exists(join(home, "TODO.md")), false);
 });

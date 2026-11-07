@@ -153,6 +153,11 @@ try {
     assert.equal(watchers.size, 0);
     assert.equal(widgets.size, 0);
   }
+  fs.unlinkSync(todo);
+  await session.bindExtensions({ mode: "headless", uiContext });
+  assert.equal(fs.existsSync(todo), false, "Headless startup must not create a queue");
+  await session.bindExtensions({ mode: "tui", uiContext });
+  assert.equal(fs.existsSync(todo), true, "Trusted TUI startup restores the queue");
   settingsManager.setProjectTrusted(false);
   await session.bindExtensions({ mode: "tui", uiContext });
   await session.prompt("/queue panel");
@@ -259,15 +264,25 @@ try {
   await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" });
   fs.unlinkSync(todo);
   await session.bindExtensions({ mode: "tui", uiContext });
-  assert.equal(watchers.size, 0, "No project file at startup means no foreign parent watcher");
-  assert.equal(widgets.size, 0, "Panel must not display foreign parent tasks");
-  assert.equal(readFileSync(foreignTodo, "utf8"), foreignQueue);
+  assert.equal(readFileSync(todo, "utf8"), "# TODO\n\n## In progress\n\n## Pending\n\n## Blocked\n\n## Completed\n", "Trusted TUI startup must create the project queue");
+  assert.equal(watchers.size, 1, "Panel must watch the queue it created");
+  assert.equal(widgets.size, 0, "Created empty queue must keep the panel hidden");
+  assert.equal(readFileSync(foreignTodo, "utf8"), foreignQueue, "Created queue must never come from the foreign parent");
+  fs.unlinkSync(todo);
+  const refusedList = await invoke({ action: "list" });
+  assert.equal(refusedList.isError, true, "Read-only list must not create a queue");
+  assert.match(JSON.stringify(refusedList.result), /TODO.md not found above/);
+  assert.equal(fs.existsSync(todo), false);
+  const createdByTool = await invoke({ action: "add", text: "Created from tool" });
+  assert.equal(createdByTool.isError, false, JSON.stringify(createdByTool.result));
+  assert.match(readFileSync(todo, "utf8"), /## Pending\n- \[ \] Created from tool/, "Mutating tool must create the standard queue");
+  const createdQueueMessages = session.messages.length;
   writeFileSync(todo, mixed);
   await session.prompt("/queue panel");
   assert.equal(watchers.size, 1);
   assert.equal(render().length, 1);
   assert.equal(readFileSync(todo, "utf8"), mixed);
-  assert.equal(session.messages.length, messageCount, "Panel lifecycle must not call a model");
+  assert.equal(session.messages.length, createdQueueMessages, "Panel lifecycle must not call a model");
   assert.deepEqual(errors, []);
   console.log("PASS actual queue SDK: existing selection/errors/history plus native themed tree, shortcut, resize/global expansion, real width handling, collapse, atomic external edit, parse recovery, reload, missing/empty files, non-TUI and shutdown cleanup; no production TODO mutation");
 } finally {

@@ -3,7 +3,7 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 import { watchFile, unwatchFile } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { formatQueuePanel, inspectTodo, type QueueSnapshot } from "./core.ts";
-import { findTodoPath } from "./store.ts";
+import { ensureTodoPath } from "./store.ts";
 
 const WIDGET = "todo-queue";
 
@@ -32,7 +32,7 @@ export function createQueuePanel() {
     const version = generation;
     const targetUI = ctx.ui;
     let path: string;
-    try { path = await findTodoPath(ctx.cwd); } catch { return; }
+    try { path = await ensureTodoPath(ctx.cwd); } catch { return; }
     if (version !== generation) return;
     ui = targetUI;
     refresh = async () => {

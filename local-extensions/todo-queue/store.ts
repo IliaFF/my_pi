@@ -1,29 +1,52 @@
 import { constants } from "node:fs";
-import { access, lstat, open, readFile, realpath, rename, stat, unlink } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { access, lstat, open, readFile, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { dirname, isAbsolute, join, parse, relative, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const LOCK_WAIT_MS = 50;
 const LOCK_ATTEMPTS = 40;
 const STALE_LOCK_MS = 30_000;
+const ROOT_MARKERS = [".git", "AGENTS.md"];
+const TODO_SKELETON = "# TODO\n\n## In progress\n\n## Pending\n\n## Blocked\n\n## Completed\n";
+
+async function entryAt(path: string) {
+  return lstat(path).catch((error: any) => {
+    if (error.code !== "ENOENT") throw error;
+    return undefined;
+  });
+}
+
+async function projectRoot(directory: string): Promise<{ root: string; marked: boolean }> {
+  for (let ancestor = directory; ; ancestor = dirname(ancestor)) {
+    for (const marker of ROOT_MARKERS) {
+      const entry = await entryAt(join(ancestor, marker));
+      if (!entry) continue;
+      if (marker === ".git" && !entry.isDirectory() && !entry.isFile()) {
+        throw new Error(`Invalid Git project boundary: ${ancestor}`);
+      }
+      return { root: ancestor, marked: true };
+    }
+    if (dirname(ancestor) === ancestor) return { root: directory, marked: false };
+  }
+}
+
+async function startDirectory(start: string): Promise<string> {
+  const directory = await realpath(start);
+  return (await lstat(directory)).isDirectory() ? directory : dirname(directory);
+}
+
+// Creating a queue in home, root or temp directories without a project marker would only leave junk behind.
+function scratchDirectory(root: string, marked: boolean): boolean {
+  if (marked) return false;
+  const temporary = tmpdir();
+  return root === homedir() || root === parse(root).root || root === temporary || root.startsWith(`${temporary}${sep}`);
+}
 
 export async function findTodoPath(start: string): Promise<string> {
-  let directory = await realpath(start);
-  if (!(await lstat(directory)).isDirectory()) directory = dirname(directory);
-  let boundary = directory;
-  for (let ancestor = directory; ; ancestor = dirname(ancestor)) {
-    const marker = await lstat(join(ancestor, ".git")).catch((error: any) => {
-      if (error.code !== "ENOENT") throw error;
-      return undefined;
-    });
-    if (marker) {
-      if (!marker.isDirectory() && !marker.isFile()) throw new Error(`Invalid Git project boundary: ${ancestor}`);
-      boundary = ancestor;
-      break;
-    }
-    if (dirname(ancestor) === ancestor) break;
-  }
-  for (;;) {
+  const startDir = await startDirectory(start);
+  const { root: boundary } = await projectRoot(startDir);
+  for (let directory = startDir; ; directory = dirname(directory)) {
     const candidate = join(directory, "TODO.md");
     const entry = await lstat(candidate).catch((error: any) => {
       if (error.code !== "ENOENT") throw error;
@@ -38,9 +61,27 @@ export async function findTodoPath(start: string): Promise<string> {
       return target;
     }
     if (directory === boundary) break;
-    directory = dirname(directory);
   }
   throw new Error(`TODO.md not found above ${start} within project boundary ${boundary}`);
+}
+
+/** Create the standard queue at the project root when nothing exists in the boundary. */
+export async function ensureTodoPath(start: string): Promise<string> {
+  const directory = await startDirectory(start);
+  const { root, marked } = await projectRoot(directory);
+  try {
+    return await findTodoPath(start);
+  } catch (error: any) {
+    if (typeof error?.message !== "string" || !error.message.startsWith("TODO.md not found above ")) throw error;
+  }
+  if (scratchDirectory(root, marked)) {
+    throw new Error(`TODO.md not found above ${start} within project boundary ${root}; queue is not created in ${root}`);
+  }
+  const target = join(root, "TODO.md");
+  await writeFile(target, TODO_SKELETON, { flag: "wx", mode: 0o644 }).catch((error: any) => {
+    if (error?.code !== "EEXIST") throw error;
+  });
+  return findTodoPath(start);
 }
 
 async function acquireLock(path: string) {
