@@ -49,6 +49,8 @@ allowed = {
     "extensions/pi-fast-resume.json", "extensions/quotas.json", "extensions/context-compaction.json", "extensions/output-compactor.json", "extensions/fabric-output.json", "skills/openalex", "npm", "maintenance",
 }
 legacy = allowed.copy()
+# extensions/jev-review is retired from the build; it stays in the historical sets so
+# backups taken while it was installed remain restorable.
 allowed.update({"mcp.json", "train-agents/config.json",
                "extensions/jev-review", "extensions/herdr-agent-state.ts"})
 previous = allowed.copy()
@@ -64,8 +66,11 @@ instruction_policy = allowed.copy()
 allowed.update({"extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
                 "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
                 "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp"})
+with_workflow = allowed.copy()
+# Current installs no longer manage the retired workflow extension.
+allowed.discard("extensions/jev-review")
 managed = s.get("agentManaged", [])
-if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, allowed):
+if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, with_workflow, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 present = s["agentPresent"]
 if not isinstance(present, list) or not all(isinstance(name, str) and name in managed for name in present):

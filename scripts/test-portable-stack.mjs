@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -33,11 +33,9 @@ for (const name of ["AGENTS.md", "mcp.json", "extensions/aitunnel.ts", ...["cpp-
   assert.equal(config.restore, false, name);
   assert.equal(config.snapshotRuntime, false, name);
 }
-for (const file of ['index.ts', 'workflow.ts', 'privacy.ts']) {
-  const managed = manifest.managedConfigs.find(c => c.source === `extensions/jev-review/${file}`);
-  assert.equal(managed?.snapshot, `local-extensions/jev-review/${file}`);
-  assert.equal(managed?.restore, true);
-}
+// The Jev/DeepSeek layer is retired: it is neither shipped nor installed.
+assert.ok(!existsSync(join(root, "local-extensions/jev-review")));
+assert.ok(!manifest.managedConfigs.some(c => String(c.source).startsWith("extensions/jev-review/")));
 const fallback = readFileSync(join(root, "configs/AGENTS.md"), "utf8");
 assert.ok(fallback.includes("## Сессии Firstmate"));
 const sections = fallback.trim().split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
@@ -48,8 +46,8 @@ assert.ok(!policy.includes("Use the least costly approach sufficient"), "New def
 assert.ok(fallback.includes("В остальных сессиях правила смены задач сохраняются"));
 assert.ok(!/SSH|ProxyJump|\/home\/|\/mnt\/|\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(fallback));
 const installer = readFileSync(join(root, "install.sh"), "utf8");
-assert.ok(!installer.includes('rm -rf "$AGENT_DIR/extensions/jev-review"'));
-assert.ok(installer.includes('"$ROOT/local-extensions/jev-review/"{index.ts,workflow.ts,privacy.ts,README.md}'));
+assert.ok(!installer.includes("extensions/jev-review"));
+assert.ok(!readFileSync(join(root, "scripts/test-build.py"), "utf8").includes("jev-review"));
 const modeHelp = spawnSync("bash", [join(root, "install.sh"), "--skip-stack", "--help"], { encoding: "utf8", timeout: 10000 });
 assert.equal(modeHelp.status, 0, modeHelp.stderr);
 assert.ok(modeHelp.stdout.includes("--skip-stack"));

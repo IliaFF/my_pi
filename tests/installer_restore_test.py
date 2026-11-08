@@ -16,6 +16,8 @@ PORTABLE_MANAGED = {
     "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
     "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp",
 }
+# Retired from the build; historical backups made while it was managed still restore.
+RETIRED_MANAGED = {"extensions/jev-review"}
 
 
 class InstallerRestoreTest(unittest.TestCase):
@@ -60,6 +62,7 @@ class InstallerRestoreTest(unittest.TestCase):
             managed = [item for item in managed if item not in PORTABLE_MANAGED]
             managed.remove("herdr-agents/config.json")
             managed.remove("extensions/task-session.ts")
+            managed += sorted(RETIRED_MANAGED)
             present.remove("extensions/task-session.ts")
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
@@ -106,6 +109,7 @@ class InstallerRestoreTest(unittest.TestCase):
         self.managed = [item for item in self.managed
                         if item not in PORTABLE_MANAGED]
         self.managed.remove("herdr-agents/config.json")
+        self.managed += sorted(RETIRED_MANAGED)
         self.write_backup()
         self.assertEqual(self.invoke(dry_run=True).returncode, 0)
         self.assert_current_unchanged()
@@ -114,6 +118,7 @@ class InstallerRestoreTest(unittest.TestCase):
         """Accept the exact previous allowlist without broadening restore scope."""
         self.managed = [item for item in self.managed
                         if item not in PORTABLE_MANAGED]
+        self.managed += sorted(RETIRED_MANAGED)
         self.write_backup()
         self.assertEqual(self.invoke(dry_run=True).returncode, 0)
         self.assert_current_unchanged()

@@ -70,7 +70,7 @@ fi
 # bin/jev-browser is retained only for legacy backup/rollback compatibility.
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "AGENTS.md" "my-pi-settings.json" "fabric.json"
-  "mcp.json" "train-agents/config.json" "herdr-agents/config.json" "extensions/jev-review" "extensions/herdr-agent-state.ts"
+  "mcp.json" "train-agents/config.json" "herdr-agents/config.json" "extensions/herdr-agent-state.ts"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts" "extensions/task-session.ts" "extensions/aitunnel.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
@@ -294,8 +294,6 @@ rm -f "$AGENT_DIR/extensions/reader-pane.ts"
 cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
-mkdir -p "$AGENT_DIR/extensions/jev-review"
-cp "$ROOT/local-extensions/jev-review/"{index.ts,workflow.ts,privacy.ts,README.md} "$AGENT_DIR/extensions/jev-review/"
 cp "$ROOT/local-extensions/herdr-agent-state.ts" "$AGENT_DIR/extensions/herdr-agent-state.ts"
 rm -rf "$AGENT_DIR/skills/openalex"
 cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"
