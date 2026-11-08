@@ -43,11 +43,12 @@ try {
   const model = { ...provider.getModel(), compat: nativeModel.compat };
   const cwd = join(sandbox, "work"); mkdirSync(cwd);
   const errors = [];
-  async function open({ legacy = false, manager = SessionManager.inMemory(cwd) } = {}) {
+  async function open({ legacy = false, terminal = false, manager = SessionManager.inMemory(cwd) } = {}) {
     const settingsManager = SettingsManager.inMemory({ defaultTools: legacy ? ["+codemode"] : defaults, compaction: { enabled: false }, retry: { enabled: false, maxRetries: 0 } });
     // Exercise legacy direct exposure using the same retained executors and schemas.
     const direct = legacy ? rare : [];
     const factories = [remote, preview, context].map(factory => direct.length ? pi => factory({ ...pi, registerTool: definition => pi.registerTool(direct.includes(definition.name) ? { ...definition, exposure: "direct" } : definition) }) : factory);
+    if (terminal) factories.push(pi => pi.registerTool({ name: "subagent", label: "Subagent", description: "Eager migration fixture", parameters: require("typebox").Type.Object({}), execute: async () => { throw new Error("Migration fixture must never execute"); } }));
     const loader = new DefaultResourceLoader({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager, noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, appendSystemPrompt: [readFileSync(join(source, "configs/APPEND_SYSTEM.md"), "utf8")], extensionFactories: [createCodemodeExtension({ mode: "on" }), createToolSearchExtension(), ...factories, ...(legacy ? [] : [restoreLoadout])] });
     await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
     const { session } = await createAgentSession({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, modelRuntime: runtime, model, thinkingLevel: "off", settingsManager, resourceLoader: loader, sessionManager: manager });
@@ -144,6 +145,18 @@ try {
   assert.deepEqual(unchangedBody.tools, legacyBody.tools); assert.equal(unchangedBody.instructions, legacyBody.instructions);
   assert.deepEqual(unchangedBody.input.slice(0, legacyBody.input.length), legacyBody.input);
   assert.equal(resolveTranscriptTools(unchangedContext.messages, "changes").foldedSystemMessages, 0);
+  const terminalFile = join(sandbox, "legacy-terminal.jsonl"); copyFileSync(file, terminalFile);
+  const addedTerminal = await open({ terminal: true, manager: SessionManager.open(terminalFile) });
+  assert.ok(addedTerminal.getActiveToolNames().includes("subagent"), "New eager terminal must survive reopening a pre-terminal session");
+  assert.ok(addedTerminal.getCallableToolNames().includes("subagent"));
+  assert.ok(!addedTerminal.getActiveToolNames().includes("tool_search"), "Unseen eager terminal must not change the legacy deferred loadout");
+  provider.setResponses([() => fauxAssistantMessage("Recorded terminal availability")]);
+  await addedTerminal.prompt("Record new eager terminal without running it.");
+  addedTerminal.setActiveToolsByName(addedTerminal.getActiveToolNames().filter(name => name !== "subagent"));
+  provider.setResponses([() => fauxAssistantMessage("Recorded explicit removal")]);
+  await addedTerminal.prompt("Record explicit terminal removal.");
+  const removedTerminal = await open({ terminal: true, manager: SessionManager.open(terminalFile) });
+  assert.ok(!removedTerminal.getActiveToolNames().includes("subagent"), "Explicit terminal removal must survive reopening");
   legacy.setActiveToolsByName(legacy.getActiveToolNames().filter(n => !["context_stats"].includes(n)));
   let removedContext;
   provider.setResponses([ctx => { removedContext = JSON.parse(JSON.stringify(ctx)); return fauxAssistantMessage("Keep stats removed"); }]);

@@ -93,6 +93,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 | `@dietrichgebert/ponytail` | `5.3.3` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
 | `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `pi-token-speed` | `0.12.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
+| `pi-subagents` | `0.87.0` | pinned, terminal only | Один `terminal` на OpenRouter DeepSeek; без builtins/council/recursive delegation. См. docs/portable-stack.md. |
 | `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; completion wake по умолчанию с явным opt-out; без agent telemetry, delegates, Fusion и attribution. |
 | `pi-workspace-history` | `0.5.2` | pinned | История workspace; retired default `pi-herdr-agents@3.3.1` не переустанавливается. Herdr backend сохранён в отдельном Firstmate стеке. |
 | `pi-fast-resume` | `1.4.18` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
@@ -256,7 +257,7 @@ Pi-конфигурация сохраняет `reserveTokens: 12500` и `keepRe
 
 Подгрузка append-only: для поддерживаемого `openai-codex/gpt-6.1-sol` новые схемы попадают в историю как `additional_tools`, а прежние tools/instructions/cache key и input prefix сохраняются. Не выгружаем инструменты автоматически и не переопределяем schemas. Для адаптеров без нужных compat flags действует native fallback; это не обещание cache hit/TTL, скорости или качества.
 
-`deferred-tools.ts` на `session_start` восстанавливает только эти пять имён и tool_search из текущей записанной ветки: SDK defaults иначе заменяют старый active loadout. Старая сессия сохраняет ранее объявленные редкие tools; новый loader туда не вставляется. Guard не меняет остальные UI/background tools, executors или историю. Перезапуск нужен для нового кода; уменьшение стартового набора видно в **новой сессии**, не после простого resume старой. Не удаляйте историю ради цифры Tools.
+`deferred-tools.ts` на `session_start` восстанавливает только эти пять имён и tool_search из текущей записанной ветки: SDK defaults иначе заменяют старый active loadout. Старая сессия сохраняет ранее объявленные редкие tools; новый loader туда не вставляется. Вновь установленный eager `subagent` сохраняется при resume старой ветки, если он ещё ни разу не был в её loadout; явное прежнее удаление по-прежнему учитывается. Guard не меняет остальные UI/background tools, executors или историю. Перезапуск нужен для нового кода; уменьшение стартового набора видно в **новой сессии**, не после простого resume старой. Не удаляйте историю ради цифры Tools.
 
 Обязательный offline SDK regression загружает реальные patched packages, вызывает только disconnected remote status и пустые context stats/list, проверяет discovery, partial/legacy resume и Codex request payload до транспорта. В этом package fixture initial schemas уменьшились с14770 до9252 JSON bytes (минус5518), уже с учётом native tool_search. Это bytes, не tokens и не измерение всего личного footer7.1k; preview renderer, destructive purge, SSH connect и live provider/cache не запускались.
 

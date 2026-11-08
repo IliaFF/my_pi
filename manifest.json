@@ -282,6 +282,20 @@
       "restore": false,
       "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
       "snapshotRuntime": false
+    },
+    {
+      "source": "agents/terminal.md",
+      "snapshot": "configs/agents/terminal.md",
+      "restore": false,
+      "snapshotRuntime": false,
+      "reason": "Approved single terminal profile; installer refuses conflicting personal content, maintenance never imports runtime overrides."
+    },
+    {
+      "source": "extensions/subagent/config.json",
+      "snapshot": "configs/subagent/config.json",
+      "restore": false,
+      "snapshotRuntime": false,
+      "reason": "Approved single terminal profile; installer refuses conflicting personal content, maintenance never imports runtime overrides."
     }
   ]
 }

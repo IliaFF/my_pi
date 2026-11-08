@@ -15,6 +15,7 @@ PORTABLE_MANAGED = {
     "AGENTS.md", "extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
     "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
     "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp",
+    "agents/terminal.md", "extensions/subagent/config.json",
 }
 # Retired from the build; historical backups made while it was managed still restore.
 RETIRED_MANAGED = {"extensions/jev-review"}
@@ -103,6 +104,15 @@ class InstallerRestoreTest(unittest.TestCase):
         self.assertEqual(
             (self.agent / "auth.json").read_text(), "private fixture")
         self.assertTrue((self.agent / ".my-pi-last-backup").exists())
+
+    def test_pre_terminal_backup_is_accepted(self):
+        """Accept the exact managed set from before terminal was introduced."""
+        terminal_paths = {"agents/terminal.md", "extensions/subagent/config.json"}
+        self.managed = [item for item in self.managed
+                        if item not in terminal_paths]
+        self.write_backup()
+        self.assertEqual(self.invoke(dry_run=True).returncode, 0)
+        self.assert_current_unchanged()
 
     def test_pre_herdr_backup_is_accepted(self):
         """Retain the exact previous managed set with task-session present."""

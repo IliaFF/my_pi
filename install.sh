@@ -77,6 +77,7 @@ managed=(
   "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
   "skills/openalex" "skills/cpp-styleguide/SKILL.md" "skills/python-styleguide/SKILL.md" "skills/latex-simple-style/SKILL.md"
   "bin/firstmate" "bin/jev-browser" "bin/paper-search-mcp" "npm" "maintenance"
+  "agents/terminal.md" "extensions/subagent/config.json"
 )
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_ROOT"
@@ -277,6 +278,7 @@ if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/pi-meantime.json" ]]; then
   cp "$ROOT/configs/pi-meantime.json" "$AGENT_DIR/pi-meantime.json"
 fi
 # Personal configuration end
+node "$ROOT/scripts/install-terminal-subagent.mjs" "$AGENT_DIR" "$ROOT"
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
 rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts.disabled"

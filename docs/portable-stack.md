@@ -19,6 +19,18 @@
 
 `pi-herdr-agents@3.3.1` больше не входит в default Pi runtime. Установщик убирает только его прежнюю default/unversioned npm-декларацию из сохраняемого settings и добавляет закреплённый workspace-history. Существующие Herdr config/state, самостоятельный backend и поддержка Herdr в Firstmate не удаляются. Старые исследовательские harnesses и неактивный patch остаются историческими артефактами, а не обещанием проверки отсутствующего Pi plugin.
 
+## Один terminal-субагент
+
+Сборка закрепляет `pi-subagents@0.87.0`, его prompt templates и skills не загружаются; builtins отключены. Устанавливается только `agents/terminal.md`, модель `openrouter/deepseek/deepseek-v4.1-flash-1017`. Родительский provider/model сохраняется при `--preserve-settings`; текущий выбор пользователя `openai/gpt-6.1-sol` не заменяется. Ключ OpenRouter задаётся пользователем отдельно, установка не читает и не проверяет его.
+
+`terminal` получает `read` и `bash`, свежий контекст задачи, глобальные/проектные AGENTS и skills. Наследование ambient extensions отключено, вложенная делегация запрещена. Foreground default избегает второго фонового оркестратора и наследует зарегистрированные провайдеры родителя, но не их session hooks. Встроенный OpenRouter не требует отдельного provider extension. Это не OS-песочница: bash имеет права пользователя и технически может менять файлы. SSH routing родителя не наследуется и не считается разрешением remote-команд.
+
+Родитель сохраняет планирование, исходники и приёмку. Делегирование разрешается только по действующим глобальным правилам, включая порог многоконтекстной независимой задачи и согласование существенного роста ресурсов. Субагент не является автоматическим исполнителем каждого shell-вызова. Background pilot остаётся shell-only; Firstmate, его очередь и авторевью не меняются.
+
+Один запуск за вызов, concurrency 1, глубина 1; task timeout 10 минут, tool timeout 5 минут. Нет общего лимита вызовов за всю сессию и OS resource quota. Schedule/mission/auto-resume отключены. Продолжение и checkpoint после compaction поддерживаются настоящим SDK; тест использует сохранённую child session, а не detached `/resume`. Live OpenRouter, длительная многоконтекстная работа и совместная live-сессия Firstmate не проверены. Для длинной работы родитель должен явно разрешить путь checkpoint и дать достаточный timeout; истечение срока не гарантирует отката изменений команды.
+
+Installer проверяет ссылки/конфликтующие личные profile/config/settings и отказывается от замены. Backup охватывает оба новых leaf-файла и settings/npm. Повторная установка идентичного профиля идемпотентна; generic snapshot/restore не импортирует и не перетирает личные варианты. Для применения нужен перезапуск Pi. Offline gate проверяет SDK child/result/cancel, наследование, compaction checkpoint и RPC startup без prompt; это не проверка доступности/качества модели и не независимый контроль.
+
 ## Установка
 
 Начальный artifact target — Linux x86_64, включая WSL. Нужны Node >=24, npm, Python 3 для самого установщика, Bash, Git, curl, GNU tar/timeout, patch, tmux и `uv` с поддержкой Python `3.13.7` (проверялся CLI `0.9.11`). Установщик не запускает `sudo`/apt и не меняет SSH или службы. Нужен интернет к GitHub, npm, PyPI, Python distribution endpoints и место для виртуального окружения.

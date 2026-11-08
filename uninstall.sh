@@ -69,8 +69,10 @@ allowed.update({"extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
 with_workflow = allowed.copy()
 # Current installs no longer manage the retired workflow extension.
 allowed.discard("extensions/jev-review")
+before_terminal = allowed.copy()
+allowed.update({"agents/terminal.md", "extensions/subagent/config.json"})
 managed = s.get("agentManaged", [])
-if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, with_workflow, allowed):
+if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, with_workflow, before_terminal, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 present = s["agentPresent"]
 if not isinstance(present, list) or not all(isinstance(name, str) and name in managed for name in present):
