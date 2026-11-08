@@ -121,7 +121,8 @@ with tempfile.TemporaryDirectory(prefix="pi-restore-") as temporary:
             while archive.fileobj.read(1024 * 1024):
                 pass  # Validate the gzip trailer before touching current files.
             for member in archive.getmembers():
-                if member.isdir():
+                if member.isdir() or member.isfile():
+                    # The data filter strips group-write; restore ordinary saved permissions.
                     (stage / member.name).chmod(member.mode & 0o777)
     for item in present:
         saved = stage / item

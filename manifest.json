@@ -282,6 +282,24 @@
       "restore": false,
       "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
       "snapshotRuntime": false
+    },
+    {
+      "source": "extensions/jev-review/index.ts",
+      "snapshot": "local-extensions/jev-review/index.ts",
+      "restore": true,
+      "reason": "DeepSeek-scoped workflow assistance, safe review and private metadata diagnostics."
+    },
+    {
+      "source": "extensions/jev-review/workflow.ts",
+      "snapshot": "local-extensions/jev-review/workflow.ts",
+      "restore": true,
+      "reason": "DeepSeek-scoped workflow assistance, safe review and private metadata diagnostics."
+    },
+    {
+      "source": "extensions/jev-review/privacy.ts",
+      "snapshot": "local-extensions/jev-review/privacy.ts",
+      "restore": true,
+      "reason": "DeepSeek-scoped workflow assistance, safe review and private metadata diagnostics."
     }
   ]
 }

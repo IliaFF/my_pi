@@ -142,6 +142,7 @@ for fail_restore, fresh in [(False, False), (True, False), (False, True)]:
         (agent / "private.txt").write_bytes(b"unmanaged\n")
         if not fresh:
             (agent / "settings.json").write_bytes(b"original\n")
+            (agent / "settings.json").chmod(0o664)
             target = agent / "npm/lib/jiti.mjs"; target.parent.mkdir(parents=True)
             target.write_bytes(b"original npm\n"); target.chmod(0o755)
             link = agent / "npm/.bin/jiti"; link.parent.mkdir()

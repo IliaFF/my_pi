@@ -33,6 +33,11 @@ for (const name of ["AGENTS.md", "mcp.json", "extensions/aitunnel.ts", ...["cpp-
   assert.equal(config.restore, false, name);
   assert.equal(config.snapshotRuntime, false, name);
 }
+for (const file of ['index.ts', 'workflow.ts', 'privacy.ts']) {
+  const managed = manifest.managedConfigs.find(c => c.source === `extensions/jev-review/${file}`);
+  assert.equal(managed?.snapshot, `local-extensions/jev-review/${file}`);
+  assert.equal(managed?.restore, true);
+}
 const fallback = readFileSync(join(root, "configs/AGENTS.md"), "utf8");
 assert.ok(fallback.includes("## Сессии Firstmate"));
 const sections = fallback.trim().split(/(?=^## )/m).map(s => s.trim()).filter(Boolean);
@@ -43,6 +48,8 @@ assert.ok(!policy.includes("Use the least costly approach sufficient"), "New def
 assert.ok(fallback.includes("В остальных сессиях правила смены задач сохраняются"));
 assert.ok(!/SSH|ProxyJump|\/home\/|\/mnt\/|\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(fallback));
 const installer = readFileSync(join(root, "install.sh"), "utf8");
+assert.ok(!installer.includes('rm -rf "$AGENT_DIR/extensions/jev-review"'));
+assert.ok(installer.includes('"$ROOT/local-extensions/jev-review/"{index.ts,workflow.ts,privacy.ts,README.md}'));
 const modeHelp = spawnSync("bash", [join(root, "install.sh"), "--skip-stack", "--help"], { encoding: "utf8", timeout: 10000 });
 assert.equal(modeHelp.status, 0, modeHelp.stderr);
 assert.ok(modeHelp.stdout.includes("--skip-stack"));

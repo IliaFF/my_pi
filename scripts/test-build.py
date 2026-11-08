@@ -126,6 +126,9 @@ def main():
               ["node", "scripts/test-portable-stack.mjs"])
         check("stack-bootstrap", "unit",
               ["node", "scripts/test-stack-bootstrap.mjs"])
+        check("deepseek-workflow", "unit",
+              ["node", "--require", "./scripts/no-network.cjs",
+               "local-extensions/jev-review/check.mjs"], timeout=30)
         check("loop-pilot", "unit", ["node", "scripts/test-loop-pilot.mjs", "local-extensions/loop-profiler.ts"])
         check("queue-checks", "unit", ["node", "--test", "scripts/test-queue-checks.mjs"], timeout=30)
         if args.agent:
@@ -155,6 +158,9 @@ def main():
             check("task-session-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-task-session-sdk.mjs", str(modules)], timeout=60)
             check("ponytail-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-ponytail-sdk.mjs", str(modules)], timeout=60)
             check("background-jobs", "integration", ["node", "scripts/test-background-jobs.mjs", str(modules)], timeout=60)
+            check("deepseek-workflow-sdk", "integration",
+                  ["node", "--require", "./scripts/no-network.cjs",
+                   "local-extensions/jev-review/sdk-check.mjs"], timeout=60)
             check("loop-sdk", "integration", ["node", "scripts/test-loop-profiler-sdk.mjs", str(core)])
             check("context-runtime", "integration", ["node", "scripts/test-pi-context-runtime.mjs", str(modules / "@spences10/pi-context"), str(temp / "context-probe")])
             check("rpc-startup", "smoke", ["node", "scripts/test-rpc-startup.mjs", str(agent)], timeout=60)

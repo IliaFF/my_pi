@@ -1,16 +1,25 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { createRequire, findPackageJSON } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
-const require = createRequire(realpathSync(execFileSync('which', ['pi'], { encoding: 'utf8' }).trim()));
+const coreDir = process.env.PI_CODING_AGENT_CORE_DIR ?? dirname(findPackageJSON(
+  '@earendil-works/pi-coding-agent',
+  pathToFileURL(realpathSync(execFileSync('which', ['pi'], { encoding: 'utf8' }).trim())),
+));
+const require = createRequire(join(coreDir, 'package.json'));
 const { createJiti } = require('jiti');
-const { default: extension, redact, evidence, problems, questions, fitState, failureReason } = await createJiti(import.meta.url).import(new URL('./index.ts', import.meta.url).pathname);
+const loader = createJiti(import.meta.url, {alias:{'@earendil-works/pi-coding-agent':join(coreDir, 'dist/index.js')}});
+const { default: extension, redact, evidence, problems, questions, fitState, failureReason } = await loader.import(new URL('./index.ts', import.meta.url).pathname);
+const { diagnostic, hydrate, passages } = await loader.import(new URL('./workflow.ts', import.meta.url).pathname);
 const dir = await mkdtemp(join(tmpdir(), 'jev-review-check-'));
+const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+process.env.PI_CODING_AGENT_DIR = dir;
 let passed = 0;
-const result = (probability = 0.01) => ({ stopReason: 'stop', model: 'test', answers: Object.fromEntries(Object.keys(questions).map(id => [id, {type: 'bool', probability}])), usage: {cost: {total: 0.00001}} });
+const result = (probability = 0.01) => ({ stopReason: 'stop', model: 'test', answers: Object.fromEntries(Object.keys(questions).map(id => [id, id === 'rules' ? {type:'choice', probabilities:{violated:probability,complied:1-probability,unknown:0,not_applicable:0}} : {type: 'bool', probability}])), usage: {cost: {total: 0.00001}} });
 const user = content => ({ role: 'user', content: [{type: 'text', text: content}], timestamp: Date.now() });
 let timestamp = 100;
 const assistant = content => ({ role: 'assistant', content: [{type: 'text', text: content}], stopReason: 'stop', timestamp: timestamp++ });
@@ -22,7 +31,7 @@ function fixture(outcome = result()) {
   const notices = [];
   let messages = [user('Reply exactly YES'), assistant('YES')];
   const ctx = {
-    cwd: dir, hasUI: true, signal: undefined,
+    cwd: dir, hasUI: true, signal: undefined, model: {provider:'test',id:'deepseek-test'},
     isProjectTrusted: () => true, hasPendingMessages: () => false,
     getSystemPrompt: () => 'Project rule: answer honestly; run tests for code changes.',
     waitForIdle: async () => {},
@@ -53,6 +62,81 @@ function fixture(outcome = result()) {
 async function test(name, run) { await run(); passed++; console.log('PASS', name); }
 try {
   await writeFile(join(dir, 'TODO.md'), '# TODO\n## In progress\n- [ ] Test reply\n');
+  await test('non-DeepSeek auto mode performs no automatic classifier request', async () => {
+    const f=fixture(); f.ctx.model={provider:'test',id:'gpt-control'};
+    await f.start(); assert.equal(await f.settle(),undefined);
+    assert.equal(f.requests.length,0);
+  });
+  await test('retrieval preserves source lines across multiple blank lines', () => {
+    const hits = passages('target', [{path:'rules.md',content:'Intro\n\n\n\ntarget paragraph\nnext line'}]);
+    assert.equal(hits[0].line,5);
+  });
+  await test('arbitrary catalog skills load completely and enforce final section byte budget', async () => {
+    const f=fixture();
+    const empty=await hydrate(f.ctx,'Do the task',{skills:[]},new AbortController().signal);
+    const bodySize=Math.floor((96*1024-Buffer.byteLength(empty.section))/2);
+    const skills=[];
+    for (let i=0;i<3;i++) {
+      const baseDir=join(dir,`arbitrary-${i}`); await mkdir(baseDir);
+      const filePath=join(baseDir,'SKILL.md');
+      await writeFile(filePath, 'x'.repeat(bodySize));
+      skills.push({name:`arbitrary-${i}`,description:'An arbitrary applicable skill',filePath,baseDir,source:'test'});
+    }
+    f.ctx.modelRegistry.classify=async()=>({stopReason:'stop',answers:Object.fromEntries(skills.map((_,i)=>[`s${i}`,{type:'bool',probability:1}]))});
+    const data=await hydrate(f.ctx,'Do the task',{skills},new AbortController().signal);
+    assert.ok(data.loaded.length>0); assert.ok(data.omitted.length>0);
+    for(const item of data.loaded) assert.ok(data.section.includes(item.text));
+    assert.ok(Buffer.byteLength(data.section)<=96*1024, `section is ${Buffer.byteLength(data.section)} bytes`);
+  });
+  await test('untrusted project skill above cwd is not read', async () => {
+    const f=fixture(); f.ctx.cwd=join(dir,'work','nested'); f.ctx.isProjectTrusted=()=>false;
+    const baseDir=join(dir,'parent-project-skill'); await mkdir(baseDir);
+    const filePath=join(baseDir,'SKILL.md'); await writeFile(filePath,'UNTRUSTED_BODY');
+    const skill={name:'parent-skill',description:'Project skill',filePath,baseDir,sourceInfo:{scope:'project'}};
+    f.ctx.modelRegistry.findOfType=()=>undefined;
+    const data=await hydrate(f.ctx,'/skill:parent-skill',{skills:[skill]},new AbortController().signal);
+    assert.equal(data.loaded.length,0); assert.ok(!data.section.includes('UNTRUSTED_BODY'));
+    assert.ok(data.omitted.some(item=>item.reason==='project not trusted'));
+  });
+  await test('explicit disabled skill loads without matching a name prefix', async () => {
+    const f=fixture(); const baseDir=join(dir,'explicit-skill'); await mkdir(baseDir);
+    const filePath=join(baseDir,'SKILL.md'); await writeFile(filePath,'EXPLICIT_BODY');
+    const skill={name:'explicit',description:'Explicit only',filePath,baseDir,disableModelInvocation:true};
+    f.ctx.modelRegistry.findOfType=()=>undefined;
+    const signal=new AbortController().signal;
+    assert.equal((await hydrate(f.ctx,'/skill:explicit-long',{skills:[skill]},signal)).loaded.length,0);
+    const data=await hydrate(f.ctx,'/skill:explicit',{skills:[skill]},signal);
+    assert.equal(data.loaded.length,1); assert.ok(data.section.includes('EXPLICIT_BODY'));
+  });
+  await test('diagnostics remain valid private JSON after secret redaction and rotation', async () => {
+    const f=fixture();
+    assert.equal(diagnostic(f.ctx,'fixture',{source:'https://example.invalid/doc?token=PRIVATE_MARKER',note:'password="HIDDEN_MARKER"'}),true);
+    const path=join(dir,'jev-review','workflow.jsonl');
+    let records=readFileSync(path,'utf8').trim().split('\n').map(JSON.parse);
+    assert.ok(!JSON.stringify(records).includes('PRIVATE_MARKER'));
+    assert.ok(!JSON.stringify(records).includes('HIDDEN_MARKER'));
+    assert.equal(statSync(path).mode&0o777,0o600);
+    assert.equal(statSync(join(dir,'jev-review')).mode&0o777,0o700);
+    await writeFile(path,'x'.repeat(2*1024*1024));
+    assert.equal(diagnostic(f.ctx,'after-rotation',{ok:true}),true);
+    records=readFileSync(path,'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(records[0].event,'rotation');
+    assert.equal(records[1].event,'after-rotation');
+    assert.ok(statSync(path+'.1').size<=2*1024*1024);
+  });
+  await test('routing redacts secrets in catalog metadata before external classification', async () => {
+    const key='JEV_FIXTURE_SECRET'; const previous=process.env[key];
+    process.env[key]='PRIVATE_CATALOG_VALUE';
+    try {
+      const f=fixture();let payload;
+      f.ctx.modelRegistry.classify=async(_model,context)=>{
+        payload=JSON.stringify(context);
+        return {stopReason:'stop',answers:{s0:{type:'bool',probability:0}}};
+      };
+      await hydrate(f.ctx,'Choose skills',{skills:[{name:'fixture',description:'Use PRIVATE_CATALOG_VALUE',filePath:join(dir,'SKILL.md'),baseDir:dir}]},new AbortController().signal);
+      assert.ok(!payload.includes('PRIVATE_CATALOG_VALUE'));
+    } finally { if(previous===undefined) delete process.env[key]; else process.env[key]=previous; }
+  });
   await test('failure diagnostics exclude provider bodies and secrets', () => {
     assert.equal(failureReason(new Error('HTTP 401 Bearer SECRET_PROVIDER_BODY')), 'HTTP 401');
     assert.equal(failureReason(new Error('ETIMEDOUT SECRET_PROVIDER_BODY')), 'network ETIMEDOUT');
@@ -183,4 +267,8 @@ try {
     assert.ok(!f.entries.some(e=>e.customType==='jev-review-feedback'));
   });
   console.log(`Checks: ${passed} passed`);
-} finally { await rm(dir,{recursive:true,force:true}); }
+} finally {
+  if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+  await rm(dir,{recursive:true,force:true});
+}
