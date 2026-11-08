@@ -22,6 +22,12 @@ Delegate only self-contained independent tasks forecast to require more than one
 
 This threshold does not authorize agent launches, production installation or paid requests. It does not permit agents through the shell-only background pilot and is not a substitute for native sequential task handoff. A saved transcript or a long-lived process alone does not prove multi-window continuity.
 
+## Terminal specialist boundary
+
+Use `terminal` only after delegation is authorized by the rules above. It may write code and edit explicitly assigned non-production files: tests, fixtures, disposable scripts and documentation that are not shipped with or used by the working product. Never assign it production code, meaning code shipped with or used by the working product, even in a development branch or copy. A file's name or location alone does not establish that it is non-production; clarify an uncertain boundary before delegation, and require the child to stop if it encounters ambiguity.
+
+The parent owns planning, algorithm selection and final acceptance. Specify the goal, cwd, allowed paths, non-production purpose, constraints and completion checks. Keep one writer per cwd/worktree; preserve unrelated work, review the full changed diff and verify the returned evidence before integration. Standard Pi tools `read`, `bash`, `edit`, `write`, `grep`, `find` and `ls` are allowed within this scope; bash has user filesystem permissions, so this is an instruction boundary, not OS enforcement. This permission does not authorize agent launches, production deployment, SSH, paid calls or extra resources.
+
 # Tracked project work
 
 Outside Firstmate supervisor sessions, maintain a root `TODO.md` only for multi-step project work. Discussions, answers and small single-step edits need no separate entry. Current project TODO is authoritative for ordinary tracked work; under the Firstmate supervisor contract use current Firstmate queue/state instead. Chat plans do not replace authoritative task state. During sequential work keep one task in progress, honor the requested task id and preserve pending order. If a tool violates this contract, stop and fix or report it instead of release/move/claim churn. Do not complete work with required checks outstanding.

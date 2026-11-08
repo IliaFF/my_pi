@@ -61,6 +61,10 @@ try {
     assert.match(transcript, /GLOBAL_TERMINAL_CONTEXT/);
     assert.match(transcript, /PROJECT_TERMINAL_CONTEXT/);
     assert.match(transcript, /TERMINAL_SKILL_CONTEXT/);
+    assert.match(transcript, /You may write code and edit files only within the explicitly assigned non-production scope/);
+    assert.match(transcript, /Never write or modify production code, even in a development branch or copy/);
+    assert.match(transcript, /If the production boundary is unclear, stop and ask the parent/);
+    assert.doesNotMatch(transcript, /source edits and final acceptance stay with the parent|Do not edit source or unrelated settings/);
     return fauxAssistantMessage('TERMINAL_RESULT_SENTINEL commands: printf test; exitCode: 0');
   }]);
   const result = await call({ agent: 'terminal', task: 'Goal: report fixture. Cwd: assigned. Constraints: no writes. Done: return sentinel.', cwd, async: false });
@@ -69,7 +73,7 @@ try {
   const child = result.details.results[0];
   assert.equal(child.launchResolvedExtensions.disableAmbientExtensions, true);
   assert.deepEqual(child.capabilityAudit.ceiling.allowedAgents, []);
-  assert.deepEqual(child.capabilityAudit.effectiveTools.sort(), ['bash', 'read']);
+  assert.deepEqual(child.capabilityAudit.effectiveTools.sort(), ['bash', 'edit', 'find', 'grep', 'ls', 'read', 'write']);
   assert.equal(child.acceptance.status, 'not-required');
   assert.equal(child.model, 'openrouter/deepseek/deepseek-v4.1-flash-1017');
   const calls = provider.state.callCount;
@@ -85,7 +89,7 @@ try {
   await continuationLoader.reload();
   ({ session: continued } = await sdk.createAgentSession({ cwd, agentDir: agent, modelRuntime, settingsManager: continuationSettings,
     resourceLoader: continuationLoader, sessionManager: sdk.SessionManager.open(child.sessionFile), model: provider.getModel(), thinkingLevel: 'off',
-    tools: ['read', 'bash'] }));
+    tools: ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls'] }));
   provider.setResponses([context => {
     assert.match(JSON.stringify(context.messages), /TERMINAL_RESULT_SENTINEL/);
     return fauxAssistantMessage('CONTINUED_RESULT_SENTINEL');
