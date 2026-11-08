@@ -91,7 +91,7 @@ An explicitly approved browser-removal migration MUST back up affected files bef
 - **THEN** affected runtime configuration and managed files return to the recorded previous state without deleting unrelated data
 
 ### Requirement: Single managed terminal specialist
-The build MUST pin pi-subagents 0.87.0 and install one managed terminal agent using openrouter/deepseek/deepseek-v4.1-flash-1017, without changing the preserved parent model. Bundled agents, council/prompts, automatic per-change review, nested delegation and ambient child extensions MUST remain disabled. Global delegation authorization and multi-context threshold MUST NOT be weakened. Bash tool selection MUST NOT be represented as OS isolation or inherited SSH routing.
+The build MUST pin pi-subagents 0.87.0 and install one managed terminal agent using openrouter/deepseek/deepseek-v4.1-flash-1017, preserving the parent model. Bundled roles, council/prompts, automatic per-change review, nesting and ambient child extensions MUST remain disabled. Terminal MUST be exempt from the multi-context threshold; other authorization and resource limits MUST remain. Tool selection MUST NOT imply OS isolation or inherited SSH routing.
 
 #### Scenario: Preservation-mode deployment
 - **WHEN** the approved installer runs with preserved settings
@@ -100,6 +100,10 @@ The build MUST pin pi-subagents 0.87.0 and install one managed terminal agent us
 #### Scenario: Conflicting personal profile
 - **WHEN** an existing managed terminal profile or config differs from the approved source
 - **THEN** installation refuses replacement and retains the backup rather than silently overwriting user content
+
+#### Scenario: Short execution assignment
+- **WHEN** the parent assigns a bounded short non-production task under the standing terminal workflow
+- **THEN** the profile accepts that scope without a multi-context prerequisite, while planning, production code and acceptance remain with the parent
 
 ### Requirement: Terminal edits are non-production only
 The terminal profile MUST allow explicitly assigned non-production code and edits. It MUST forbid writing or modifying code shipped with or used by the working product, even in a development branch or copy. An unclear production boundary MUST stop execution for parent clarification.

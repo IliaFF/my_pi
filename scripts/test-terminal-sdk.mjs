@@ -61,6 +61,7 @@ try {
     assert.match(transcript, /GLOBAL_TERMINAL_CONTEXT/);
     assert.match(transcript, /PROJECT_TERMINAL_CONTEXT/);
     assert.match(transcript, /TERMINAL_SKILL_CONTEXT/);
+    assert.match(transcript, /Short routine assignments are allowed; no multi-context threshold applies to terminal/);
     assert.match(transcript, /You may write code and edit files only within the explicitly assigned non-production scope/);
     assert.match(transcript, /Never write or modify production code, even in a development branch or copy/);
     assert.match(transcript, /If the production boundary is unclear, stop and ask the parent/);

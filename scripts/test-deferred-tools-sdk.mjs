@@ -61,8 +61,17 @@ try {
     assert.ok(fresh.getCallableToolNames().includes(name), `${name} must remain callable`);
   }
   assert.ok(fresh.getActiveToolNames().includes("tool_search"), "Native tool_search must be active");
-  for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "more than one context window", "folding, recall and compaction", "remaining work", "do not wait for an overflow", "Small scouts and prototypes stay in the parent", "Clarify unclear user intent", "unknown solution may qualify at the same threshold", "parent inspects results, verifies and integrates", "goal, constraints, progress and evidence across context cycles", "does not authorize agent launches", "not a substitute for native sequential task handoff", "alone does not prove multi-window continuity", "Do not complete work with required checks outstanding"]) {
+  for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "more than one context window", "folding, recall and compaction", "remaining work", "do not wait for an overflow", "For agents other than `terminal`", "Clarify unclear user intent", "unknown solution may qualify at the same threshold", "parent inspects results, verifies and integrates", "goal, constraints, progress and evidence across context cycles", "does not authorize agent launches", "not a substitute for native sequential task handoff", "alone does not prove multi-window continuity", "Do not complete work with required checks outstanding"]) {
     assert.ok(fresh.systemPrompt.includes(rule), `Permanent prompt lost ${rule}`);
+  }
+  for (const rule of ["Use DeepSeek `terminal` as the default executor",
+    "including short tasks; no multi-context threshold applies to `terminal`",
+    "GPT retains planning, product decisions, production code and final acceptance",
+    "Batch coherent steps into one bounded assignment",
+    "If `terminal` is unavailable, report the limitation and agree a fallback with the user",
+    "within the current task and approved model budget",
+    "not unlimited spend, new providers, paid external services"]) {
+    assert.ok(fresh.systemPrompt.includes(rule), `Terminal routing policy lost ${rule}`);
   }
   for (const rule of ["If an agreement or restriction is missing or contradictory", "recall_folded",
     "session ledger path in the summary", "selected messages on its active branch",

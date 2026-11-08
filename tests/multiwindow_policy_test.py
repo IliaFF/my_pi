@@ -11,13 +11,17 @@ class MultiwindowPolicyTests(unittest.TestCase):
     """Check portable instructions, not autonomous model behavior."""
 
     def test_managed_context_threshold_and_execution_boundaries(self):
-        """Preserve the user's threshold and existing execution restrictions."""
+        """Keep the terminal exception and other delegation limits explicit."""
         policy = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
         self.assertEqual(policy.count("# Long-lived delegation"), 1)
         for rule in (
             "more than one context window",
             "folding, recall and compaction",
-            "Small scouts and prototypes stay in the parent",
+            "For agents other than `terminal`",
+            "including short tasks; no multi-context threshold applies to "
+            "`terminal`",
+            "GPT retains planning, product decisions, production code and "
+            "final acceptance",
             "goal, boundaries and verifiable output",
             "goal, constraints, progress and evidence across context cycles",
             "does not authorize agent launches",
