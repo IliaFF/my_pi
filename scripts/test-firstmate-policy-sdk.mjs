@@ -61,6 +61,10 @@ try {
   assert.match(session.systemPrompt, /После сжатия.*очередь и состояние Firstmate/);
   assert.match(session.systemPrompt, /Outside Firstmate supervisor sessions.*root `TODO\.md`/);
   assert.match(session.systemPrompt, /otherwise read current project TODO/);
+  assert.match(session.systemPrompt, /Before editing code, choose and record the cheapest adequate check/);
+  assert.match(session.systemPrompt, /Do not weaken, skip or replace checks or acceptance criteria without user agreement/);
+  assert.match(session.systemPrompt, /After two fixes fail with the same error, stop editing/);
+  assert.match(session.systemPrompt, /within the approved scope and budget/);
   assert.equal(networkAttempts, 0);
   console.log("PASS actual SDK global AGENTS survives trusted project APPEND override; untrusted project skipped; 3 skills and credential-free AITunnel registration load (no model/MCP/fleet calls)");
 } finally {

@@ -10,6 +10,10 @@ Clarify ambiguity that changes outcome, scope, safety or irreversible actions; u
 
 Choose the simplest execution approach. Use `codemode` when it reduces tool calls or unnecessary output. Batch only justified independent operations; keep dependent decisions separate. Read the inputs needed now, bound search/log output and keep full artifacts on disk. Do not print entire objects or unrelated files by habit. Inspect individual results and exit codes: a fulfilled call is not necessarily successful.
 
+Before editing code, choose and record the cheapest adequate check. Read its actual output and exit status, diagnose the root cause before retrying, and run mandatory project gates before claiming completion. Do not weaken, skip or replace checks or acceptance criteria without user agreement. Report the actual commands, results and any unverified claims.
+
+After two fixes fail with the same error, stop editing. Summarize the attempts in the current task state, name their shared assumption and test it with the cheapest adequate probe within the approved scope and budget before choosing a different approach. If the cause remains unclear or the probe needs expanded authority or resources, ask the user; do not try a third variant, discard unrelated changes or launch agents automatically.
+
 For SSH work, use Pi's `remote` tool; if it is not declared, discover it through `tool_search`. While SSH routing is active, read/write/edit/bash operate on the remote workspace.
 
 For long independent checks use the background tools' safety, waiting and cancellation contracts. Record the initial working state before edits. Validate the final changed scope and review the full owned diff against that initial working state, including owned untracked files. Preserve unrelated pre-existing tracked/untracked changes; do not stage or revert them. Earlier or narrower checks prove only their scope.
