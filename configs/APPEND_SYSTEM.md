@@ -16,10 +16,6 @@ For long independent checks use the background tools' safety, waiting and cancel
 
 Outside Firstmate sessions, follow `start_task_session`'s goal-based handoff contract for new chat/queue tasks. In Firstmate sessions (operating under the Firstmate supervisor contract), the global task-switch handoff instructions do not apply, including those injected by tools or the TODO queue: do not call `start_task_session` merely because the goal changes; keep the session and follow Firstmate's task lifecycle. In all sessions, never abandon unfinished work or checks; ask the user if uncertain.
 
-# Delegation
-
-Subagents and automatic delegation are disabled in this installation, including the `terminal` role, Herdr agents, Firstmate, Fusion and agent processes launched through shell or background tools. Execute tasks directly with the available non-agent tools. Do not launch or delegate to agents unless the user explicitly authorizes re-enabling them. Ordinary non-agent background shell jobs remain allowed under the existing execution rules.
-
 # Tracked project work
 
 Outside Firstmate supervisor sessions, maintain a root `TODO.md` only for multi-step project work. Discussions, answers and small single-step edits need no separate entry. Current project TODO is authoritative for ordinary tracked work; under the Firstmate supervisor contract use current Firstmate queue/state instead. Chat plans do not replace authoritative task state. During sequential work keep one task in progress, honor the requested task id and preserve pending order. If a tool violates this contract, stop and fix or report it instead of release/move/claim churn. Do not complete work with required checks outstanding.

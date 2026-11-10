@@ -45,8 +45,7 @@ for (const line of uninstaller.split("\n").filter(line => /agents\/terminal\.md|
 }
 
 const policy = read("configs/APPEND_SYSTEM.md");
-assert.match(policy, /Subagents and automatic delegation are disabled/, "standing policy must declare delegation disabled");
-assert.match(policy, /Do not launch or delegate to agents unless the user explicitly authorizes/, "standing policy must require explicit reauthorization");
+assert.ok(!/subagent|pi-herdr-agents|Herdr agents|terminal role|Fusion/i.test(policy), "standing policy must not mention retired agent runners");
 for (const needle of ["Use DeepSeek `terminal` as the default executor", "For agents other than `terminal`", "Assign only bounded non-production work to `terminal`"]) {
   assert.ok(!policy.includes(needle), `standing policy still routes work to terminal: ${needle}`);
 }

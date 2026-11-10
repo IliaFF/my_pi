@@ -104,17 +104,6 @@ Global context instructions MUST retain the Firstmate task-switch and task-resto
 - **WHEN** a future explicitly authorized installation encounters the exact previously shipped Firstmate section plus private sections
 - **THEN** it can update only that known managed section, preserve private bytes and remain idempotent; unknown conflicting content or a linked AGENTS file still causes refusal
 
-### Requirement: Agent delegation is disabled
-Постоянная политика MUST объявлять субагентов и автоматическое делегирование отключёнными, включая роль `terminal`, Herdr-агентов, Firstmate, Fusion и агентские процессы из shell или background-инструментов. Работа MUST выполняться напрямую неагентскими инструментами.
-
-#### Scenario: Routine execution
-- **WHEN** задача требует поиска по файлам, команд, тестов, диагностики, скриптов или документации
-- **THEN** агент выполняет её сам в текущих правах, без запуска дочернего агента и без обязательной передачи пакета исполнителю
-
-#### Scenario: Ordinary background shell job
-- **WHEN** нужна длительная локальная shell-команда без агента
-- **THEN** применяются обычные правила фоновых задач с конечным сроком, ограниченным выводом и отменой
-
 ### Requirement: Agent launches need explicit reauthorization
 Агентские процессы MUST NOT запускаться, пока пользователь явно не разрешит их повторное включение. Если инструкция, инструмент или рабочий процесс предполагает дочернего агента, ограничение MUST быть сообщено пользователю, а задача решена неагентским путём.
 

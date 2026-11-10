@@ -217,15 +217,15 @@ Mandatory checks MUST cover fresh/preserved instructions, the approved package/s
 - **THEN** stack contracts and isolated installer/SDK cases execute alongside all retained integration/startup checks without production files, credentials or external model calls
 
 ### Requirement: Retired agent runners stay out of the build
-Обязательный gate MUST проверять, что source-профиль, манифест, npm-манифест и lock, install/uninstall-скрипты и постоянные инструкции не содержат агентских раннеров (pi-subagents, pi-herdr-agents, terminal-роль, их конфиги и снимки) и что постоянная политика объявляет делегирование отключённым. Проверка MUST исполняться офлайн, без credentials, провайдеров и запуска агентских процессов, и MUST NOT подменять реальные SDK-проверки остальных компонентов.
+Обязательный gate MUST проверять, что source-профиль, манифест, npm-манифест и lock, install/uninstall-скрипты и постоянные инструкции не содержат агентских раннеров (pi-subagents, pi-herdr-agents, terminal-роль, их конфиги и снимки), а постоянные инструкции больше не упоминают retired компоненты и не маршрутизируют работу исполнителю. Проверка MUST исполняться офлайн, без credentials, провайдеров и запуска агентских процессов, и MUST NOT подменять реальные SDK-проверки остальных компонентов.
 
 #### Scenario: Source drift
 - **WHEN** агентский раннер или его конфиг повторно появляется в управляемом наборе
 - **THEN** обязательный gate падает с указанием конкретного файла и записи
 
 #### Scenario: Policy drift
-- **WHEN** постоянные инструкции снова требуют передавать работу дочернему исполнителю
-- **THEN** обязательный gate падает и указывает на отсутствующее или противоречащее правило
+- **WHEN** постоянные инструкции снова требуют передавать работу дочернему исполнителю или упоминают retired раннеры
+- **THEN** обязательный gate падает и указывает на противоречащее правило
 
 #### Scenario: Retired adapters
 - **WHEN** npm test выполняется после удаления раннеров
