@@ -122,18 +122,6 @@
   ],
   "managedConfigs": [
     {
-      "source": "extensions/herdr-agent-state.ts",
-      "snapshot": "local-extensions/herdr-agent-state.ts",
-      "restore": true,
-      "reason": "Optional Herdr TUI status integration; inactive without explicit Herdr environment."
-    },
-    {
-      "source": "herdr-agents/config.json",
-      "snapshot": "configs/herdr-agents/config.json",
-      "restore": false,
-      "reason": "Conservative Herdr sidebar/persistent defaults; initialize only when missing and preserve later user preferences."
-    },
-    {
       "source": "train-agents/config.json",
       "snapshot": "configs/train-agents/config.json",
       "restore": false,
@@ -282,20 +270,6 @@
       "restore": false,
       "reason": "Approved portable user style skill; contains no machine/SSH configuration.",
       "snapshotRuntime": false
-    },
-    {
-      "source": "agents/terminal.md",
-      "snapshot": "configs/agents/terminal.md",
-      "restore": false,
-      "snapshotRuntime": false,
-      "reason": "Approved single terminal profile; installer refuses conflicting personal content, maintenance never imports runtime overrides."
-    },
-    {
-      "source": "extensions/subagent/config.json",
-      "snapshot": "configs/subagent/config.json",
-      "restore": false,
-      "snapshotRuntime": false,
-      "reason": "Approved single terminal profile; installer refuses conflicting personal content, maintenance never imports runtime overrides."
     }
   ]
 }

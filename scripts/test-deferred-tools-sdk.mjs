@@ -43,12 +43,11 @@ try {
   const model = { ...provider.getModel(), compat: nativeModel.compat };
   const cwd = join(sandbox, "work"); mkdirSync(cwd);
   const errors = [];
-  async function open({ legacy = false, terminal = false, manager = SessionManager.inMemory(cwd) } = {}) {
+  async function open({ legacy = false, manager = SessionManager.inMemory(cwd) } = {}) {
     const settingsManager = SettingsManager.inMemory({ defaultTools: legacy ? ["+codemode"] : defaults, compaction: { enabled: false }, retry: { enabled: false, maxRetries: 0 } });
     // Exercise legacy direct exposure using the same retained executors and schemas.
     const direct = legacy ? rare : [];
     const factories = [remote, preview, context].map(factory => direct.length ? pi => factory({ ...pi, registerTool: definition => pi.registerTool(direct.includes(definition.name) ? { ...definition, exposure: "direct" } : definition) }) : factory);
-    if (terminal) factories.push(pi => pi.registerTool({ name: "subagent", label: "Subagent", description: "Eager migration fixture", parameters: require("typebox").Type.Object({}), execute: async () => { throw new Error("Migration fixture must never execute"); } }));
     const loader = new DefaultResourceLoader({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, settingsManager, noExtensions: true, noSkills: true, noThemes: true, noPromptTemplates: true, appendSystemPrompt: [readFileSync(join(source, "configs/APPEND_SYSTEM.md"), "utf8")], extensionFactories: [createCodemodeExtension({ mode: "on" }), createToolSearchExtension(), ...factories, ...(legacy ? [] : [restoreLoadout])] });
     await loader.reload(); assert.deepEqual(loader.getExtensions().errors, []);
     const { session } = await createAgentSession({ cwd, agentDir: process.env.PI_CODING_AGENT_DIR, modelRuntime: runtime, model, thinkingLevel: "off", settingsManager, resourceLoader: loader, sessionManager: manager });
@@ -61,17 +60,11 @@ try {
     assert.ok(fresh.getCallableToolNames().includes(name), `${name} must remain callable`);
   }
   assert.ok(fresh.getActiveToolNames().includes("tool_search"), "Native tool_search must be active");
-  for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "more than one context window", "folding, recall and compaction", "remaining work", "do not wait for an overflow", "For agents other than `terminal`", "Clarify unclear user intent", "unknown solution may qualify at the same threshold", "parent inspects results, verifies and integrates", "goal, constraints, progress and evidence across context cycles", "does not authorize agent launches", "not a substitute for native sequential task handoff", "alone does not prove multi-window continuity", "Do not complete work with required checks outstanding"]) {
+  for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "Subagents and automatic delegation are disabled in this installation", "including the `terminal` role, Herdr agents, Firstmate, Fusion", "Execute tasks directly with the available non-agent tools", "Do not launch or delegate to agents unless the user explicitly authorizes re-enabling them", "Ordinary non-agent background shell jobs remain allowed", "Do not complete work with required checks outstanding"]) {
     assert.ok(fresh.systemPrompt.includes(rule), `Permanent prompt lost ${rule}`);
   }
-  for (const rule of ["Use DeepSeek `terminal` as the default executor",
-    "including short tasks; no multi-context threshold applies to `terminal`",
-    "GPT retains planning, product decisions, production code and final acceptance",
-    "Batch coherent steps into one bounded assignment",
-    "If `terminal` is unavailable, report the limitation and agree a fallback with the user",
-    "within the current task and approved model budget",
-    "not unlimited spend, new providers, paid external services"]) {
-    assert.ok(fresh.systemPrompt.includes(rule), `Terminal routing policy lost ${rule}`);
+  for (const rule of ["Use DeepSeek `terminal` as the default executor", "For agents other than `terminal`", "more than one context window"]) {
+    assert.ok(!fresh.systemPrompt.includes(rule), `Permanent prompt still routes work to a retired runner: ${rule}`);
   }
   for (const rule of ["If an agreement or restriction is missing or contradictory", "recall_folded",
     "session ledger path in the summary", "selected messages on its active branch",
@@ -154,18 +147,9 @@ try {
   assert.deepEqual(unchangedBody.tools, legacyBody.tools); assert.equal(unchangedBody.instructions, legacyBody.instructions);
   assert.deepEqual(unchangedBody.input.slice(0, legacyBody.input.length), legacyBody.input);
   assert.equal(resolveTranscriptTools(unchangedContext.messages, "changes").foldedSystemMessages, 0);
-  const terminalFile = join(sandbox, "legacy-terminal.jsonl"); copyFileSync(file, terminalFile);
-  const addedTerminal = await open({ terminal: true, manager: SessionManager.open(terminalFile) });
-  assert.ok(addedTerminal.getActiveToolNames().includes("subagent"), "New eager terminal must survive reopening a pre-terminal session");
-  assert.ok(addedTerminal.getCallableToolNames().includes("subagent"));
-  assert.ok(!addedTerminal.getActiveToolNames().includes("tool_search"), "Unseen eager terminal must not change the legacy deferred loadout");
-  provider.setResponses([() => fauxAssistantMessage("Recorded terminal availability")]);
-  await addedTerminal.prompt("Record new eager terminal without running it.");
-  addedTerminal.setActiveToolsByName(addedTerminal.getActiveToolNames().filter(name => name !== "subagent"));
-  provider.setResponses([() => fauxAssistantMessage("Recorded explicit removal")]);
-  await addedTerminal.prompt("Record explicit terminal removal.");
-  const removedTerminal = await open({ terminal: true, manager: SessionManager.open(terminalFile) });
-  assert.ok(!removedTerminal.getActiveToolNames().includes("subagent"), "Explicit terminal removal must survive reopening");
+  const recordedFile = join(sandbox, "legacy-recorded.jsonl"); copyFileSync(file, recordedFile);
+  const restored = await open({ manager: SessionManager.open(recordedFile) });
+  assert.ok(!restored.getAllTools().some(tool => tool.name === "subagent"), "Retired agent runner must not reappear on reopening a legacy branch");
   legacy.setActiveToolsByName(legacy.getActiveToolNames().filter(n => !["context_stats"].includes(n)));
   let removedContext;
   provider.setResponses([ctx => { removedContext = JSON.parse(JSON.stringify(ctx)); return fauxAssistantMessage("Keep stats removed"); }]);

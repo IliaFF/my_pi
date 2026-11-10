@@ -52,14 +52,12 @@ legacy = allowed.copy()
 # extensions/jev-review is retired from the build; it stays in the historical sets so
 # backups taken while it was installed remain restorable.
 allowed.update({"mcp.json", "train-agents/config.json",
-               "extensions/jev-review", "extensions/herdr-agent-state.ts"})
+               "extensions/jev-review"})
 previous = allowed.copy()
 allowed.add("extensions/deferred-tools.ts")
 deferred = allowed.copy()
 allowed.add("extensions/task-session.ts")
 task_session = allowed.copy()
-allowed.add("herdr-agents/config.json")
-herdr_config = allowed.copy()
 allowed.add("AGENTS.md")
 instruction_policy = allowed.copy()
 # Keep legacy browser launcher backups restorable; new installs do not create it.
@@ -70,9 +68,10 @@ with_workflow = allowed.copy()
 # Current installs no longer manage the retired workflow extension.
 allowed.discard("extensions/jev-review")
 before_terminal = allowed.copy()
-allowed.update({"agents/terminal.md", "extensions/subagent/config.json"})
+# Retired agent runners stay in the historical set so older backups remain restorable.
+retired_runners = before_terminal | {"agents/terminal.md", "extensions/subagent/config.json", "herdr-agents/config.json", "extensions/herdr-agent-state.ts"}
 managed = s.get("agentManaged", [])
-if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, herdr_config, instruction_policy, with_workflow, before_terminal, allowed):
+if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, instruction_policy, with_workflow, before_terminal, retired_runners, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 present = s["agentPresent"]
 if not isinstance(present, list) or not all(isinstance(name, str) and name in managed for name in present):

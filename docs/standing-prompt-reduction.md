@@ -1,6 +1,6 @@
 # Standing prompt reduction (source only, 2026-10-24)
 
-Historical evidence: the default Pi Herdr plugin has since been retired. The current SDK gate covers retained native remote/preview/context discovery and resume, not these historical Herdr measurements; see [portable stack](portable-stack.md). Standalone Herdr and Firstmate backend support remain separate.
+Historical evidence: the default Pi Herdr plugin and `pi-subagents` have since been retired. The current SDK gate covers retained native remote/preview/context discovery and resume, not these historical Herdr measurements; see [portable stack](portable-stack.md). Standalone Herdr and Firstmate backend support remain separate.
 
 ## Boundary and baseline
 

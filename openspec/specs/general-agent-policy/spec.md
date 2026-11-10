@@ -56,20 +56,6 @@ The build MUST consolidate repeated background and task-session instructions whi
 - **WHEN** background tool instructions are assembled
 - **THEN** they retain process-only admission, local unsandboxed execution warnings, finite deadlines/output bounds, notification and wake opt-outs, no polling, bounded inspection exceptions and cancellation/reload limits
 
-### Requirement: Delegation details have one owning layer
-Permanent prompt MUST keep delegation decision semantics and essential execution restrictions. Rare lifecycle/configuration/model catalog detail MAY live in the operating skill and deferred tool definitions. Tool-list snippets MUST NOT duplicate the full subagent/resume descriptions. Deferred discovery MUST NOT weaken authorization, no-polling, native task handoff or queue checks.
-
-#### Scenario: Ordinary coding without delegation
-- **WHEN** the initial prompt is assembled
-- **THEN** permanent decision/safety rules remain but inactive Herdr schemas and repeated lifecycle prose are absent
-
-### Requirement: Standing delegation text is decision focused
-The permanent delegation section MUST retain eligibility, authorization, continuity and parent responsibility, including the operator-approved GPT/terminal division of work. Apart from that standing workflow, it MUST NOT repeat lifecycle procedures, model catalogs or advertise a retired Pi plugin's help/discovery interface. Firstmate retains its project-scoped orchestration guidance.
-
-#### Scenario: No lifecycle tool requested
-- **WHEN** the standing prompt is built
-- **THEN** it explains delegation eligibility and the default terminal role without embedding lifecycle procedures, model catalogs or pointing to an unavailable Pi plugin
-
 ### Requirement: SSH work uses the available Pi tool
 Permanent policy MUST direct SSH work to Pi's `remote` tool, discovered through `tool_search` when absent from current declarations. It MUST state that read/write/edit/bash use active SSH routing without duplicating the tool's detailed contract.
 
@@ -118,24 +104,20 @@ Global context instructions MUST retain the Firstmate task-switch and task-resto
 - **WHEN** a future explicitly authorized installation encounters the exact previously shipped Firstmate section plus private sections
 - **THEN** it can update only that known managed section, preserve private bytes and remain idempotent; unknown conflicting content or a linked AGENTS file still causes refusal
 
-### Requirement: Terminal is the default non-production executor
-Standing policy MUST route coherent non-production execution assignments to DeepSeek terminal by default, including short tasks without a multi-context threshold. GPT MUST retain planning, product decisions, production code and final acceptance. Necessary parent source/evidence inspection MUST remain allowed. Other delegation MUST retain its multi-context eligibility rules.
+### Requirement: Agent delegation is disabled
+Постоянная политика MUST объявлять субагентов и автоматическое делегирование отключёнными, включая роль `terminal`, Herdr-агентов, Firstmate, Fusion и агентские процессы из shell или background-инструментов. Работа MUST выполняться напрямую неагентскими инструментами.
 
-#### Scenario: Routine short task
-- **WHEN** a task needs bounded file search, command execution, tests, diagnostics, non-production scripts or documentation
-- **THEN** the parent assigns a coherent bounded package to terminal rather than doing routine execution itself or spawning a child for each command
+#### Scenario: Routine execution
+- **WHEN** задача требует поиска по файлам, команд, тестов, диагностики, скриптов или документации
+- **THEN** агент выполняет её сам в текущих правах, без запуска дочернего агента и без обязательной передачи пакета исполнителю
 
-#### Scenario: Product change
-- **WHEN** the task requires writing or modifying production code
-- **THEN** GPT owns that code while terminal may execute separately scoped non-production work and reports product decisions or ambiguous boundaries back to GPT
+#### Scenario: Ordinary background shell job
+- **WHEN** нужна длительная локальная shell-команда без агента
+- **THEN** применяются обычные правила фоновых задач с конечным сроком, ограниченным выводом и отменой
 
-### Requirement: Default routing preserves authority and fallback limits
-Standing authorization MUST cover routine terminal delegation only within the current assignment and approved model budget. It MUST NOT grant new providers, unlimited spend, SSH, installations, destructive actions or production operations. Substantial resource growth MUST still require direct user approval. Unavailable terminal MUST NOT cause silent fallback to parent routine execution.
+### Requirement: Agent launches need explicit reauthorization
+Агентские процессы MUST NOT запускаться, пока пользователь явно не разрешит их повторное включение. Если инструкция, инструмент или рабочий процесс предполагает дочернего агента, ограничение MUST быть сообщено пользователю, а задача решена неагентским путём.
 
-#### Scenario: Executor unavailable
-- **WHEN** terminal cannot execute an assigned package
-- **THEN** the parent reports the limitation and agrees an alternative with the user rather than silently changing executor or widening authority
-
-#### Scenario: Additional resources or authority
-- **WHEN** a terminal assignment would require new services, substantial extra resources or separately restricted operations
-- **THEN** the executor stops at that boundary and the parent obtains the required authorization rather than treating default routing as approval
+#### Scenario: Agent run requested implicitly
+- **WHEN** инструкция, инструмент или рабочий процесс предполагает запуск дочернего агента
+- **THEN** запуск не выполняется, ограничение сообщается пользователю, а задача решается неагентским путём

@@ -122,8 +122,8 @@ def main():
         check("harness", "unit", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "*_test.py"])
         check("release", "unit", [sys.executable, "scripts/test-release.py", str(ROOT)], timeout=180)
         check("install-rollback", "integration", [sys.executable, "scripts/test-install-rollback.py"])
-        check("terminal-install", "unit",
-              ["node", "scripts/test-terminal-install.mjs"])
+        check("agent-runners", "unit",
+              ["node", "scripts/test-no-agent-runners.mjs"])
         check("portable-stack", "unit",
               ["node", "scripts/test-portable-stack.mjs"])
         check("stack-bootstrap", "unit",
@@ -146,9 +146,6 @@ def main():
                   ["node", "--require", "./scripts/no-network.cjs",
                    "scripts/test-compaction-sdk.mjs", str(modules)], timeout=30)
             check("stack-surface", "integration", ["node", "scripts/test-stack-surface.mjs", str(agent)])
-            check("terminal-sdk", "integration",
-                  ["node", "--require", "./scripts/no-network.cjs",
-                   "scripts/test-terminal-sdk.mjs", str(modules)], timeout=60)
             check("native-quota-sdk", "integration", ["node", "--require", "./scripts/no-network.cjs", "scripts/test-native-quota-sdk.mjs", str(modules)], timeout=30)
             check("firstmate-policy-sdk", "integration",
                   ["node", "scripts/test-firstmate-policy-sdk.mjs", str(modules)], timeout=120)

@@ -15,10 +15,18 @@ PORTABLE_MANAGED = {
     "AGENTS.md", "extensions/aitunnel.ts", "skills/cpp-styleguide/SKILL.md",
     "skills/python-styleguide/SKILL.md", "skills/latex-simple-style/SKILL.md",
     "bin/firstmate", "bin/jev-browser", "bin/paper-search-mcp",
-    "agents/terminal.md", "extensions/subagent/config.json",
 }
 # Retired from the build; historical backups made while it was managed still restore.
 RETIRED_MANAGED = {"extensions/jev-review"}
+# Agent runners retired after the last shipped profile; older backups still restore.
+RETIRED_RUNNERS = {
+    "agents/terminal.md", "extensions/subagent/config.json",
+    "herdr-agents/config.json", "extensions/herdr-agent-state.ts",
+}
+# Paths added after the oldest accepted backup set.
+LEGACY_ABSENT = PORTABLE_MANAGED | {"extensions/task-session.ts",
+                                    "extensions/deferred-tools.ts",
+                                    "mcp.json", "train-agents/config.json"}
 
 
 class InstallerRestoreTest(unittest.TestCase):
@@ -60,10 +68,7 @@ class InstallerRestoreTest(unittest.TestCase):
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
         if legacy:
-            managed = [item for item in managed if item not in PORTABLE_MANAGED]
-            managed.remove("herdr-agents/config.json")
-            managed.remove("extensions/task-session.ts")
-            managed += sorted(RETIRED_MANAGED)
+            managed = [item for item in managed if item not in LEGACY_ABSENT]
             present.remove("extensions/task-session.ts")
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
@@ -105,21 +110,9 @@ class InstallerRestoreTest(unittest.TestCase):
             (self.agent / "auth.json").read_text(), "private fixture")
         self.assertTrue((self.agent / ".my-pi-last-backup").exists())
 
-    def test_pre_terminal_backup_is_accepted(self):
-        """Accept the exact managed set from before terminal was introduced."""
-        terminal_paths = {"agents/terminal.md", "extensions/subagent/config.json"}
-        self.managed = [item for item in self.managed
-                        if item not in terminal_paths]
-        self.write_backup()
-        self.assertEqual(self.invoke(dry_run=True).returncode, 0)
-        self.assert_current_unchanged()
-
-    def test_pre_herdr_backup_is_accepted(self):
-        """Retain the exact previous managed set with task-session present."""
-        self.managed = [item for item in self.managed
-                        if item not in PORTABLE_MANAGED]
-        self.managed.remove("herdr-agents/config.json")
-        self.managed += sorted(RETIRED_MANAGED)
+    def test_retired_runner_backup_is_accepted(self):
+        """Accept the last profile that still managed terminal and Herdr agents."""
+        self.managed = sorted(set(self.managed) | RETIRED_RUNNERS)
         self.write_backup()
         self.assertEqual(self.invoke(dry_run=True).returncode, 0)
         self.assert_current_unchanged()
@@ -181,18 +174,18 @@ class InstallerRestoreTest(unittest.TestCase):
         self.assertEqual(template.read_text(), "saved template")
         self.assertEqual(note.read_text(), "KEEP UNRELATED NOTES")
 
-    def test_herdr_config_restore(self):
-        """Restore new config bytes alongside the current managed set."""
-        config = self.agent / "herdr-agents/config.json"
+    def test_nested_config_restore(self):
+        """Restore nested managed config bytes alongside the current set."""
+        config = self.agent / "train-agents/config.json"
         config.parent.mkdir()
-        config.write_text("current Herdr config")
-        self.present.append("herdr-agents/config.json")
-        self.entries.append(("herdr-agents/config.json",
-                            "saved Herdr config", None))
+        config.write_text("current train config")
+        self.present.append("train-agents/config.json")
+        self.entries.append(("train-agents/config.json",
+                            "saved train config", None))
         self.write_backup()
         result = self.invoke()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(config.read_text(), "saved Herdr config")
+        self.assertEqual(config.read_text(), "saved train config")
 
     def test_current_backup_dry_run(self):
         """Accept task-session and normal relative npm links without restoring."""

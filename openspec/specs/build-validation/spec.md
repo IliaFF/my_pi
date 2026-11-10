@@ -216,13 +216,17 @@ Mandatory checks MUST cover fresh/preserved instructions, the approved package/s
 - **WHEN** npm test runs
 - **THEN** stack contracts and isolated installer/SDK cases execute alongside all retained integration/startup checks without production files, credentials or external model calls
 
-### Requirement: Terminal delegation has offline SDK acceptance
-The mandatory gate MUST exercise the actual pi-subagents package and current Pi SDK with a local faux provider, no credentials and no external model request. It MUST verify child creation/result, retained-session continuation, cancellation, allowed tools/context and disabled recursion. No-prompt RPC startup MUST verify extension registration alongside the existing background tools. Checks MUST use isolated temporary runtime and finite deadlines.
+### Requirement: Retired agent runners stay out of the build
+Обязательный gate MUST проверять, что source-профиль, манифест, npm-манифест и lock, install/uninstall-скрипты и постоянные инструкции не содержат агентских раннеров (pi-subagents, pi-herdr-agents, terminal-роль, их конфиги и снимки) и что постоянная политика объявляет делегирование отключённым. Проверка MUST исполняться офлайн, без credentials, провайдеров и запуска агентских процессов, и MUST NOT подменять реальные SDK-проверки остальных компонентов.
 
-#### Scenario: Offline acceptance
-- **WHEN** npm test runs
-- **THEN** actual child lifecycle and configured RPC startup pass without live model calls, and test results retain true exit codes
+#### Scenario: Source drift
+- **WHEN** агентский раннер или его конфиг повторно появляется в управляемом наборе
+- **THEN** обязательный gate падает с указанием конкретного файла и записи
 
-#### Scenario: Runtime deployment
-- **WHEN** offline source acceptance and review pass and approved installation completes
-- **THEN** backup, preserved parent settings and installed-source bytes are checked and runtime RPC starts without a prompt; restart and unverified live behavior are reported
+#### Scenario: Policy drift
+- **WHEN** постоянные инструкции снова требуют передавать работу дочернему исполнителю
+- **THEN** обязательный gate падает и указывает на отсутствующее или противоречащее правило
+
+#### Scenario: Retired adapters
+- **WHEN** npm test выполняется после удаления раннеров
+- **THEN** retired адаптеры не запускаются, а остальные unit, SDK и startup-проверки сохраняют реальные exit-коды

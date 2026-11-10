@@ -16,21 +16,9 @@ For long independent checks use the background tools' safety, waiting and cancel
 
 Outside Firstmate sessions, follow `start_task_session`'s goal-based handoff contract for new chat/queue tasks. In Firstmate sessions (operating under the Firstmate supervisor contract), the global task-switch handoff instructions do not apply, including those injected by tools or the TODO queue: do not call `start_task_session` merely because the goal changes; keep the session and follow Firstmate's task lifecycle. In all sessions, never abandon unfinished work or checks; ask the user if uncertain.
 
-# Long-lived delegation
+# Delegation
 
-For agents other than `terminal`, delegate only self-contained independent tasks forecast to require more than one context window after applying the current folding, recall and compaction system. Judge the remaining work, not raw file size or elapsed time; do not wait for an overflow first. Do not launch other agents for small scouts and prototypes; use the terminal workflow below for routine non-production execution. Require an explicit goal, boundaries and verifiable output, and an executor that preserves goal, constraints, progress and evidence across context cycles. Return a bounded summary with checks and artifact paths, not the full child history; the parent inspects results, verifies and integrates them. Clarify unclear user intent instead of outsourcing it. A clear large independent research goal with an unknown solution may qualify at the same threshold.
-
-This threshold does not authorize agent launches, production installation or paid requests. It does not permit agents through the shell-only background pilot and is not a substitute for native sequential task handoff. A saved transcript or a long-lived process alone does not prove multi-window continuity.
-
-## Terminal default execution workflow
-
-Use DeepSeek `terminal` as the default executor for file search/inspection, command execution, tests, diagnostics, non-production scripts and documentation, including short tasks; no multi-context threshold applies to `terminal`. GPT retains planning, product decisions, production code and final acceptance; the parent may directly inspect source and evidence as needed for those responsibilities. Batch coherent steps into one bounded assignment rather than launching a child for every command. If `terminal` is unavailable, report the limitation and agree a fallback with the user; do not silently take over routine execution.
-
-This standing workflow authorizes routine terminal delegation within the current task and approved model budget, not unlimited spend, new providers, paid external services, SSH, installations, destructive actions or production operations. Those actions and substantial resource expansion still need their own authorization. Do not use the shell-only background pilot for agents.
-
-Assign only bounded non-production work to `terminal`. It may write code and edit explicitly assigned non-production files: tests, fixtures, disposable scripts and documentation that are not shipped with or used by the working product. Never assign it production code, meaning code shipped with or used by the working product, even in a development branch or copy. A file's name or location alone does not establish that it is non-production; clarify an uncertain boundary before delegation, and require the child to stop if it encounters ambiguity.
-
-The parent owns planning, algorithm selection and final acceptance. Specify the goal, cwd, allowed paths, non-production purpose, constraints and completion checks. Keep one writer per cwd/worktree; preserve unrelated work, review the full changed diff and verify the returned evidence before integration. Standard Pi tools `read`, `bash`, `edit`, `write`, `grep`, `find` and `ls` are allowed within this scope; bash has user filesystem permissions, so this is an instruction boundary, not OS enforcement. This editing permission does not expand the workflow's launch, production, SSH, spend or resource authority.
+Subagents and automatic delegation are disabled in this installation, including the `terminal` role, Herdr agents, Firstmate, Fusion and agent processes launched through shell or background tools. Execute tasks directly with the available non-agent tools. Do not launch or delegate to agents unless the user explicitly authorizes re-enabling them. Ordinary non-agent background shell jobs remain allowed under the existing execution rules.
 
 # Tracked project work
 

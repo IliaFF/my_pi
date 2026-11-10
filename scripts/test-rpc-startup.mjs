@@ -11,12 +11,13 @@ const settings = JSON.parse(readFileSync(join(agent, 'settings.json'), 'utf8'));
 const core = join(agent, "npm/node_modules/@earendil-works/pi-coding-agent");
 const { RpcClient } = await import(pathToFileURL(join(core, "dist/index.js")));
 const pkg = JSON.parse(readFileSync(join(core, "package.json"), "utf8"));
-const probe = mkdtempSync(join(tmpdir(), 'pi-rpc-terminal-'));
+const probe = mkdtempSync(join(tmpdir(), 'pi-rpc-no-agent-runners-'));
 const probeFile = join(probe, 'probe.mjs');
 writeFileSync(probeFile, `export default pi => pi.on('session_start', () => {
-  if (!pi.getAllTools().some(tool => tool.name === 'subagent')) throw new Error('Terminal extension tool missing');
-  if (!pi.getActiveTools().includes('subagent')) throw new Error('Terminal extension tool inactive');
-  process.stderr.write('TERMINAL_EXTENSION_LOADED\\n');
+  const retired = ['subagent', 'subagent_send', 'subagents_list', 'subagent_resume'];
+  const found = pi.getAllTools().map(tool => tool.name).filter(name => retired.includes(name));
+  if (found.length > 0) throw new Error('Retired agent runner tools registered: ' + found.join(', '));
+  process.stderr.write('AGENT_RUNNERS_ABSENT\\n');
 });`);
 const client = new RpcClient({ cliPath: join(core, pkg.bin.pi), cwd: resolve(process.argv[3] ?? agent),
   env: { PI_CODING_AGENT_DIR: agent, PI_OFFLINE: "1",
@@ -32,9 +33,10 @@ try {
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
   assert.ok(!commands.some(command => command.name === 'council'), 'council must be excluded');
-  assert.deepEqual(settings.packages.filter(p => typeof p !== 'string' && p.source === 'npm:pi-subagents@0.87.0'),
-    [{ source: 'npm:pi-subagents@0.87.0', skills: [], prompts: [] }], 'pinned extension only, no bundled prompts/skills');
-  assert.equal(settings.subagents.disableBuiltins, true);
+  for (const retired of ['npm:pi-subagents', 'npm:pi-herdr-agents']) {
+    assert.ok(!settings.packages.some(p => (typeof p === 'string' ? p : p.source).startsWith(retired)), `retired package must not activate: ${retired}`);
+  }
+  assert.ok(!settings.subagents, 'retired subagent model restrictions must be absent');
   for (const name of ["queue", "auto-ultra-compact-status", "ponytail", "pace", "bg", "jobs", "logs", "kill", "tasks", "history-status"]) {
     assert.ok(commands.some((command) => command.name === name), `missing command: ${name}`);
   }
@@ -46,9 +48,9 @@ try {
     assert.ok(!commands.some((command) => command.name === name), `removed command still registered: ${name}`);
   }
   assert.deepEqual(errors, [], "startup must not emit extension errors or start a model run");
-  assert.match(client.getStderr(), /TERMINAL_EXTENSION_LOADED/, 'real RPC session_start must see the subagent tool');
+  assert.match(client.getStderr(), /AGENT_RUNNERS_ABSENT/, 'real RPC session_start must see no agent runner tool');
   assert.doesNotMatch(client.getStderr(), /Failed to load extension|Error loading extension|NETWORK_BLOCKED|Extension conflicts/i);
-  console.log(`PASS RPC startup: ${commands.length} commands, configured extensions including pinned terminal subagent (builtins/council disabled), no prompt/model run`);
+  console.log(`PASS RPC startup: ${commands.length} commands, configured extensions without agent runners (builtins/council disabled), no prompt/model run`);
 } finally {
   await client.stop();
   rmSync(probe, { recursive: true, force: true });

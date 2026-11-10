@@ -70,14 +70,13 @@ fi
 # bin/jev-browser is retained only for legacy backup/rollback compatibility.
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "AGENTS.md" "my-pi-settings.json" "fabric.json"
-  "mcp.json" "train-agents/config.json" "herdr-agents/config.json" "extensions/herdr-agent-state.ts"
+  "mcp.json" "train-agents/config.json"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts" "extensions/task-session.ts" "extensions/aitunnel.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
   "extensions/pi-fast-resume.json" "extensions/quotas.json" "extensions/context-compaction.json" "extensions/output-compactor.json" "extensions/fabric-output.json"
   "skills/openalex" "skills/cpp-styleguide/SKILL.md" "skills/python-styleguide/SKILL.md" "skills/latex-simple-style/SKILL.md"
   "bin/firstmate" "bin/jev-browser" "bin/paper-search-mcp" "npm" "maintenance"
-  "agents/terminal.md" "extensions/subagent/config.json"
 )
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_ROOT"
@@ -155,7 +154,8 @@ packages = data.get("packages", [])
 aligned = []
 for item in packages:
     source = source_of(item)
-    if (source in ("npm:pi-herdr-agents", "npm:pi-herdr-agents@3.3.1")
+    if (isinstance(source, str) and any(source == f"npm:{name}" or source.startswith(f"npm:{name}@")
+                                       for name in ("pi-subagents", "pi-herdr-agents"))
             or (isinstance(source, str)
                 and (source == "npm:@amaster.ai/pi-browser-use"
                      or source.startswith("npm:@amaster.ai/pi-browser-use@")))):
@@ -202,10 +202,6 @@ train = agent / "train-agents/config.json"
 train.parent.mkdir(parents=True, exist_ok=True)
 if not train.exists():
     train.write_bytes((configs / "train-agents/config.json").read_bytes())
-herdr = agent / "herdr-agents/config.json"
-herdr.parent.mkdir(parents=True, exist_ok=True)
-if not herdr.exists():
-    herdr.write_bytes((configs / "herdr-agents/config.json").read_bytes())
 PY
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$CONTEXT_SETTINGS" ]]; then
 python3 - "$CONTEXT_SETTINGS" "$ROOT/configs/pi-context.json" <<'PY'
@@ -278,7 +274,6 @@ if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/pi-meantime.json" ]]; then
   cp "$ROOT/configs/pi-meantime.json" "$AGENT_DIR/pi-meantime.json"
 fi
 # Personal configuration end
-node "$ROOT/scripts/install-terminal-subagent.mjs" "$AGENT_DIR" "$ROOT"
 cp "$ROOT/configs/pi-fast-resume.json" "$AGENT_DIR/extensions/pi-fast-resume.json"
 cp "$ROOT/configs/quotas.json" "$AGENT_DIR/extensions/quotas.json"
 rm -f "$AGENT_DIR/extensions/context-compaction.json" "$AGENT_DIR/extensions/context-compaction.ts" "$AGENT_DIR/extensions/context-compaction.ts.disabled"
@@ -292,11 +287,13 @@ fi
 cp "$ROOT/local-extensions/aitunnel.ts" "$AGENT_DIR/extensions/aitunnel.ts"
 cp "$ROOT/local-extensions/deferred-tools.ts" "$AGENT_DIR/extensions/deferred-tools.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
+# Retired agent runners: remove files a previous profile may still contain.
+rm -rf "$AGENT_DIR/extensions/subagent" "$AGENT_DIR/herdr-agents"
+rm -f "$AGENT_DIR/agents/terminal.md" "$AGENT_DIR/extensions/herdr-agent-state.ts"
 rm -f "$AGENT_DIR/extensions/reader-pane.ts"
 cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
-cp "$ROOT/local-extensions/herdr-agent-state.ts" "$AGENT_DIR/extensions/herdr-agent-state.ts"
 rm -rf "$AGENT_DIR/skills/openalex"
 cp -R "$ROOT/skills/openalex" "$AGENT_DIR/skills/openalex"
 for skill in cpp-styleguide python-styleguide latex-simple-style; do

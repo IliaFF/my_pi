@@ -7,13 +7,12 @@
 ## Requirements
 
 ### Requirement: Approved inventory is reproducible
-The build MUST provide pinned Firstmate, Herdr backend, Treehouse, workspace-history, the three user style skills, patched paper-search MCP and AITunnel registration. Firstmate MUST remain a separate checkout with project-scoped Pi extensions, not a global extension copy. The build MUST NOT provision pi-browser-use, Chrome/Jev MCP, or their dedicated dependencies, binaries and launchers.
+Сборка MUST предоставлять закреплённые Firstmate, Herdr backend, Treehouse, workspace-history, три пользовательских style-skill, патченный paper-search MCP и регистрацию AITunnel. Firstmate MUST оставаться отдельным checkout с project-scoped расширениями Pi, а не глобальной копией. Сборка MUST NOT предоставлять pi-subagents, pi-herdr-agents, terminal-роль, их конфиги, снимки и агентские процессы. Стандартный Herdr CLI/сервер и связанная запись `stack/lock.json` MUST оставаться без изменений.
 
 #### Scenario: Fresh supported installation
-- **WHEN** approved installation completes on its documented supported platform
-- **THEN** the agreed non-browser components are present at their declared versions and Firstmate can be launched separately without automatically starting agents
-- **THEN** no retired browser integration is configured or provisioned by the build
-- **THEN** optional browser features in pi-markdown-preview and pi-web-access remain unchanged by explicit user choice
+- **WHEN** согласованная установка завершена на поддерживаемой платформе
+- **THEN** согласованные компоненты присутствуют в заявленных версиях, а агентские раннеры и их конфиги отсутствуют
+- **THEN** стандартный Herdr доступен без изменений и не требует агентского расширения
 
 ### Requirement: Portable configuration excludes private runtime
 Published source MUST exclude credentials, sessions, device identifiers, local host inventories, SSH addresses/routes/keys and agent data. Provider and MCP secrets MUST be supplied separately. Existing user instructions and custom servers MUST survive installation in the documented preservation mode.
@@ -89,47 +88,3 @@ An explicitly approved browser-removal migration MUST back up affected files bef
 #### Scenario: Restore approved backup
 - **WHEN** the verified pre-migration backup is restored after a failed update
 - **THEN** affected runtime configuration and managed files return to the recorded previous state without deleting unrelated data
-
-### Requirement: Single managed terminal specialist
-The build MUST pin pi-subagents 0.87.0 and install one managed terminal agent using openrouter/deepseek/deepseek-v4.1-flash-1017, preserving the parent model. Bundled roles, council/prompts, automatic per-change review, nesting and ambient child extensions MUST remain disabled. Terminal MUST be exempt from the multi-context threshold; other authorization and resource limits MUST remain. Tool selection MUST NOT imply OS isolation or inherited SSH routing.
-
-#### Scenario: Preservation-mode deployment
-- **WHEN** the approved installer runs with preserved settings
-- **THEN** it adds the pinned filtered package and terminal settings while preserving unrelated settings, instructions and credentials, with recoverable pre-install backup
-
-#### Scenario: Conflicting personal profile
-- **WHEN** an existing managed terminal profile or config differs from the approved source
-- **THEN** installation refuses replacement and retains the backup rather than silently overwriting user content
-
-#### Scenario: Short execution assignment
-- **WHEN** the parent assigns a bounded short non-production task under the standing terminal workflow
-- **THEN** the profile accepts that scope without a multi-context prerequisite, while planning, production code and acceptance remain with the parent
-
-### Requirement: Terminal edits are non-production only
-The terminal profile MUST allow explicitly assigned non-production code and edits. It MUST forbid writing or modifying code shipped with or used by the working product, even in a development branch or copy. An unclear production boundary MUST stop execution for parent clarification.
-
-#### Scenario: Authorized non-production edit
-- **WHEN** an authorized delegation explicitly assigns non-production files and a bounded goal
-- **THEN** terminal may write tests, fixtures, disposable scripts and documentation that are not part of production, preserving unrelated work and returning changed paths, actual checks and uncertainty for parent review
-
-#### Scenario: Product code in development
-- **WHEN** an assignment requests code shipped with or used by the working product, even in a development branch or copy
-- **THEN** terminal refuses that portion and reports the boundary to the parent
-
-#### Scenario: Ambiguous boundary
-- **WHEN** the role of a requested file is unclear or the assignment would expand the allowed scope
-- **THEN** terminal stops and requests parent clarification rather than assuming that a test, script or development path is non-production
-
-### Requirement: Parent controls terminal edit scope
-Parent instructions MUST require allowed paths, purpose, constraints, completion checks and full diff review; planning and final acceptance MUST remain with the parent. Existing global delegation authorization, resource approval and all other launch restrictions MUST NOT be weakened.
-
-#### Scenario: Preparing an editing assignment
-- **WHEN** the parent prepares an authorized terminal editing task
-- **THEN** it specifies the goal, cwd, allowed paths, non-production purpose, constraints and completion checks, keeps one writer per cwd/worktree and reviews the full diff and evidence before integration
-
-### Requirement: Terminal standard tools remain instruction bounded
-The profile MUST allow only the standard Pi tools read, bash, edit, write, grep, find and ls. This tool selection and the non-production instruction boundary MUST NOT be described as OS enforcement.
-
-#### Scenario: Standard tools are available
-- **WHEN** the terminal child is launched in the offline SDK fixture
-- **THEN** its effective tools are exactly read, bash, edit, write, grep, find and ls, and its prompt contains the non-production permission, production prohibition and ambiguity stop rule
