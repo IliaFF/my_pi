@@ -70,8 +70,9 @@ allowed.discard("extensions/jev-review")
 before_terminal = allowed.copy()
 # Retired agent runners stay in the historical set so older backups remain restorable.
 retired_runners = before_terminal | {"agents/terminal.md", "extensions/subagent/config.json", "herdr-agents/config.json", "extensions/herdr-agent-state.ts"}
+audit_migration = retired_runners | {"extensions/jev-review"}
 managed = s.get("agentManaged", [])
-if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, instruction_policy, with_workflow, before_terminal, retired_runners, allowed):
+if not isinstance(managed, list) or set(managed) not in (legacy, previous, deferred, task_session, instruction_policy, with_workflow, before_terminal, retired_runners, audit_migration, allowed):
     raise SystemExit("FAIL backup contains unexpected managed paths")
 present = s["agentPresent"]
 if not isinstance(present, list) or not all(isinstance(name, str) and name in managed for name in present):

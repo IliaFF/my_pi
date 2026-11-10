@@ -37,8 +37,9 @@ assert.ok(!installer.includes("local-extensions/herdr-agent-state"), "install.sh
 for (const line of installer.split("\n").filter(line => retired.some(name => line.includes(`npm:${name}`)))) {
   assert.match(line, /startswith/, `install.sh still provisions a retired runner: ${line.trim()}`);
 }
-assert.ok(installer.includes('rm -rf "$AGENT_DIR/extensions/subagent" "$AGENT_DIR/herdr-agents"'), "install.sh must retire agent runner files from an existing profile");
-assert.ok(installer.includes('rm -f "$AGENT_DIR/agents/terminal.md"'), "install.sh must retire the terminal role file");
+assert.ok(installer.includes('node "$ROOT/scripts/migrate-retired-profile.mjs" "$AGENT_DIR" --check'), "install.sh must inspect retired files before changes");
+assert.ok(installer.includes('node "$ROOT/scripts/migrate-retired-profile.mjs" "$AGENT_DIR" --apply "$backup"'), "install.sh must retire known files only after backup");
+assert.ok(!installer.includes('rm -rf "$AGENT_DIR/extensions/subagent" "$AGENT_DIR/herdr-agents"'), "install.sh must preserve private neighboring files");
 const uninstaller = read("uninstall.sh");
 for (const line of uninstaller.split("\n").filter(line => /agents\/terminal\.md|herdr-agents\/config\.json|herdr-agent-state|extensions\/subagent/.test(line))) {
   assert.match(line, /retired_runners/, `uninstall.sh must keep retired paths only in the historical set: ${line.trim()}`);

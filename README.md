@@ -216,11 +216,13 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 
 Сохраняются settings/APPEND/context policy; известные npm pins выравниваются по source lock, прежний default Herdr Pi plugin убирается, workspace-history добавляется. Portable Firstmate и resource-consent blocks дописываются в глобальный AGENTS без замены личных правил; полное ресурсное правило не дублируется в новом APPEND template. Отличающиеся новые provider/skills, чужие launchers или другой managed stack требуют review. После установки нужен restart Pi; текущая сессия не перезагружается автоматически.
 
+Перед изменениями профиля установщик отклоняет ссылки в назначении APPEND и неизвестные изменения retired файлов. После backup он убирает только точно известные старые блоки terminal/delegation, файлы раннеров и `extensions/jev-review`, а также retired настройку `subagents`. Личные инструкции вне этих блоков и соседние файлы сохраняются; неизвестный вариант требует ручного разбора. Backup проверяется настоящим `uninstall.sh --dry-run` до изменений. `configs/APPEND_SYSTEM.md` — source-only baseline: maintenance snapshot не импортирует личный APPEND.
+
 Установщик:
 
 1. Проверяет Node.js, npm, Python, `patch` и `tar`.
 2. Проверяет release и exact-version patch replay.
-3. Создаёт rollback backup управляемых agent-файлов.
+3. После read-only preflight создаёт и проверяет rollback backup всех изменяемых agent-файлов, включая retired пути, затем выполняет адресную миграцию.
 4. Выполняет `npm ci --ignore-scripts --legacy-peer-deps` по lock-файлу.
 5. Устанавливает default config, local extensions, OpenAlex и три style skills, UI configs и отдельный pinned Firstmate/backend/MCP stack; добавляет отсутствующие MCP servers без перезаписи существующих, а train-agents config — только если его ещё нет.
 6. Применяет совместимые patch и запускает verification.

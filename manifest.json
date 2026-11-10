@@ -144,7 +144,8 @@
       "source": "APPEND_SYSTEM.md",
       "snapshot": "configs/APPEND_SYSTEM.md",
       "restore": false,
-      "reason": "Portable baseline only; host-specific policies stay local and maintenance updates do not overwrite them."
+      "reason": "Portable baseline only; host-specific policies stay local and are never imported by maintenance snapshot.",
+      "snapshotRuntime": false
     },
     {
       "source": "skills/openalex/SKILL.md",

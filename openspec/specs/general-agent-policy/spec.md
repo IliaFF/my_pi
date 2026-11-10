@@ -103,10 +103,3 @@ Global context instructions MUST retain the Firstmate task-switch and task-resto
 #### Scenario: Known previous managed section
 - **WHEN** a future explicitly authorized installation encounters the exact previously shipped Firstmate section plus private sections
 - **THEN** it can update only that known managed section, preserve private bytes and remain idempotent; unknown conflicting content or a linked AGENTS file still causes refusal
-
-### Requirement: Agent launches need explicit reauthorization
-Агентские процессы MUST NOT запускаться, пока пользователь явно не разрешит их повторное включение. Если инструкция, инструмент или рабочий процесс предполагает дочернего агента, ограничение MUST быть сообщено пользователю, а задача решена неагентским путём.
-
-#### Scenario: Agent run requested implicitly
-- **WHEN** инструкция, инструмент или рабочий процесс предполагает запуск дочернего агента
-- **THEN** запуск не выполняется, ограничение сообщается пользователю, а задача решается неагентским путём

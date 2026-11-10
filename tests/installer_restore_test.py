@@ -68,7 +68,9 @@ class InstallerRestoreTest(unittest.TestCase):
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
         if legacy:
-            managed = [item for item in managed if item not in LEGACY_ABSENT]
+            managed = [item for item in managed
+                       if item not in (LEGACY_ABSENT | RETIRED_RUNNERS
+                                       | RETIRED_MANAGED)]
             present.remove("extensions/task-session.ts")
             entries = [e for e in entries if e[0]
                        != "extensions/task-session.ts"]
@@ -112,16 +114,17 @@ class InstallerRestoreTest(unittest.TestCase):
 
     def test_retired_runner_backup_is_accepted(self):
         """Accept the last profile that still managed terminal and Herdr agents."""
-        self.managed = sorted(set(self.managed) | RETIRED_RUNNERS)
+        self.managed = sorted(
+            (set(self.managed) - RETIRED_MANAGED) | RETIRED_RUNNERS)
         self.write_backup()
         self.assertEqual(self.invoke(dry_run=True).returncode, 0)
         self.assert_current_unchanged()
 
     def test_pre_portable_backup_is_accepted(self):
         """Accept the exact previous allowlist without broadening restore scope."""
-        self.managed = [item for item in self.managed
-                        if item not in PORTABLE_MANAGED]
-        self.managed += sorted(RETIRED_MANAGED)
+        self.managed = sorted(
+            (set(self.managed) - PORTABLE_MANAGED - RETIRED_RUNNERS)
+            | RETIRED_MANAGED)
         self.write_backup()
         self.assertEqual(self.invoke(dry_run=True).returncode, 0)
         self.assert_current_unchanged()

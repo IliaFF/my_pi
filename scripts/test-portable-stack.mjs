@@ -29,7 +29,7 @@ const servers = JSON.parse(readFileSync(join(root, "configs/mcp.json"), "utf8"))
 assert.deepEqual(Object.keys(servers), ["paper-search"]);
 assert.equal(servers["paper-search"].exposure, "codemode");
 const manifest = JSON.parse(readFileSync(join(root, "manifest.json"), "utf8"));
-for (const name of ["AGENTS.md", "mcp.json", "extensions/aitunnel.ts", ...["cpp-styleguide", "python-styleguide", "latex-simple-style"].map(s => `skills/${s}/SKILL.md`)]) {
+for (const name of ["AGENTS.md", "APPEND_SYSTEM.md", "mcp.json", "extensions/aitunnel.ts", ...["cpp-styleguide", "python-styleguide", "latex-simple-style"].map(s => `skills/${s}/SKILL.md`)]) {
   const config = manifest.managedConfigs.find(c => c.source === name);
   assert.equal(config.restore, false, name);
   assert.equal(config.snapshotRuntime, false, name);
@@ -47,7 +47,8 @@ assert.ok(!policy.includes("Use the least costly approach sufficient"), "New def
 assert.ok(fallback.includes("В остальных сессиях правила смены задач сохраняются"));
 assert.ok(!/ProxyJump|\/home\/|\/mnt\/|\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(fallback));
 const installer = readFileSync(join(root, "install.sh"), "utf8");
-assert.ok(!installer.includes("extensions/jev-review"));
+assert.ok(!installer.includes('cp "$ROOT/local-extensions/jev-review'), "Retired Jev must not be provisioned");
+assert.ok(installer.includes('"extensions/jev-review"'), "Existing Jev must be backed up for migration");
 assert.ok(!readFileSync(join(root, "scripts/test-build.py"), "utf8").includes("jev-review"));
 const modeHelp = spawnSync("bash", [join(root, "install.sh"), "--skip-stack", "--help"], { encoding: "utf8", timeout: 10000 });
 assert.equal(modeHelp.status, 0, modeHelp.stderr);
@@ -145,4 +146,8 @@ try {
 } finally {
   rmSync(agent, { recursive: true, force: true });
 }
-console.log("PASS portable Firstmate policy, private instructions, idempotence and conflict refusal");
+const migrations = spawnSync(process.execPath, ["--test", join(root, "scripts/test-install-migrations.mjs")], {
+  encoding: "utf8", timeout: 60000,
+});
+assert.equal(migrations.status, 0, migrations.stdout + migrations.stderr);
+console.log("PASS portable Firstmate policy, private instructions, idempotence, conflict refusal and actual profile migration/rollback");

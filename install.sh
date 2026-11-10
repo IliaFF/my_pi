@@ -45,6 +45,8 @@ node -e 'const [M]=process.versions.node.split(".").map(Number); if (M<24) proce
   echo "FAIL Node $(node --version). Required >=24.0.0" >&2; exit 1;
 }
 PI_RELEASE_SOURCE_ONLY=1 python3 "$ROOT/scripts/test-release.py" "$ROOT"
+# Profile preflight is read-only and independent of private-stack provisioning.
+node "$ROOT/scripts/migrate-retired-profile.mjs" "$AGENT_DIR" --check
 
 current_version=""
 if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/null || true)"; fi
@@ -71,6 +73,7 @@ fi
 managed=(
   "settings.json" "APPEND_SYSTEM.md" "AGENTS.md" "my-pi-settings.json" "fabric.json"
   "mcp.json" "train-agents/config.json"
+  "agents/terminal.md" "extensions/subagent/config.json" "herdr-agents/config.json" "extensions/herdr-agent-state.ts" "extensions/jev-review"
   "extensions/tools.ts" "extensions/lean-tools.ts" "extensions/loop-profiler.ts" "extensions/deferred-tools.ts" "extensions/task-session.ts" "extensions/aitunnel.ts"
   "extensions/decision-observer.ts" "extensions/reader-pane.ts" "extensions/todo-queue" "extensions/project-loop.ts"
   "extensions/context-compaction.ts" "extensions/context-compaction.ts.disabled" "extensions/auto-ultra-compact" "extensions/output-compactor" "extensions/fabric-output"
@@ -102,6 +105,9 @@ else
   tar -czf "$backup/agent-files.tar.gz" --files-from /dev/null
 fi
 
+# Confirm that this exact archive is restorable before modifying the profile.
+PI_CODING_AGENT_DIR="$AGENT_DIR" bash "$ROOT/uninstall.sh" --backup "$backup" --dry-run > "$backup/restore-preflight.log"
+
 core_changed=0
 rollback_install() {
   local rc="$?"; trap - ERR; set +e
@@ -119,6 +125,7 @@ rollback_install() {
   exit "$rc"
 }
 trap rollback_install ERR
+node "$ROOT/scripts/migrate-retired-profile.mjs" "$AGENT_DIR" --apply "$backup"
 
 mkdir -p "$AGENT_DIR/npm" "$AGENT_DIR/extensions/auto-ultra-compact" "$AGENT_DIR/extensions/todo-queue" "$AGENT_DIR/skills" "$AGENT_DIR/maintenance"
 rm -f "$AGENT_DIR/fabric.json" "$AGENT_DIR/extensions/fabric-output.json" "$AGENT_DIR/extensions/output-compactor.json"
@@ -171,6 +178,7 @@ history = f"npm:pi-workspace-history@{deps['pi-workspace-history']}"
 if not any(source_of(item) == history for item in aligned):
     aligned.append(history)
 data.pop("pi-browser-use", None)
+data.pop("subagents", None)
 data["packages"] = aligned
 path.write_text(json.dumps(data, indent=2) + "\n")
 PYCONFIG
@@ -287,9 +295,6 @@ fi
 cp "$ROOT/local-extensions/aitunnel.ts" "$AGENT_DIR/extensions/aitunnel.ts"
 cp "$ROOT/local-extensions/deferred-tools.ts" "$AGENT_DIR/extensions/deferred-tools.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
-# Retired agent runners: remove files a previous profile may still contain.
-rm -rf "$AGENT_DIR/extensions/subagent" "$AGENT_DIR/herdr-agents"
-rm -f "$AGENT_DIR/agents/terminal.md" "$AGENT_DIR/extensions/herdr-agent-state.ts"
 rm -f "$AGENT_DIR/extensions/reader-pane.ts"
 cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
