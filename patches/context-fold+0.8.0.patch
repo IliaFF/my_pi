@@ -1,13 +1,14 @@
 --- a/src/adapters/pi/store.ts
 +++ b/src/adapters/pi/store.ts
-@@ -85,6 +85,18 @@
+@@ -85,6 +85,19 @@
  		: input;
  }
  
 +/**
-+ * Fold thresholds, ladder step and budget are measured against the EFFECTIVE window our build runs:
++ * Fold thresholds, ladder step and gauge are measured against the EFFECTIVE window our build runs:
 + * auto-compaction caps at 170k, so a larger provider window would keep masking asleep until long
-+ * past the point where compaction replaces the history anyway.
++ * past the point where compaction replaces the history anyway. The ladder budget stays tied to the
++ * provider window (emergency ceiling only), so sessions running up to 170k never hit it.
 + */
 +const EFFECTIVE_FOLD_WINDOW = 170_000;
 +
@@ -19,12 +20,19 @@
  /** Walk back from the newest block, protecting the newest ~`target` tokens (≤1.25× overflow cap). */
  export function protectedFromIndex(blocks: { tokens: number }[], target: number): number {
  	const n = blocks.length;
-@@ -373,7 +385,7 @@
+@@ -373,9 +386,13 @@
  		contextWindow: number | null,
  		frozenOps: Map<string, string> = new Map(),
  	): { cw: number; budget: number; tailTarget: number; protectFrom: number } {
 -		const cw = contextWindow ?? this.cfg.defaultContextWindow;
-+		const cw = foldWindow(contextWindow, this.cfg.defaultContextWindow);
++		const raw = contextWindow ?? this.cfg.defaultContextWindow;
++		const cw = foldWindow(raw, this.cfg.defaultContextWindow);
  		const cap = this.cfg.absoluteTokenCap > 0 ? this.cfg.absoluteTokenCap : Infinity;
- 		const budget = Math.min(cap, Math.floor(cw * this.cfg.budgetFraction));
+-		const budget = Math.min(cap, Math.floor(cw * this.cfg.budgetFraction));
++		// The budget is an emergency ceiling, not a threshold: it comes from the provider window so
++		// capping the ladder window at 170k cannot turn every turn into an emergency fold while the
++		// session legitimately runs to the 170k compaction point.
++		const budget = Math.min(cap, Math.floor(raw * this.cfg.budgetFraction));
  		const tailTarget = Math.min(this.cfg.tailTarget, Math.floor(budget / 2));
+ 		const rendered = blocks.map((b) => {
+ 			const p = frozenOps.get(b.id);

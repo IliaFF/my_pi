@@ -10,7 +10,7 @@
 | --- | --- |
 | `npm/package.json`, `npm/package-lock.json` | точные пины: `@earendil-works/pi-coding-agent@1.5.2`, `@earendil-works/pi-tui@1.5.2`, `pi-ssh-remote@0.1.15` |
 | `patches/pi-ssh-remote+0.1.15.patch` | патч расширения SSH-маршрутизации |
-| `patches/context-fold+0.8.0.patch` | fold-порог, шаг ladder и бюджет считаются от эффективного окна 170000 |
+| `patches/context-fold+0.8.0.patch` | fold-порог (45% ≈ 76k) и шаг ladder (20400) считаются от эффективного окна 170000; бюджет ladder = min(200000, 0.75 × окно модели), чтобы сессия до 170k не попадала в аварийную ветку `cap` |
 | `skills/` | глобальные skills: `cpp-styleguide`, `latex-simple-style`, `writing-python`, `remote-hosts` |
 | `local-extensions/auto-ultra-compact/index.ts` | автосжатие на 170k токенов, последние 20000 остаются как есть, после сжатия — продолжение по текущему плану |
 | `configs/settings.json` | 15 пакетов, `+codemode`, `cacheWarming: idle`, deepseek на `max`, `compaction.keepRecentTokens: 20000` |
