@@ -20,7 +20,7 @@
 
 `pi-build/` — Git-источник: код, portable configs, exact locks, patches, OpenSpec, тесты. `~/.pi/agent/` — личный установленный runtime. `~/.pi/agent/maintenance` — установленная копия исходников. Source не устанавливается автоматически; в change align-latest-stable-runtime пользователь отдельно разрешил установку latest stable с backup и сохранением личных настроек.
 
-Baseline закрепляет ядро Pi и pi-tui **1.5.0**. Direct extension pins и version-gated patches находятся в `npm/package.json` и `manifest.json`. Обновление stable stack описано в change `update-pi-1-5-0`; результаты source/host gates и установки записываются в его evidence. Номер SDK в dependencies сам по себе не подтверждает версию CLI из PATH: проверяйте оба entry point.
+Baseline закрепляет ядро Pi и pi-tui **1.5.2**. Direct extension pins и version-gated patches находятся в `npm/package.json` и `manifest.json`. Обновление stable stack описано в change `update-pi-1-5-0`; результаты source/host gates и установки записываются в его evidence. Номер SDK в dependencies сам по себе не подтверждает версию CLI из PATH: проверяйте оба entry point.
 
 APPEND baseline имеет `snapshotRuntime: false`: maintenance snapshot не переносит личные инструкции в source. Installer backup содержит точные retired конфиги и проверенный каталог `extensions/jev-review`; соседние файлы раннеров не удаляются. До миграции установщик проверяет backup через настоящий `uninstall.sh --dry-run`. Эти проверки не являются блокировкой от одновременной внешней записи в профиль: не запускайте несколько установок параллельно.
 

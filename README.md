@@ -39,7 +39,7 @@ npm test -- --agent "$HOME/.pi/agent"  # реальные dependencies + drift, 
 npm run verify:host                  # только patches/snapshots integrity
 ```
 
-Новый source закрепляет Pi core/pi-tui **1.5.0**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
+Новый source закрепляет Pi core/pi-tui **1.5.2**; фактический runtime проверяется отдельно после согласованной установки. Прежний maintenance snapshot закреплял 1.0.0. Активный runtime может иметь и другой drift; gate обязан его показать, не скрывать. Production применяется отдельно через проверенный installer с backup; update-safe теперь вызывает полный gate и проверяет rollback тем же набором.
 
 Ponytail 5.3.3 имеет versioned patch: в lite/full/ultra базовые правила включены один раз, а базовый skill скрыт только из автоматического списка текущего запроса. При off и без расширения он снова доступен; `/skill:ponytail`, review/audit aliases и остальные skills сохраняются. Review/audit следуют языку сессии. Эти контракты проверяются настоящим SDK с faux provider в обязательном gate. Обновление source не устанавливает патч в личный или проектный runtime автоматически.
 
@@ -55,7 +55,7 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ---
 
-Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.5.0; текущие результаты — в OpenSpec evidence и `test-results/`.
+Ниже сохранены описание компонентов и исторические измерения прежней сборки. Измерения на Pi 1.0.0 не сертифицируют baseline 1.5.2; текущие результаты — в OpenSpec evidence и `test-results/`.
 
 # my_pi
 
@@ -63,11 +63,11 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ## Зафиксированное состояние
 
-- Pi core `@earendil-works/pi-coding-agent@1.5.0`
+- Pi core `@earendil-works/pi-coding-agent@1.5.2`
 - Node.js `>=24.0.0`
 - 20 прямых npm dependencies с точными версиями: 17 settings entries и exact runtime peers; полный `package-lock.json`
 - direct coding tools + native codemode default-конфигурация: `read`, `grep`, `find`, `edit`, `write` и `bash` доступны модели напрямую; Fabric отсутствует
-- детерминированное сжатие `context-fold@0.7.0` без model call и пересказа
+- детерминированное сжатие `context-fold@0.8.0` без model call и пересказа
 - обратимые `{#code FOLDED}` pointers с SHA-256 и `recall_folded` по append-only session ledger
 - `auto-ultra-compact` без дополнительного recovery snapshot: восстановление по TODO, индексу и истории
 - precise tool restoration после compaction добавляет `recall_folded` при наличии folded pointers
@@ -81,21 +81,21 @@ Source patch для `pi-ssh-remote@0.1.15` различает POSIX и Windows �
 
 ## Текущие packages и расширения
 
-`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` удалён и не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.3`/`1.5.0`/`1.5.0` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
+`npm/package.json` фиксирует 20 прямых dependency. В `configs/settings.json` перечислены 17 Pi packages; `pi-canary` удалён и не устанавливается. `typebox`, `@earendil-works/pi-coding-agent` и `@earendil-works/pi-tui` закреплены на версиях `1.4.6`/`1.5.2`/`1.5.2` как runtime peers для standalone загрузки `pi-context`. Model-facing coding surface остаётся прямым и проверяемым без wrapper executor.
 
 | Package | Версия | Статус | Для чего нужен |
 | --- | ---: | --- | --- |
 | `@ff-labs/pi-fff` | `0.11.0` | загружен | Быстрый fuzzy-поиск файлов и содержимого; основной лёгкий finder — `fffind`. |
-| `@monotykamary/pi-retry` | `0.11.3` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
-| `@spences10/pi-context` | `0.1.16` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
-| `context-fold` | `0.7.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
+| `@monotykamary/pi-retry` | `0.11.4` | загружен | Автоматический контролируемый retry для HTTP `400/413`, connection и provider errors. |
+| `@spences10/pi-context` | `0.3.1` | загружен | Индексирует большие redacted tool outputs в SQLite FTS5 и даёт `context_search/get/export/list/stats/purge`. |
+| `context-fold` | `0.8.0` | загружен | Детерминированно сворачивает старые tool/thinking blocks, заменяет hard compaction verbatim-индексом и восстанавливает детали через `recall_folded`. |
 | `pi-web-access` | `0.45.0` | загружен | Web search, URL/GitHub/PDF/YouTube retrieval; tools доступны напрямую по active-tool policy. |
 | `@dietrichgebert/ponytail` | `5.3.3` | загружен глобально | Минимальный coding workflow: YAGNI, stdlib/native first, короткий рабочий diff. |
 | `@juicesharp/rpiv-ask-user-question` | `2.15.0` | загружен, patched | Structured clarification; patch активирует tool до первого turn и сохраняет cache-stable system prefix. |
 | `pi-token-speed` | `0.12.0` | загружен | Показывает скорость генерации tokens/sec по sliding window. |
 | `pi-background-tasks` | `2.6.10` | pinned/patched, process-only | Локальные shell jobs/status/logs/kill; completion wake по умолчанию с явным opt-out; без agent telemetry, delegates, Fusion и attribution. |
 | `pi-workspace-history` | `0.5.2` | pinned | История workspace; агентские раннеры в сборку не входят. |
-| `pi-fast-resume` | `1.4.18` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
+| `pi-fast-resume` | `1.4.19` | загружен | Быстрый session picker: читает bounded headers вместо полного разбора session-файлов. |
 | `@beyona/pi-zai-usage` | `1.1.0` | загружен | Quota/usage footer для OpenAI Codex, Z.ai, OpenCode Go и DeepSeek; upstream обрабатывает optional и Spark quota windows. |
 | `pine-of-glass` | `0.18.4` | загружены только 4 extensions | Observability bundle; активны `pi-contextimate`, `pi-traceline`, `pi-cachemire`, `pi-meantime`. |
 | `pi-markdown-preview` | `0.25.0` | загружен | Render Markdown/LaTeX в terminal/browser/PDF. |
@@ -160,8 +160,8 @@ pi-browser-use, Chrome MCP и Jev browser MCP удалены из сборки. 
 | Компонент | Текущее состояние | Причина |
 | --- | --- | --- |
 | Fabric runtime | полностью удалён | Full-code mode скрывал direct schemas, добавлял latency и orchestration complexity без экономии model calls. |
-| Локальный `output-compactor` | полностью удалён | Заменён готовым searchable sidecar `@spences10/pi-context@0.1.16`; оба `tool_result` interceptor одновременно не загружаются. |
-| Локальный `context-compaction.ts` | полностью удалён | Заменён `context-fold@0.7.0`: без model summarizer, external excerpt store и второго compaction-owner. |
+| Локальный `output-compactor` | полностью удалён | Заменён готовым searchable sidecar `@spences10/pi-context@0.3.1`; оба `tool_result` interceptor одновременно не загружаются. |
+| Локальный `context-compaction.ts` | полностью удалён | Заменён `context-fold@0.8.0`: без model summarizer, external excerpt store и второго compaction-owner. |
 | Pi experimental tool-output pruning | выключен | Не мутирует историю lossy pruning; большие результаты обрабатывает searchable context sidecar. |
 | Локальный `tools.ts` | полностью удалён | Уже был выключен; native tools и `context-fold` покрывают текущую поверхность без дополнительного lifecycle-owner. |
 | Legacy project-loop | удалён | Убирает auto-preflight и пять постоянных schemas; discovery/edit/test остаётся direct. |
@@ -200,7 +200,7 @@ Dry-run не меняет хост. Он проверяет lock, конфиги
 ./install.sh --install-core
 ```
 
-Если Pi `1.5.0` уже доступен через `PATH`:
+Если Pi `1.5.2` уже доступен через `PATH`:
 
 ```bash
 ./install.sh
@@ -238,7 +238,7 @@ PI_CODING_AGENT_DIR=/path/to/agent ./install.sh
 
 ## Compaction
 
-`context-fold@0.7.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256. Versioned patch убирает из User intents точный служебный restore prompt и заменяет заголовок собственного queue prompt первой строкой тела задачи. Обычный текст не фильтруется по общим словам. Это не смысловое резюме: ограничения на следующих строках по-прежнему не гарантированно попадают в индекс; распознавание собственных текстовых envelopes нужно заменить origin metadata, если bridge начнёт её передавать.
+`context-fold@0.8.0` — единственный owner `session_before_compact`. Default `CONTEXTFOLD_COMPACT=det` заменяет LLM-summary детерминированным verbatim seed index. Raw history остаётся в append-only session JSONL; `{#code FOLDED}` восстанавливается через `recall_folded` с проверкой SHA-256. Versioned patch убирает из User intents точный служебный restore prompt и заменяет заголовок собственного queue prompt первой строкой тела задачи. Обычный текст не фильтруется по общим словам. Это не смысловое резюме: ограничения на следующих строках по-прежнему не гарантированно попадают в индекс; распознавание собственных текстовых envelopes нужно заменить origin metadata, если bridge начнёт её передавать.
 
 Fold ladder начинает сворачивать stale `tool_result` и `thinking` blocks при 45% context window; user intent, assistant conclusions, tool calls и свежий tail не сворачиваются. Обычный fold требует экономию минимум 12% окна. Несжимаемый tail/roots остаётся честно обозначенным floor.
 
@@ -293,7 +293,7 @@ Telemetry v4 считает текстовые chars и image blocks резул�
 node scripts/test-loop-profiler.mjs
 node scripts/test-loop-profiler-sdk.mjs /path/to/node_modules/@earendil-works/pi-coding-agent
 ```
-SDK-проверка использует настоящие user/custom sessions и native codemode, faux provider и временные файлы; сетевые запросы запрещены. Идеи сверены с `@jy02414216/pi-task-timer@1.1.3` (объединение интервалов и failed time), `pi-metrics@0.8.0` (агрегация до settled) и `pi-trace-extension@0.1.16` (stop reason/стоимость); их код и зависимости не подключаются, содержимое запросов/результатов не сохраняется.
+SDK-проверка использует настоящие user/custom sessions и native codemode, faux provider и временные файлы; сетевые запросы запрещены. Идеи сверены с `@jy02414216/pi-task-timer@1.1.3` (объединение интервалов и failed time), `pi-metrics@0.8.0` (агрегация до settled) и `pi-trace-extension@0.3.1` (stop reason/стоимость); их код и зависимости не подключаются, содержимое запросов/результатов не сохраняется.
 
 `configs/APPEND_SYSTEM.md` разрешает группировку, только когда она уменьшает модельные раунды или лишний вывод: независимые операции с уже известными входами можно объединять, зависимые решения остаются последовательными. Выбор direct calls или `codemode` зависит от доступного runtime API, не от фиксированного числа операций. Не объединяйте полные большие документы ради счётчика вызовов: это может потребовать дополнительных чтений sidecar. Для больших результатов сначала используются `context_search` и bounded `context_get`; для полного анализа redacted source — `context_export` и затем `rg`/`jq`/Python.
 
@@ -303,11 +303,11 @@ SDK-проверка использует настоящие user/custom session
 
 ## Searchable context sidecar
 
-`@spences10/pi-context@0.1.16` перехватывает большие текстовые `tool_result` без model calls, redacts известные секреты, lossless-разбивает текст примерно по 4096 bytes и индексирует chunks в SQLite FTS5 (`~/.pi/agent/context.db`). Generic threshold — `24576` bytes или `300` строк, MCP threshold — `51200` bytes или `2000` строк. В model context остаётся receipt с preview и инструкциями. Полный сохранённый **redacted** source восстанавливается через `context_export`; focused retrieval — через `context_search` и `context_get`.
+`@spences10/pi-context@0.3.1` перехватывает большие текстовые `tool_result` без model calls, redacts известные секреты, lossless-разбивает текст примерно по 4096 bytes и индексирует chunks в SQLite FTS5 (`~/.pi/agent/context.db`). Generic threshold — `24576` bytes или `300` строк, MCP threshold — `51200` bytes или `2000` строк. В model context остаётся receipt с preview и инструкциями. Полный сохранённый **redacted** source восстанавливается через `context_export`; focused retrieval — через `context_search` и `context_get`.
 
 Воспроизводимая policy лежит в `configs/pi-context.json`: preset `balanced`, 7 дней и logical source cap 250 MiB. Это не физический hard cap SQLite/WAL, а cleanup policy, которая не запускается после каждой записи. Installer сливает policy в `~/.pi/agent/my-pi-settings.json` (`packages.context`), не затрагивая settings других packages, создаёт `context.db` с mode `0600` и включает весь settings-файл в rollback backup. Managed exports создаются с `0700/0600`.
 
-Известные ограничения upstream `0.1.16`: tool input summary хранится без redaction; lowered custom generic threshold всё равно ограничен предварительным default gate 24 KiB; `context_search` с известным `source_id` может вернуть metadata/snippet другого scope, хотя `context_get` scope соблюдает; mixed text+image capture заменяет весь result текстовым receipt и теряет image block. Поэтому не передавайте секреты в tool arguments, не используйте `global:true` без необходимости и не считайте sidecar security boundary для недоверенных локальных пользователей. Старые `~/.pi/agent/output-artifacts/` installer не удаляет, но локальный `output-compactor` больше не загружается.
+Известные ограничения upstream `0.3.1`: tool input summary хранится без redaction; lowered custom generic threshold всё равно ограничен предварительным default gate 24 KiB; `context_search` с известным `source_id` может вернуть metadata/snippet другого scope, хотя `context_get` scope соблюдает; mixed text+image capture заменяет весь result текстовым receipt и теряет image block. Поэтому не передавайте секреты в tool arguments, не используйте `global:true` без необходимости и не считайте sidecar security boundary для недоверенных локальных пользователей. Старые `~/.pi/agent/output-artifacts/` installer не удаляет, но локальный `output-compactor` больше не загружается.
 
 ## Проверка установленного стека
 
@@ -349,9 +349,9 @@ Update script создаёт backup npm tree, обновляет расшире�
 
 Обычный `pi update --extensions` заменяет npm-пакеты и **не восстанавливает наши патчи**, включая отдельные project overrides. Для user runtime используйте safe updater **вне проекта с собственными packages**, как в примерах выше: его gate проверяет user runtime, не project overrides. Проектный Ponytail обновляется отдельно с backup/patch/actual SDK gate. Перенос на новую patched version делается сначала в source с полным gate.
 
-`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.5.0`; обновление core нужно сначала проверить и зафиксировать здесь.
+`pi update --self` может заменить Pi core. Репозиторий фиксирует `1.5.2`; обновление core нужно сначала проверить и зафиксировать здесь.
 
-Stable baseline обновлён до Pi 1.5.0; актуальные direct версии приведены в таблице выше и exact lock. Установка каждого runtime подтверждается отдельно в OpenSpec evidence. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
+Stable baseline обновлён до Pi 1.5.2; актуальные direct версии приведены в таблице выше и exact lock. Установка каждого runtime подтверждается отдельно в OpenSpec evidence. `configs/settings.json` сохраняет подготовленные exact npm pins там, где они уже были заданы; exact lock сохраняет воспроизводимую установку этого release. Контроллер синхронизирует только существующие exact pins с выбранными targets, не меняя состав packages и остальные настройки. Version-gated patches по-прежнему запрещено применять к неизвестной версии; safe updater в таком случае откатывает обновление. Для перехода на новый patched package сначала обновите patch и release.
 
 Ограничение baseline: `@beyona/pi-zai-usage@1.1.0` объявляет старый peer range Pi, поэтому установка использует `--legacy-peer-deps`. RPC startup входит в обязательный gate. `npm audit --omit=dev --legacy-peer-deps` для исторического candidate 1.4.0 отметил 8 affected packages (5 high, 3 moderate); часть цепочек закреплена upstream exact pins/ranges. Автоматический downgrade/major override не применялся. Это известный риск dependency tree, не подтверждение эксплуатации; подробности в evidence `update-stack-1-4-0`.
 

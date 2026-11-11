@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "piCoreVersion": "1.5.0",
+  "piCoreVersion": "1.5.2",
   "nodeMinimum": "24.0.0",
   "patchedPackages": [
     {
@@ -66,9 +66,9 @@
     },
     {
       "package": "pi-markdown-preview",
-      "version": "0.26.2",
+      "version": "0.26.4",
       "pinRequired": false,
-      "patch": "patches/pi-markdown-preview+0.26.2.patch",
+      "patch": "patches/pi-markdown-preview+0.26.4.patch",
       "files": [
         "index.ts"
       ],
@@ -76,9 +76,9 @@
     },
     {
       "package": "@spences10/pi-context",
-      "version": "0.1.16",
+      "version": "0.3.1",
       "pinRequired": false,
-      "patch": "patches/@spences10+pi-context+0.1.16.patch",
+      "patch": "patches/@spences10+pi-context+0.3.1.patch",
       "files": [
         "dist/tools/list.js",
         "dist/tools/stats.js",
@@ -101,9 +101,9 @@
     },
     {
       "package": "pi-web-access",
-      "version": "0.46.0",
+      "version": "0.47.0",
       "pinRequired": false,
-      "patch": "patches/pi-web-access+0.46.0.patch",
+      "patch": "patches/pi-web-access+0.47.0.patch",
       "files": [
         "dist/index.js"
       ],
@@ -111,9 +111,9 @@
     },
     {
       "package": "context-fold",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "pinRequired": false,
-      "patch": "patches/context-fold+0.7.0.patch",
+      "patch": "patches/context-fold+0.8.0.patch",
       "files": [
         "src/core/index/seed-index.ts"
       ],
