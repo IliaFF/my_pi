@@ -32,8 +32,8 @@ class HarnessTests(unittest.TestCase):
         policy = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
         for rule in ["Russian unless asked", "Do not praise or flatter", "destructive or paid external",
                      "Batch only justified independent", "Inspect individual results and exit codes",
-                     "small single-step edits need no separate entry", "honor the requested task id",
-                     "including after compaction", "If the applicable state is unavailable or task identity is unclear, stop and ask",
+                     "small single-step edits need no entry", "write the plan into the project root", "Keep exactly one task in progress",
+                     "including after compaction", "If the applicable state is unavailable or the task is unclear, stop and ask",
                      "first read current Firstmate queue/state under its supervisor contract",
                      "otherwise read current project TODO",
                      "Validate the final changed scope", "focused history retrieval"]:

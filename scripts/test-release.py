@@ -104,9 +104,13 @@ def main() -> int:
             or "pi-canary" in (ROOT / "npm/package-lock.json").read_text()):
         fail("Canary must be absent from the release")
     append_system = (ROOT / "configs/APPEND_SYSTEM.md").read_text()
-    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "Current project TODO is authoritative for ordinary tracked work", "under the Firstmate supervisor contract use current Firstmate queue/state instead", "start_task_session", "ask the user if uncertain"]:
+    for required in ["Choose the simplest execution approach", "Use `codemode` when it reduces tool calls or unnecessary output", "project TODO is authoritative for ordinary tracked work", "under the Firstmate supervisor contract use current Firstmate queue/state instead", "start_task_session", "ask the user if uncertain", "Before every major action, write the plan into the project root `TODO.md`"]:
         if required not in append_system:
             fail(f"tool routing / task policy missing: {required}")
+    installer_source = (ROOT / "install.sh").read_text()
+    for required in ['rm -f "$AGENT_DIR/extensions/todo-queue/index.ts"', 'todo-queue/"{README.md,core.ts,panel.ts,store.ts,checks.ts}']:
+        if required not in installer_source:
+            fail(f"installer must keep the queue entry uninstalled: {required}")
     if "fabric_exec" in append_system or "pi-fabric" in append_system:
         fail("Fabric remains in system policy")
     if (ROOT / "local-extensions/lean-tools.ts").exists():

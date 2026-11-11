@@ -15,7 +15,7 @@ const text = (length) => [{ type: "text", text: "x".repeat(length) }];
 const analyze = (messages) => analyzeCompactability(messages, 12_000);
 
 const taskPolicy = readFileSync(resolve(root, "configs/APPEND_SYSTEM.md"), "utf8");
-assert.ok(taskPolicy.includes("Discussions, answers and small single-step edits need no separate entry."));
+assert.ok(taskPolicy.includes("Answers, discussions and small single-step edits need no entry."));
 assert.ok(taskPolicy.includes("report starts, blockers and outcomes, not bookkeeping"));
 
 assert.equal(estimateCompactionTokens({ role: "user", content: text(4001) }), 1001);

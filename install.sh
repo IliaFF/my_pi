@@ -296,7 +296,10 @@ cp "$ROOT/local-extensions/aitunnel.ts" "$AGENT_DIR/extensions/aitunnel.ts"
 cp "$ROOT/local-extensions/deferred-tools.ts" "$AGENT_DIR/extensions/deferred-tools.ts"
 rm -f "$AGENT_DIR/extensions/decision-observer.ts"
 rm -f "$AGENT_DIR/extensions/reader-pane.ts"
-cp "$ROOT/local-extensions/todo-queue/"{README.md,index.ts,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
+# The queue entry is intentionally not installed: the tool/panel/command stay disabled.
+# store/core/panel/checks remain because task-session.ts imports them.
+rm -f "$AGENT_DIR/extensions/todo-queue/index.ts"
+cp "$ROOT/local-extensions/todo-queue/"{README.md,core.ts,panel.ts,store.ts,checks.ts} "$AGENT_DIR/extensions/todo-queue/"
 rm -f "$AGENT_DIR/extensions/project-loop.ts"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
 rm -rf "$AGENT_DIR/skills/openalex"

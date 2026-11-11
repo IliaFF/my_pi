@@ -60,7 +60,7 @@ try {
     assert.ok(fresh.getCallableToolNames().includes(name), `${name} must remain callable`);
   }
   assert.ok(fresh.getActiveToolNames().includes("tool_search"), "Native tool_search must be active");
-  for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "Do not complete work with required checks outstanding"]) {
+  for (const rule of ["For SSH work, use Pi\'s `remote` tool", "discover it through `tool_search`", "While SSH routing is active, read/write/edit/bash operate on the remote workspace", "Do not mark work complete while required checks are outstanding"]) {
     assert.ok(fresh.systemPrompt.includes(rule), `Permanent prompt lost ${rule}`);
   }
   for (const rule of ["Use DeepSeek `terminal` as the default executor", "For agents other than `terminal`", "more than one context window"]) {

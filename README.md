@@ -147,7 +147,7 @@ pi-browser-use, Chrome MCP и Jev browser MCP удалены из сборки. 
 | `deferred-tools.ts` | активен | Сохраняет ранее объявленный managed loadout при startup старой ветки; новые сессии используют native deferred/tool_search. |
 | `task-session.ts` | активен | Перед новой задачей из чата/очереди агент оценивает общую цель. Связанная остаётся, при сомнении спрашивает; независимая переносится через `start_task_session` в новую native-сессию без старой переписки. В supervisor-сессиях Firstmate автоматический native handoff не применяется: сохраняются сессия и lifecycle Firstmate. Незавершённые TODO и проверки не бросаются ни в одном режиме. |
 | `loop-profiler.ts` | активен | Последние 500 runs: model/tool timing без двойного счёта, медленные/ошибочные tools, native nested calls, context output, cache, стоимость из usage и stop reason. Pi 1.2 user/custom starts; legacy records читаются; raw trace только при `PI_PROFILE=1`. |
-| `todo-queue/index.ts` | активен | Постоянная очередь в проектном `TODO.md`: `+`, `/queue`, locked atomic writes и проверяемое завершение через `task_queue`. |
+| `todo-queue/` | не устанавливается | Установщик копирует только `README.md`, `core.ts`, `panel.ts`, `store.ts`, `checks.ts` (их импортирует `task-session.ts`) и удаляет прежний `index.ts`. Поэтому `task_queue`, `/queue` и панель в runtime отсутствуют; план и проверки пишутся в `TODO.md`. |
 
 `project-loop.ts`, его auto-preflight, пять schemas и `/fast-fix` удалены: coding flow выполняется последовательными или параллельными direct tool calls.
 

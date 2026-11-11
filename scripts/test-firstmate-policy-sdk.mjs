@@ -59,7 +59,8 @@ try {
     resourceLoader: loader, sessionManager: SessionManager.inMemory(cwd) }));
   assert.equal(session.systemPrompt.split(resourceText).length - 1, 1, "Default global APPEND and AGENTS must not duplicate the resource rule");
   assert.match(session.systemPrompt, /После сжатия.*очередь и состояние Firstmate/);
-  assert.match(session.systemPrompt, /Outside Firstmate supervisor sessions.*root `TODO\.md`/);
+  assert.match(session.systemPrompt, /Before every major action, write the plan into the project root `TODO\.md`/);
+  assert.match(session.systemPrompt, /A Firstmate supervisor must not require a root TODO/);
   assert.match(session.systemPrompt, /otherwise read current project TODO/);
   assert.match(session.systemPrompt, /Before editing code, choose and record the cheapest adequate check/);
   assert.match(session.systemPrompt, /Do not weaken, skip or replace checks or acceptance criteria without user agreement/);
