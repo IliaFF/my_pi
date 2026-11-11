@@ -28,7 +28,8 @@ try {
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
   assert.ok(commands.some(command => command.name === "remote"), "remote command missing");
-  const installed = ["remote", "auto-ultra-compact-status", "context-fold", "ponytail", "bg"];
+  const installed = ["remote", "auto-ultra-compact-status", "context-fold", "ponytail", "bg",
+    "skill:cpp-styleguide", "skill:latex-simple-style", "skill:writing-python", "skill:remote-hosts"];
   const absent = installed.filter(name => !commands.some(command => command.name === name));
   assert.deepEqual(absent, [], "installed extensions are not registered: " + absent.join(","));
   const retired = ["queue", "fast", "caveman", "worktree", "profile"];

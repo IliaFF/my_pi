@@ -50,6 +50,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN packages: @earendil-works/pi-coding-agent, @earendil-works/pi-tui, pi-ssh-remote, 14 user packages (npm ci from package-lock.json)"
   echo "DRY-RUN patches: pi-ssh-remote+0.1.15, context-fold+0.8.0 (effective 170k fold window)"
   echo "DRY-RUN extension: extensions/auto-ultra-compact (170k compaction, 20000 retained)"
+  echo "DRY-RUN skills: cpp-styleguide, latex-simple-style, writing-python, remote-hosts"
   echo "DRY-RUN configs: settings.json (15 packages, codemode, cache warming, compaction), AGENTS.md (SSH hosts)"
   exit 0
 fi
@@ -62,7 +63,7 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_ROOT"
 backup="$(mktemp -d "$BACKUP_ROOT/${stamp}.XXXXXX")"
 present=()
-for item in settings.json AGENTS.md npm extensions; do
+for item in settings.json AGENTS.md npm extensions skills; do
   [[ -e "$AGENT_DIR/$item" ]] && present+=("$item")
 done
 if ((${#present[@]})); then
@@ -110,6 +111,13 @@ apply_patch "$AGENT_DIR/npm/node_modules/context-fold" "$ROOT/patches/context-fo
 
 mkdir -p "$AGENT_DIR/extensions/auto-ultra-compact"
 cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
+
+mkdir -p "$AGENT_DIR/skills"
+for skill_dir in "$ROOT"/skills/*/; do
+  name="$(basename "$skill_dir")"
+  mkdir -p "$AGENT_DIR/skills/$name"
+  cp "$skill_dir/SKILL.md" "$AGENT_DIR/skills/$name/SKILL.md"
+done
 node "$ROOT/scripts/verify-fold-window.mjs" "$AGENT_DIR"
 
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/settings.json" ]]; then
