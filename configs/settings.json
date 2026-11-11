@@ -1,55 +1,8 @@
 {
-  "lastChangelogVersion": "1.0.0",
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
   "defaultThinkingLevel": "medium",
-  "defaultTools": [
-    "+codemode",
-    "+tool_search"
-  ],
-  "codemode": {
-    "mode": "on"
-  },
   "packages": [
-    "npm:@ff-labs/pi-fff",
-    "npm:@monotykamary/pi-retry",
-    "npm:@spences10/pi-context",
-    "npm:pi-web-access",
-    "npm:@dietrichgebert/ponytail",
-    "npm:@juicesharp/rpiv-ask-user-question",
-    "npm:pi-token-speed",
-    "npm:pi-fast-resume",
-    "npm:@beyona/pi-zai-usage@1.1.0",
-    {
-      "source": "npm:pine-of-glass",
-      "extensions": [
-        "extensions/pi-contextimate/**",
-        "extensions/pi-traceline/**",
-        "extensions/pi-cachemire/**",
-        "extensions/pi-meantime/**"
-      ]
-    },
-    "npm:pi-markdown-preview",
-    "npm:context-fold",
-    "npm:pi-train-agents@0.2.7",
-    "npm:pi-ssh-remote@0.1.15",
-    {
-      "source": "npm:pi-background-tasks@2.6.10",
-      "extensions": [
-        "dist/extensions/background-tasks.js"
-      ]
-    },
-    "npm:pi-workspace-history@0.5.2"
-  ],
-  "hideThinkingBlock": true,
-  "theme": "dark",
-  "compaction": {
-    "enabled": true,
-    "reserveTokens": 12500,
-    "keepRecentTokens": 12000
-  },
-  "experimentalToolOutputPruning": false,
-  "toolOutputPruningMode": "off",
-  "toolOutputPruneStrategy": "stub",
-  "enableSkillCommands": true
+    "npm:pi-ssh-remote@0.1.15"
+  ]
 }
