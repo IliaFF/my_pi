@@ -1,8 +1,42 @@
 {
-  "defaultProvider": "openai-codex",
-  "defaultModel": "gpt-6.1-sol",
+  "defaultProvider": "openrouter",
+  "defaultModel": "deepseek/deepseek-v4.1-flash-1017",
   "defaultThinkingLevel": "medium",
+  "modelThinkingLevels": {
+    "openrouter/deepseek/deepseek-v4.1-flash-1017": "max",
+    "openrouter/deepseek/deepseek-v4.1-flash": "max",
+    "openrouter/deepseek/deepseek-v4.1-flash-1017:batch": "max",
+    "openrouter/deepseek/deepseek-v4.1-flash:batch": "max"
+  },
+  "theme": "dark",
+  "hideThinkingBlock": true,
+  "cacheWarming": "idle",
+  "defaultTools": [
+    "+codemode"
+  ],
+  "enabledModels": [
+    "openai-codex/gpt-6.1-sol",
+    "openrouter/deepseek/deepseek-v4.1-flash-1017"
+  ],
   "packages": [
-    "npm:pi-ssh-remote@0.1.15"
-  ]
+    "npm:pi-ssh-remote@0.1.15",
+    "npm:@monotykamary/pi-retry@0.11.4",
+    "npm:@spences10/pi-context@0.3.1",
+    "npm:context-fold@0.8.0",
+    "npm:pi-web-access@0.47.0",
+    "npm:@dietrichgebert/ponytail@5.3.3",
+    "npm:@juicesharp/rpiv-ask-user-question@2.15.0",
+    "npm:pi-token-speed@0.12.0",
+    "npm:pi-fast-resume@1.4.19",
+    "npm:pi-workspace-history@0.5.2",
+    "npm:pi-background-tasks@2.6.10",
+    "npm:@beyona/pi-zai-usage@1.1.0",
+    "npm:pine-of-glass@0.18.4",
+    "npm:pi-markdown-preview@0.26.4",
+    "npm:@ff-labs/pi-fff@0.11.0"
+  ],
+  "compaction": {
+    "enabled": true,
+    "keepRecentTokens": 20000
+  }
 }

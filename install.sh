@@ -47,9 +47,10 @@ if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/nu
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
-  echo "DRY-RUN packages: @earendil-works/pi-coding-agent, @earendil-works/pi-tui, pi-ssh-remote (npm ci from package-lock.json)"
-  echo "DRY-RUN patch: pi-ssh-remote+0.1.15"
-  echo "DRY-RUN configs: settings.json (packages: pi-ssh-remote), AGENTS.md (SSH hosts)"
+  echo "DRY-RUN packages: @earendil-works/pi-coding-agent, @earendil-works/pi-tui, pi-ssh-remote, 14 user packages (npm ci from package-lock.json)"
+  echo "DRY-RUN patches: pi-ssh-remote+0.1.15, context-fold+0.8.0 (effective 170k fold window)"
+  echo "DRY-RUN extension: extensions/auto-ultra-compact (170k compaction, 20000 retained)"
+  echo "DRY-RUN configs: settings.json (15 packages, codemode, cache warming, compaction), AGENTS.md (SSH hosts)"
   exit 0
 fi
 if [[ "$current_version" != "$PI_VERSION" ]] && ((!INSTALL_CORE)); then
@@ -61,7 +62,7 @@ stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$BACKUP_ROOT"
 backup="$(mktemp -d "$BACKUP_ROOT/${stamp}.XXXXXX")"
 present=()
-for item in settings.json AGENTS.md npm; do
+for item in settings.json AGENTS.md npm extensions; do
   [[ -e "$AGENT_DIR/$item" ]] && present+=("$item")
 done
 if ((${#present[@]})); then
@@ -91,15 +92,25 @@ cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
 cp "$ROOT/npm/package-lock.json" "$AGENT_DIR/npm/package-lock.json"
 npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
 
-ssh_remote="$AGENT_DIR/npm/node_modules/pi-ssh-remote"
-patch_file="$ROOT/patches/pi-ssh-remote+0.1.15.patch"
-if patch -d "$ssh_remote" -p1 --dry-run --forward --batch <"$patch_file" >/dev/null 2>&1; then
-  patch -d "$ssh_remote" -p1 --forward --batch <"$patch_file" >/dev/null
-elif patch -d "$ssh_remote" -p1 --dry-run --reverse --batch <"$patch_file" >/dev/null 2>&1; then
-  echo "PASS pi-ssh-remote patch already applied"
-else
-  echo "FAIL pi-ssh-remote patch does not apply; review $patch_file" >&2; false
-fi
+apply_patch() {
+  local package_dir="$1" patch_file="$2" label="$3"
+  if patch -d "$package_dir" -p1 --dry-run --forward --batch <"$patch_file" >/dev/null 2>&1; then
+    patch -d "$package_dir" -p1 --forward --batch <"$patch_file" >/dev/null
+    echo "PASS applied $label patch"
+  elif patch -d "$package_dir" -p1 --dry-run --reverse --batch <"$patch_file" >/dev/null 2>&1; then
+    echo "PASS $label patch already applied"
+  else
+    echo "FAIL $label patch does not apply; review $patch_file" >&2
+    false
+  fi
+}
+
+apply_patch "$AGENT_DIR/npm/node_modules/pi-ssh-remote" "$ROOT/patches/pi-ssh-remote+0.1.15.patch" pi-ssh-remote
+apply_patch "$AGENT_DIR/npm/node_modules/context-fold" "$ROOT/patches/context-fold+0.8.0.patch" context-fold
+
+mkdir -p "$AGENT_DIR/extensions/auto-ultra-compact"
+cp "$ROOT/local-extensions/auto-ultra-compact/index.ts" "$AGENT_DIR/extensions/auto-ultra-compact/index.ts"
+node "$ROOT/scripts/verify-fold-window.mjs" "$AGENT_DIR"
 
 if ((!PRESERVE_SETTINGS)) || [[ ! -f "$AGENT_DIR/settings.json" ]]; then
   cp "$ROOT/configs/settings.json" "$AGENT_DIR/settings.json"

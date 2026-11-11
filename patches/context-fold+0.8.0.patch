@@ -1,0 +1,30 @@
+--- a/src/adapters/pi/store.ts
++++ b/src/adapters/pi/store.ts
+@@ -85,6 +85,18 @@
+ 		: input;
+ }
+ 
++/**
++ * Fold thresholds, ladder step and budget are measured against the EFFECTIVE window our build runs:
++ * auto-compaction caps at 170k, so a larger provider window would keep masking asleep until long
++ * past the point where compaction replaces the history anyway.
++ */
++const EFFECTIVE_FOLD_WINDOW = 170_000;
++
++function foldWindow(contextWindow: number | null, fallback: number): number {
++	const window = contextWindow ?? fallback;
++	return window > 0 ? Math.min(window, EFFECTIVE_FOLD_WINDOW) : window;
++}
++
+ /** Walk back from the newest block, protecting the newest ~`target` tokens (≤1.25× overflow cap). */
+ export function protectedFromIndex(blocks: { tokens: number }[], target: number): number {
+ 	const n = blocks.length;
+@@ -373,7 +385,7 @@
+ 		contextWindow: number | null,
+ 		frozenOps: Map<string, string> = new Map(),
+ 	): { cw: number; budget: number; tailTarget: number; protectFrom: number } {
+-		const cw = contextWindow ?? this.cfg.defaultContextWindow;
++		const cw = foldWindow(contextWindow, this.cfg.defaultContextWindow);
+ 		const cap = this.cfg.absoluteTokenCap > 0 ? this.cfg.absoluteTokenCap : Infinity;
+ 		const budget = Math.min(cap, Math.floor(cw * this.cfg.budgetFraction));
+ 		const tailTarget = Math.min(this.cfg.tailTarget, Math.floor(budget / 2));
