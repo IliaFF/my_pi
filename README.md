@@ -1,8 +1,6 @@
-# my_pi — чистая сборка Pi
+# my_pi — сборка Pi с маршрутизацией OpenRouter
 
-Ветка `clean-pi`: ядро Pi 1.5.2 из npm и одно расширение — `pi-ssh-remote` с патчем. Никаких других расширений, инструментов, skills, MCP-серверов и агентских политик здесь нет; прежний стек остался в `main`.
-
-В `configs/AGENTS.md` сохранены только описания удалённых хостов и правил подключения через `remote`.
+Сборка ставит ядро Pi 1.5.2 из npm, расширение SSH-маршрутизации `pi-ssh-remote@0.1.15` с патчем, глобальную команду `/providers` и ежечасную пересборку маршрута модели DeepSeek по цене кеш-чтения на OpenRouter.
 
 ## Состав
 
@@ -10,24 +8,63 @@
 | --- | --- |
 | `npm/package.json`, `npm/package-lock.json` | точные пины: `@earendil-works/pi-coding-agent@1.5.2`, `@earendil-works/pi-tui@1.5.2`, `pi-ssh-remote@0.1.15` |
 | `patches/pi-ssh-remote+0.1.15.patch` | патч расширения SSH-маршрутизации |
-| `configs/settings.json` | минимальные настройки: провайдер/модель и пакет `npm:pi-ssh-remote@0.1.15` |
-| `configs/AGENTS.md` | хосты `office`, `iii`, уберкомп, `agentVPS` и правила `remote` |
-| `install.sh` | установка: backup, `npm ci`, патч, конфиги, проверка |
-| `scripts/verify-rpc.mjs` | настоящий CLI-прогон: `remote`, `/remote`, нет ошибок расширений |
+| `configs/settings.json` | провайдер/модель по умолчанию и пакет `npm:pi-ssh-remote@0.1.15` |
+| `configs/models.json` | override маршрута OpenRouter для `deepseek/deepseek-v4.1-flash-1017`: `order`, `allow_fallbacks: false`, `quantizations: ["fp8"]`, цены, `maxTokens: 65536`. Только провайдер `openrouter`, ключей и чужих провайдеров нет |
+| `configs/systemd/openrouter-cache-order.service`, `.timer` | ежечасный прогон `openrouter-cache-order.mjs`, `TimeoutStartSec=120` |
+| `configs/AGENTS.md` | локальные заметки о хостах этого ПК; в сборку не входят, `install.sh` копирует только при отсутствии `~/.pi/agent/AGENTS.md` |
+| `extensions/providers/index.ts`, `data.mjs` | глобальная команда `/providers`: цены, скорость и маршрут апстримов текущей модели |
+| `scripts/openrouter-cache-order.mjs` | пересобирает `compat.openRouterRouting`, `cost` и `maxTokens` в `~/.pi/agent/models.json` |
+| `scripts/openrouter-cache-order.test.mjs`, `scripts/providers.test.mjs` | офлайн-тесты ранжирования и команды `/providers` |
+| `scripts/verify-cache-routing.mjs`, `scripts/verify-providers-command.mjs` | сквозные проверки: тело запроса Pi содержит `provider.order`; `/providers` отдаёт таблицу |
+| `scripts/verify-rpc.mjs` | настоящий CLI-прогон `remote` и `/remote` после установки |
+| `install.sh`, `uninstall.sh` | установка с backup и откат |
 
 ## Установка
 
 ```bash
 ./install.sh --dry-run                 # план без изменений
-./install.sh --install-core            # установить ядро и конфиги
+./install.sh --install-core            # ядро Pi, пакеты, патч, конфиги, проверка remote
 ./install.sh --preserve-settings       # не перезаписывать существующий settings.json
 ./uninstall.sh --backup ~/.pi/my-pi-backups/<stamp>   # откат
 ```
 
-`install.sh` делает backup в `~/.pi/my-pi-backups/<stamp>` и при ошибке возвращает прежние файлы. Проверка после установки: `node scripts/verify-rpc.mjs ~/.pi/agent`.
+`install.sh` не ставит расширение `providers`, `models.json` и systemd-юниты — они кладутся вручную:
+
+```bash
+ln -s "$PWD/extensions/providers" ~/.pi/agent/extensions/providers
+cp configs/models.json ~/.pi/agent/models.json
+cp configs/systemd/openrouter-cache-order.* ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now openrouter-cache-order.timer
+```
+
+`systemctl --user show openrouter-cache-order.service -p TimeoutStartUSec` должен показать `2min`.
+
+## Маршрут DeepSeek
+
+`scripts/openrouter-cache-order.mjs` берёт `GET /api/v1/models/deepseek/deepseek-v4.1-flash-1017/endpoints`, отбрасывает апстримы без `quantization: fp8`, с flex/priority/spot-тирами, со `status != 0` и со слагами из `BROKEN_TAGS` (`stepfun/fp8` отдаёт 400 `input_invalid` на наборе инструментов), сортирует по цене кеш-чтения, затем по входу и выходу, и пишет топ-3 в `order`. `allow_fallbacks: false`; цены учёта берутся у первого провайдера списка, потому что Pi считает расход по `model.cost`, а не по `usage.cost` OpenRouter.
+
+Запрос идёт с таймаутом 20 с, запись — под lock-файлом `models.json.lock` (устаревание 5 минут) и с уникальным по pid временным файлом; обновляются только `order`, `allow_fallbacks`, `quantizations`, `cost.input/output/cacheRead`, `maxTokens`, остальные поля `compat` и `cost` сохраняются. Отказ маршрута (ни один провайдер из `order` не доступен) — остановка с явной ошибкой и вопрос о переходе на дефолтный роутинг OpenRouter.
+
+Ручной прогон — `node scripts/openrouter-cache-order.mjs`, проверка без записи — `--dry-run`.
+
+## Команда `/providers`
+
+Каждый вызов заново запрашивает `/endpoints` текущей OpenRouter-модели с авторизацией через ModelRegistry и печатает таблицу: цена входа/выхода/кеша USD за миллион, `throughput_last_30m.p50`, настроенный маршрут. По умолчанию топ-10 по цене кеша плюс исключённые строкой «Скрыто: ещё N»; `/providers all` показывает всех с колонкой типа. Вывод идёт через custom entry: в контекст модели не попадает и настройки не меняет. После правки `models.json` применить модель к сессии: `/model`, дождаться обновления, подтвердить выбор.
+
+## Проверки
+
+```bash
+node scripts/openrouter-cache-order.test.mjs   # PASS rankProviders, PASS topCost
+node scripts/providers.test.mjs                # PASS /providers: prices, throughput, route, errors
+node scripts/verify-cache-routing.mjs --config # PASS provider.order из живого models.json
+node scripts/verify-providers-command.mjs      # PASS команда /providers
+node scripts/verify-rpc.mjs ~/.pi/agent        # PASS установка и remote
+```
 
 ## Ограничения
 
 - Провайдеры и авторизация не настраиваются: их нужно подключить вручную после установки.
-- Патч закреплён за версией `pi-ssh-remote@0.1.15`; при обновлении пакета патч нужно пересобрать.
-- Проверено только на локальном Linux; других платформ в этой ветке нет.
+- Патч закреплён за `pi-ssh-remote@0.1.15`; при обновлении пакета патч пересобирается.
+- `configs/models.json` содержит только override `openrouter`; полные настройки провайдеров и ключи в репозитории не хранятся.
+- Проверено на локальном Linux (WSL2).
