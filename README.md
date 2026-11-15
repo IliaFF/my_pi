@@ -19,6 +19,35 @@
 | `scripts/verify-rpc.mjs` | настоящий CLI-прогон `remote` и `/remote` после установки |
 | `install.sh`, `uninstall.sh` | установка с backup и откат |
 
+## Установленные расширения
+
+Состояние живого `~/.pi/agent`: 15 npm-пакетов из `settings.json` и два локальных расширения. `install.sh` из этого репозитория ставит только `pi-ssh-remote`; остальные пакеты ставятся отдельно и закрепляются в `~/.pi/agent/npm/package.json`.
+
+| Пакет | Версия | Назначение |
+| --- | --- | --- |
+| `pi-ssh-remote` | 0.1.15 | постоянные удалённые SSH-workspace: `remote`, маршрутизация `read`/`write`/`edit`/`bash` |
+| `@monotykamary/pi-retry` | 0.11.4 | повтор запросов на 400/413 и сетевых ошибках |
+| `@spences10/pi-context` | 0.3.1 | локальная SQLite-боковина для крупного вывода инструментов |
+| `context-fold` | 0.8.0 | свёртка устаревшего вывода инструментов без потери содержимого |
+| `pi-web-access` | 0.47.0 | `web_search`, `fetch_content`, клонирование репозиториев, PDF, видео |
+| `@dietrichgebert/ponytail` | 5.3.3 | режим минимального решения |
+| `@juicesharp/rpiv-ask-user-question` | 2.15.0 | структурированные вопросы пользователю |
+| `pi-token-speed` | 0.12.0 | измерение токенов в секунду |
+| `pi-fast-resume` | 1.4.19 | быстрый выбор сессии по заголовкам без полного разбора файла |
+| `pi-workspace-history` | 0.5.2 | откат и восстановление правок вместе с разговором |
+| `pi-background-tasks` | 2.6.10 | фоновые shell-задачи, делегирование, Fusion |
+| `@beyona/pi-zai-usage` | 1.1.0 | расход Z.ai, DeepSeek, Codex, Opencode Go |
+| `pine-of-glass` | 0.18.4 | наблюдаемость сессий |
+| `pi-markdown-preview` | 0.26.4 | рендер Markdown и LaTeX в терминал, браузер и PDF |
+| `@ff-labs/pi-fff` | 0.11.0 | нечёткий поиск по путям и содержимому |
+
+Локальные расширения:
+
+| Расширение | Источник | Назначение |
+| --- | --- | --- |
+| `/providers` | `extensions/providers/` этого репозитория | цены, скорость и маршрут апстримов текущей OpenRouter-модели |
+| `auto-ultra-compact` | `~/.pi/agent/extensions/auto-ultra-compact/index.ts`, в репозитории отсутствует | авто-уплотнение контекста при заполнении окна |
+
 ## Установка
 
 ```bash
