@@ -1,0 +1,29 @@
+{
+  "providers": {
+    "openrouter": {
+      "modelOverrides": {
+        "deepseek/deepseek-v4.1-flash-1017": {
+          "compat": {
+            "openRouterRouting": {
+              "order": [
+                "baidu/fp8",
+                "streamlake/fp8",
+                "deepinfra/fp8"
+              ],
+              "allow_fallbacks": false,
+              "quantizations": [
+                "fp8"
+              ]
+            }
+          },
+          "cost": {
+            "input": 0.08876,
+            "output": 0.35821,
+            "cacheRead": 0.001902
+          },
+          "maxTokens": 65536
+        }
+      }
+    }
+  }
+}

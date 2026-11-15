@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly refresh of OpenRouter provider order for DeepSeek
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

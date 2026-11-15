@@ -1,0 +1,7 @@
+[Unit]
+Description=Refresh OpenRouter provider order and cost for DeepSeek
+
+[Service]
+TimeoutStartSec=120
+Type=oneshot
+ExecStart=%h/.local/share/pi-node/current/bin/node %h/projects/fresh_pi/scripts/openrouter-cache-order.mjs
