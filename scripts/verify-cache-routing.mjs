@@ -2,13 +2,12 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const MODEL = "deepseek/deepseek-v4.1-flash-1017";
+import { KEY, MODEL, ORDER, writeRoutingFixture } from "./routing-fixture.mjs";
 const liveConfig = process.argv.includes("--config");
-const fixture = { order: ["probe-a/fp8", "probe-b/fp8"], allow_fallbacks: false };
 const work = mkdtempSync(join(tmpdir(), "pi-cache-check-"));
 const bodies = [];
 
@@ -32,24 +31,17 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const port = server.address().port;
 
 try {
-  cpSync(join(process.env.HOME, ".pi/agent/settings.json"), join(work, "settings.json"));
-  cpSync(join(process.env.HOME, ".pi/agent/models-store.json"), join(work, "models-store.json"));
-  const models = liveConfig
-    ? JSON.parse(readFileSync(join(process.env.HOME, ".pi/agent/models.json"), "utf8"))
-    : {
-      providers: {
-        openrouter: { modelOverrides: { [MODEL]: { compat: { openRouterRouting: fixture } } } },
-      },
-    };
-  const expected = models.providers.openrouter.modelOverrides[MODEL].compat.openRouterRouting;
-  models.providers.openrouter.baseUrl = `http://127.0.0.1:${port}/v1`;
-  writeFileSync(join(work, "models.json"), JSON.stringify(models, null, 2));
-  writeFileSync(join(work, "auth.json"), JSON.stringify({ openrouter: { type: "api_key", key: "sk-or-v1-test" } }));
+  const expected = liveConfig
+    ? JSON.parse(readFileSync(join(process.env.PI_CODING_AGENT_DIR || join(process.env.HOME, ".pi/agent"), "models.json"), "utf8"))
+      .providers.openrouter.modelOverrides[MODEL].compat.openRouterRouting
+    : { order: ORDER, allow_fallbacks: false };
+  assert.ok(expected?.order?.length, "configured route missing");
+  writeRoutingFixture(work, expected, `http://127.0.0.1:${port}/v1`);
 
-  const child = spawn("pi", ["-p", "ping", "--model", `openrouter/${MODEL}`, "--no-session", "--no-mcp"], {
+  const child = spawn("pi", ["-p", "ping", "--model", `openrouter/${MODEL}`, "--no-session", "--no-mcp", "--no-extensions"], {
     cwd: work,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, PI_CODING_AGENT_DIR: work, PI_OFFLINE: "1", OPENROUTER_API_KEY: "sk-or-v1-test" },
+    env: { ...process.env, PI_CODING_AGENT_DIR: work, PI_OFFLINE: "1", OPENROUTER_API_KEY: KEY },
   });
   let stderr = "";
   child.stdout.resume();

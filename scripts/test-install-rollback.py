@@ -11,10 +11,10 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 
-def _restore(agent, backup):
+def _restore(agent, backup, env=None):
     return subprocess.run(
         ["bash", str(ROOT / "uninstall.sh"), "--backup", str(backup)],
-        env={**os.environ, "PI_CODING_AGENT_DIR": str(agent)},
+        env={**os.environ, **(env or {}), "PI_CODING_AGENT_DIR": str(agent)},
         capture_output=True, text=True, timeout=20,
     )
 
@@ -48,6 +48,21 @@ def _check_rollback(directory):
         link.type = tarfile.SYMTYPE
         link.linkname = "../pkg/cli"
         snapshot.addfile(link)
+
+    bin_dir = directory / "bin"
+    bin_dir.mkdir()
+    cp = bin_dir / "cp"
+    cp.write_text(
+        '#!/bin/bash\n'
+        'if [[ "$3" == */npm ]]; then echo "simulated copy failure" >&2; exit 1; fi\n'
+        'exec /bin/cp "$@"\n'
+    )
+    cp.chmod(0o755)
+    result = _restore(agent, backup, {"PATH": f"{bin_dir}:{os.environ['PATH']}"})
+    assert result.returncode != 0 and "simulated copy failure" in result.stderr
+    assert settings.read_bytes() == b"current\n"
+    assert (agent / "npm/new").is_file()
+
     result = _restore(agent, backup)
     assert result.returncode == 0, result.stdout + result.stderr
     assert settings.read_bytes() == b"original\n"
@@ -61,4 +76,4 @@ def _check_rollback(directory):
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="pi-rollback-") as temp:
         _check_rollback(pathlib.Path(temp))
-    print("PASS rollback: invalid archive untouched, npm link restored, unmanaged file preserved")
+    print("PASS rollback: invalid archive and copy failure leave files intact; npm link restored")

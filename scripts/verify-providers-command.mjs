@@ -3,17 +3,20 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { KEY, ORDER, writeRoutingFixture } from "./routing-fixture.mjs";
 
 const cli = realpathSync(execFileSync("which", ["pi"], { encoding: "utf8" }).trim());
 const { RpcClient } = await import(pathToFileURL(join(dirname(cli), "../index.js")).href);
 const work = mkdtempSync(join(tmpdir(), "providers-command-"));
 const probe = join(work, "mock.ts");
+const extension = fileURLToPath(new URL("../extensions/providers/index.ts", import.meta.url));
+writeRoutingFixture(work, { order: ORDER, allow_fallbacks: false, quantizations: ["fp8"] });
 writeFileSync(probe, `export default pi => {
   pi.on('session_start', () => {
     globalThis.fetch = async (url, options) => {
       if (!String(url).endsWith('/endpoints')) throw new Error('Unexpected network request');
-      if (!options.headers.authorization?.startsWith('Bearer ')) throw new Error('Authorization missing');
+      if (options.headers.authorization !== 'Bearer ${KEY}') throw new Error('Authorization missing');
       const endpoint = (tag, quantization, cache) => ({tag, status: 0, quantization, max_completion_tokens: 65536, pricing: {input_cache_read: cache, prompt: '0.0000001', completion: '0.0000004'}, throughput_last_30m: {p50: 51}});
       return { ok: true, json: async () => ({data: {endpoints: [endpoint('probe-a/fp8', 'fp8', '0.000000002'), endpoint('probe-b/fp8', 'fp8', '0.000000003'), {tag: 'excluded/fp4', status: 0, quantization: 'fp4', pricing: {}}]}}) };
     };
@@ -23,7 +26,7 @@ writeFileSync(probe, `export default pi => {
     handler: async (args, ctx) => pi.appendEntry('probe-route', {route: ctx.model?.compat?.openRouterRouting ?? null}),
   });
 };`);
-const client = new RpcClient({ cliPath: cli, cwd: work, env: { PI_OFFLINE: "1" }, args: ["--no-session", "--offline", "--no-mcp", "-e", probe] });
+const client = new RpcClient({ cliPath: cli, cwd: work, env: { PI_CODING_AGENT_DIR: work, PI_OFFLINE: "1", OPENROUTER_API_KEY: KEY }, args: ["--no-session", "--offline", "--no-mcp", "--no-extensions", "-e", extension, "-e", probe] });
 const entries = [];
 const routes = [];
 const errors = [];
@@ -40,7 +43,7 @@ try {
 
   assert.equal(await client.prompt("/probe-route"), "handled");
   const baseline = routes.at(-1);
-  assert.ok(Array.isArray(baseline.order) && baseline.order.length > 0, "config route missing");
+  assert.deepEqual(baseline.order, ORDER, "fixture route missing");
 
   const disposition = await client.prompt("/providers");
   assert.equal(disposition, "handled");

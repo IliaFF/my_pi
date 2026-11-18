@@ -56,7 +56,19 @@ if [[ -n "$BACKUP" ]]; then
   done
   # Check and unpack the entire snapshot before touching the active installation.
   stage="$(mktemp -d)"
-  trap 'rm -rf -- "$stage"' EXIT
+  swap=""
+  switching=0
+  cleanup() {
+    rm -rf -- "$stage"
+    if [[ -n "$swap" ]]; then
+      if ((switching)); then
+        echo "FAIL restore interrupted; previous files retained in $swap/previous" >&2
+      else
+        rm -rf -- "$swap"
+      fi
+    fi
+  }
+  trap cleanup EXIT
   tar -C "$stage" -xzf "$archive"
   for dir in extensions scripts; do
     [[ ! -L "$stage/$dir" ]] || { echo "FAIL snapshot contains a symlink parent: $dir" >&2; exit 1; }
@@ -66,6 +78,16 @@ if [[ -n "$BACKUP" ]]; then
       if [[ -e "$stage/$item" || -L "$stage/$item" ]]; then managed+=("$item"); fi
     done
   fi
+  # Prepare all replacements on the destination filesystem before changing live files.
+  mkdir -p -- "$AGENT_DIR"
+  swap="$(mktemp -d "$AGENT_DIR/.restore.XXXXXXXX")"
+  for item in "${managed[@]}"; do
+    mkdir -p -- "$(dirname -- "$swap/previous/$item")"
+    if [[ -e "$stage/$item" || -L "$stage/$item" ]]; then
+      mkdir -p -- "$(dirname -- "$swap/next/$item")" "$(dirname -- "$AGENT_DIR/$item")"
+      cp -a -- "$stage/$item" "$swap/next/$item"
+    fi
+  done
   if [[ -f "$BACKUP/systemd-dir" ]]; then
     systemd_dir="$(<"$BACKUP/systemd-dir")"
     if [[ -f "$systemd_dir/openrouter-cache-order.timer" ]]; then
@@ -75,14 +97,16 @@ if [[ -n "$BACKUP" ]]; then
     rm -f -- "$systemd_dir"/openrouter-cache-order.{service,timer}
     systemctl --user daemon-reload
   fi
-  mkdir -p "$AGENT_DIR"
+  switching=1
   for item in "${managed[@]}"; do
-    rm -rf -- "$AGENT_DIR/$item"
-    if [[ -e "$stage/$item" || -L "$stage/$item" ]]; then
-      mkdir -p -- "$(dirname -- "$AGENT_DIR/$item")"
-      cp -a -- "$stage/$item" "$AGENT_DIR/$item"
+    if [[ -e "$AGENT_DIR/$item" || -L "$AGENT_DIR/$item" ]]; then
+      mv -T -- "$AGENT_DIR/$item" "$swap/previous/$item"
+    fi
+    if [[ -e "$swap/next/$item" || -L "$swap/next/$item" ]]; then
+      mv -T -- "$swap/next/$item" "$AGENT_DIR/$item"
     fi
   done
+  switching=0
   echo "PASS restored $archive into $AGENT_DIR"
   exit 0
 fi

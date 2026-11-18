@@ -90,8 +90,9 @@
 ```bash
 node scripts/openrouter-cache-order.test.mjs   # PASS rankProviders, PASS topCost
 node scripts/providers.test.mjs                # PASS /providers: prices, throughput, route, errors
-node scripts/verify-cache-routing.mjs --config # PASS provider.order из живого models.json
-node scripts/verify-providers-command.mjs      # PASS команда /providers
+node scripts/verify-cache-routing.mjs          # provider.order в запросе к локальной заглушке
+node scripts/verify-providers-command.mjs      # /providers на временном профиле
+node scripts/verify-cache-routing.mjs --config # отдельная проверка provider.order из рабочего models.json
 node scripts/verify-rpc.mjs ~/.pi/agent        # PASS установка и remote
 bash scripts/test-install.sh                   # чистая установка, фоновые задачи, контекст и откат
 ```
