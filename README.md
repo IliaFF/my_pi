@@ -12,7 +12,6 @@
 | `configs/extension-profile.json` | зафиксированные версии 15 пакетов живого стека |
 | `configs/models.json` | override маршрута OpenRouter для `deepseek/deepseek-v4.1-flash-1017`: `order`, `allow_fallbacks: false`, `quantizations: ["fp8"]`, цены, `maxTokens: 65536`. Только провайдер `openrouter`, ключей и чужих провайдеров нет |
 | `configs/systemd/openrouter-cache-order.service`, `.timer` | ежечасный прогон `openrouter-cache-order.mjs`, `TimeoutStartSec=120` |
-| `configs/AGENTS.md` | локальные заметки о хостах этого ПК; в сборку не входят, установщик их не копирует |
 | `extensions/providers/index.ts`, `data.mjs` | глобальная команда `/providers`: цены, скорость и маршрут апстримов текущей модели |
 | `extensions/auto-ultra-compact/index.ts` | автоуплотнение контекста |
 | `scripts/openrouter-cache-order.mjs` | пересобирает `compat.openRouterRouting`, `cost` и `maxTokens` в `~/.pi/agent/models.json` |
