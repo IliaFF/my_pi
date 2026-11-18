@@ -121,17 +121,23 @@ try {
   assert.equal(automatic.compactCalls(), 1, "must compact at 170k");
   assert.equal(existsSync(join(testHome, ".pi/agent/recovery")), false, "must not create recovery directory");
   assert.equal(existsSync(join(testHome, ".pi-stack/recovery")), false, "must not create project recovery mirror");
-  assert.match(automatic.callbacks().customInstructions, /Firstmate queue\/state/);
-  assert.match(automatic.callbacks().customInstructions, /Otherwise.*current TODO\.md/);
   await automatic.emit("session_before_compact", { reason: "manual", preparation, branchEntries: [] });
   await automatic.emit("session_compact", { reason: "manual", compactionEntry: {} });
   assert.equal(automatic.sent.length, 0, "extension continuation must wait until Pi unlocks manual compaction");
   automatic.completeCompaction();
   assert.equal(automatic.sent.length, 1, "extension auto-compaction must enqueue exactly one continuation after onComplete");
   assert.deepEqual(automatic.sent[0].options, { deliverAs: "followUp" });
-  assert.match(automatic.sent[0].message, /^После автосжатия восстанови текущую задачу по её владельцу\./);
-  assert.match(automatic.sent[0].message, /контракту супервизора Firstmate.*очередь и состояние Firstmate/);
-  assert.match(automatic.sent[0].message, /В остальных сессиях.*TODO\.md/);
+  const continuation = automatic.sent[0].message;
+  const summaryInstructions = automatic.callbacks().customInstructions;
+  for (const policy of [continuation, summaryInstructions]) {
+    assert.match(policy, /^После автосжатия восстанови последний реальный запрос пользователя/);
+    assert.match(policy, /По явному контракту супервизора Firstmate сверь очередь и состояние Firstmate/);
+    assert.match(policy, /В остальных сессиях.*TODO\.md текущего проекта/);
+    assert.match(policy, /Если задача закрыта, ничего не запускай/);
+    assert.match(policy, /дождись уведомления без опроса.*обработай один раз/);
+    assert.match(policy, /Продолжай только незавершённую работу по этому запросу/);
+    assert.match(policy, /Не подхватывай другие пункты TODO\.md/);
+  }
   assert.ok(automatic.sent[0].message.includes("не требуют отдельной записи"));
   assert.doesNotMatch(automatic.sent[0].message, /recovery|packet/i);
   nativeRestoreMessage = automatic.sent[0].message;
