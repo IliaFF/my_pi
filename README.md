@@ -1,6 +1,6 @@
 # my_pi — сборка Pi с маршрутизацией OpenRouter
 
-Сборка ставит ядро Pi 1.5.2 из npm, расширение SSH-маршрутизации `pi-ssh-remote@0.1.15` с патчем, глобальную команду `/providers` и ежечасную пересборку маршрута модели DeepSeek по цене кеш-чтения на OpenRouter.
+Установщик ставит ядро Pi 1.5.2 из npm и патченное расширение SSH-маршрутизации `pi-ssh-remote@0.1.15`. Репозиторий также содержит профиль живого стека, локальные расширения и ежечасное обновление маршрута DeepSeek на OpenRouter по цене кеш-чтения.
 
 ## Состав
 
@@ -9,19 +9,21 @@
 | `npm/package.json`, `npm/package-lock.json` | точные пины: `@earendil-works/pi-coding-agent@1.5.2`, `@earendil-works/pi-tui@1.5.2`, `pi-ssh-remote@0.1.15` |
 | `patches/pi-ssh-remote+0.1.15.patch` | патч расширения SSH-маршрутизации |
 | `configs/settings.json` | провайдер/модель по умолчанию и пакет `npm:pi-ssh-remote@0.1.15` |
+| `configs/extension-profile.json` | зафиксированные версии 15 пакетов живого стека; установщик этот профиль не читает |
 | `configs/models.json` | override маршрута OpenRouter для `deepseek/deepseek-v4.1-flash-1017`: `order`, `allow_fallbacks: false`, `quantizations: ["fp8"]`, цены, `maxTokens: 65536`. Только провайдер `openrouter`, ключей и чужих провайдеров нет |
 | `configs/systemd/openrouter-cache-order.service`, `.timer` | ежечасный прогон `openrouter-cache-order.mjs`, `TimeoutStartSec=120` |
 | `configs/AGENTS.md` | локальные заметки о хостах этого ПК; в сборку не входят, `install.sh` копирует только при отсутствии `~/.pi/agent/AGENTS.md` |
 | `extensions/providers/index.ts`, `data.mjs` | глобальная команда `/providers`: цены, скорость и маршрут апстримов текущей модели |
+| `extensions/auto-ultra-compact/index.ts` | автоуплотнение контекста |
 | `scripts/openrouter-cache-order.mjs` | пересобирает `compat.openRouterRouting`, `cost` и `maxTokens` в `~/.pi/agent/models.json` |
 | `scripts/openrouter-cache-order.test.mjs`, `scripts/providers.test.mjs` | офлайн-тесты ранжирования и команды `/providers` |
-| `scripts/verify-cache-routing.mjs`, `scripts/verify-providers-command.mjs` | сквозные проверки: тело запроса Pi содержит `provider.order`; `/providers` отдаёт таблицу |
+| `scripts/verify-cache-routing.mjs`, `scripts/verify-providers-command.mjs` | сквозные проверки: тело запроса Pi содержит `provider.order`; `/providers` показывает таблицу, закрепляет провайдера и сбрасывает маршрут |
 | `scripts/verify-rpc.mjs` | настоящий CLI-прогон `remote` и `/remote` после установки |
 | `install.sh`, `uninstall.sh` | установка с backup и откат |
 
 ## Установленные расширения
 
-Состояние живого `~/.pi/agent`: 15 npm-пакетов из `settings.json` и два локальных расширения. `install.sh` из этого репозитория ставит только `pi-ssh-remote`; остальные пакеты ставятся отдельно и закрепляются в `~/.pi/agent/npm/package.json`.
+Состояние живого `~/.pi/agent`: 15 npm-пакетов из `settings.json` и два локальных расширения. `install.sh` из этого репозитория ставит только `pi-ssh-remote`; остальные пакеты подключаются отдельно. Версии зафиксированы в `configs/extension-profile.json`. Этот список не включает патчи или настройки живой системы.
 
 | Пакет | Версия | Назначение |
 | --- | --- | --- |
@@ -46,7 +48,7 @@
 | Расширение | Источник | Назначение |
 | --- | --- | --- |
 | `/providers` | `extensions/providers/` этого репозитория | цены, скорость и маршрут апстримов текущей OpenRouter-модели |
-| `auto-ultra-compact` | `~/.pi/agent/extensions/auto-ultra-compact/index.ts`, в репозитории отсутствует | авто-уплотнение контекста при заполнении окна |
+| `auto-ultra-compact` | `extensions/auto-ultra-compact/` этого репозитория | авто-уплотнение контекста при заполнении окна |
 
 ## Установка
 
@@ -57,9 +59,11 @@
 ./uninstall.sh --backup ~/.pi/my-pi-backups/<stamp>   # откат
 ```
 
-`install.sh` не ставит расширение `providers`, `models.json` и systemd-юниты — они кладутся вручную:
+`install.sh` не подключает локальные расширения, `models.json` и systemd-юниты. Для ручного подключения:
 
 ```bash
+mkdir -p ~/.pi/agent/extensions
+ln -s "$PWD/extensions/auto-ultra-compact" ~/.pi/agent/extensions/auto-ultra-compact
 ln -s "$PWD/extensions/providers" ~/.pi/agent/extensions/providers
 cp configs/models.json ~/.pi/agent/models.json
 cp configs/systemd/openrouter-cache-order.* ~/.config/systemd/user/
@@ -79,7 +83,13 @@ systemctl --user enable --now openrouter-cache-order.timer
 
 ## Команда `/providers`
 
-Каждый вызов заново запрашивает `/endpoints` текущей OpenRouter-модели с авторизацией через ModelRegistry и печатает таблицу: цена входа/выхода/кеша USD за миллион, `throughput_last_30m.p50`, настроенный маршрут. По умолчанию топ-10 по цене кеша плюс исключённые строкой «Скрыто: ещё N»; `/providers all` показывает всех с колонкой типа. Вывод идёт через custom entry: в контекст модели не попадает и настройки не меняет. После правки `models.json` применить модель к сессии: `/model`, дождаться обновления, подтвердить выбор.
+В терминале `/providers` открывает список с ценами за миллион токенов, скоростью `p50` и текущим маршрутом. Выбор закрепляет один апстрим без fallback до сброса или смены модели. `Esc` оставляет маршрут без изменений.
+
+- `/providers all` показывает полный каталог, включая исключённых из маршрута.
+- `/providers use <слаг>` закрепляет провайдера из списка без диалога.
+- `/providers reset` возвращает маршрут из конфигурации. С него же начинается новая сессия.
+
+Команда запрашивает свежий `/endpoints` через ModelRegistry, кроме сброса. Таблица остаётся вне контекста модели. Выбор не меняет `models.json`.
 
 ## Проверки
 

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { formatProviders, loadProviders } from "../extensions/providers/data.mjs";
+import { formatProviders, loadEndpoints, loadProviders, pinnedModel, providerChoices } from "../extensions/providers/data.mjs";
 
 const model = { provider: "openrouter", id: "test/model", compat: { openRouterRouting: { order: ["a/fp8", "b/fp8"] } } };
 const endpoint = (tag, pricing, throughput = null) => ({ tag, pricing, throughput_last_30m: throughput, status: 0, quantization: "fp8", max_completion_tokens: 65536 });
@@ -33,6 +33,22 @@ assert.match(formatProviders(model, [endpoint("a/fp8", {}, { p50: 87.3, p90: 42 
 assert.match(output, /не определён/);
 assert.doesNotMatch(formatProviders(model, [endpoint("\x1b[31m\n", {})], "TEST"), /\x1b/);
 
+const choices = providerChoices(model, [...endpoints, nonFp8]);
+const tableRows = formatProviders(model, [...endpoints, nonFp8], "TEST").split("\n").filter((line) => /^[ab]\/fp8 /.test(line));
+assert.deepEqual(choices.map((choice) => choice.tag), ["a/fp8", "b/fp8"]);
+assert.deepEqual(choices.map((choice) => choice.label), tableRows);
+assert.equal(providerChoices(model, [...endpoints, ...many]).length, 10);
+
+const rich = { provider: "openrouter", id: "test/model", cost: { input: 1 }, compat: { maxTokens: 5, openRouterRouting: { order: ["a/fp8", "b/fp8"], allow_fallbacks: true, quantizations: ["fp8"] } } };
+const pinned = pinnedModel(rich, "b/fp8");
+assert.deepEqual(pinned.compat.openRouterRouting, { order: ["b/fp8"], allow_fallbacks: false, quantizations: ["fp8"] });
+assert.equal(pinned.compat.maxTokens, 5);
+assert.equal(pinned.cost, rich.cost);
+assert.deepEqual(rich.compat.openRouterRouting.order, ["a/fp8", "b/fp8"]);
+assert.notEqual(pinned, rich);
+assert.notEqual(pinned.compat, rich.compat);
+assert.deepEqual(pinnedModel({ provider: "openrouter", id: "bare" }, "t/fp8").compat.openRouterRouting, { order: ["t/fp8"], allow_fallbacks: false });
+
 let calls = 0;
 const mockFetch = async (url, options) => {
   calls++;
@@ -45,9 +61,10 @@ const mockFetch = async (url, options) => {
 assert.match(await loadProviders(model, mockFetch, { apiKey: "test-key" }), /fresh-1/);
 assert.match(await loadProviders(model, mockFetch, { apiKey: "test-key" }), /fresh-2/);
 assert.equal(calls, 2);
-await assert.rejects(loadProviders({ provider: "other" }, mockFetch), /OpenRouter/);
+assert.deepEqual((await loadEndpoints(model, mockFetch, { apiKey: "test-key" })).map((entry) => entry.tag), ["fresh-3"]);
+await assert.rejects(loadEndpoints({ provider: "other" }, mockFetch), /OpenRouter/);
 await assert.rejects(loadProviders(model, async () => ({ ok: false, status: 503 })), /HTTP 503/);
 await assert.rejects(loadProviders(model, async () => ({ ok: true, json: async () => ({ data: {} }) })), /некорректный/);
 await assert.rejects(loadProviders(model, async () => ({ ok: true, json: async () => ({ data: { endpoints: [] } }) })), /пустой/);
 await assert.rejects(loadProviders(model, async () => { throw new Error("timeout"); }), /timeout/);
-console.log("PASS /providers: prices, throughput, route, missing data, fresh GET per call, errors");
+console.log("PASS /providers: prices, throughput, route, missing data, fresh GET per call, errors, pinning, choices");

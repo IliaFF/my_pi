@@ -15,8 +15,7 @@ function speed(value) {
   return median === null ? "нет" : median.toFixed(1);
 }
 
-export function formatProviders(model, endpoints, timestamp, all = false) {
-  const order = model.compat?.openRouterRouting?.order ?? [];
+function layout(endpoints, order, all) {
   const eligible = new Set(rankProviders(endpoints, Infinity));
   const sorted = [...endpoints].sort((a, b) => {
     for (const key of priceKeys) {
@@ -29,23 +28,41 @@ export function formatProviders(model, endpoints, timestamp, all = false) {
   const active = order.map((tag) => endpoints.find((entry) => entry.tag === tag)).filter(Boolean);
   const candidates = sorted.filter((entry) => !order.includes(entry.tag) && eligible.has(entry.tag));
   const excluded = sorted.filter((entry) => !order.includes(entry.tag) && !eligible.has(entry.tag));
-  const limit = all ? Infinity : 10;
-  const shown = [...active, ...candidates].slice(0, limit);
-  const rows = all ? [...shown, ...excluded] : shown;
-  const row = (entry) => {
-    const index = order.indexOf(entry.tag);
-    const mark = index === 0 ? "основной" : index > 0 ? `запасной ${index}` : eligible.has(entry.tag) ? "кандидат" : "исключён";
-    const cells = [
-      clean(entry.tag).padEnd(20),
-      price(entry.pricing?.input_cache_read).padEnd(9),
-      price(entry.pricing?.prompt).padEnd(9),
-      price(entry.pricing?.completion).padEnd(9),
-      speed(entry.throughput_last_30m).padEnd(8),
-      mark,
-    ];
-    if (all) cells.splice(1, 0, clean(entry.quantization ?? "неизвестен").padEnd(8));
-    return cells.join(" ");
+  return { order, eligible, shown: [...active, ...candidates].slice(0, all ? Infinity : 10), excluded };
+}
+
+function row(view, entry, all) {
+  const index = view.order.indexOf(entry.tag);
+  const mark = index === 0 ? "основной" : index > 0 ? `запасной ${index}` : view.eligible.has(entry.tag) ? "кандидат" : "исключён";
+  const cells = [
+    clean(entry.tag).padEnd(20),
+    price(entry.pricing?.input_cache_read).padEnd(9),
+    price(entry.pricing?.prompt).padEnd(9),
+    price(entry.pricing?.completion).padEnd(9),
+    speed(entry.throughput_last_30m).padEnd(8),
+    mark,
+  ];
+  if (all) cells.splice(1, 0, clean(entry.quantization ?? "неизвестен").padEnd(8));
+  return cells.join(" ");
+}
+
+/** Копия модели с маршрутом из одного провайдера; исходный объект не меняется. */
+export function pinnedModel(model, tag) {
+  return {
+    ...model,
+    compat: { ...model.compat, openRouterRouting: { ...model.compat?.openRouterRouting, order: [tag], allow_fallbacks: false } },
   };
+}
+
+/** Строки выбора в том же порядке и виде, что и таблица. */
+export function providerChoices(model, endpoints, all = false) {
+  const view = layout(endpoints, model.compat?.openRouterRouting?.order ?? [], all);
+  return view.shown.map((entry) => ({ tag: entry.tag, label: row(view, entry, all) }));
+}
+
+export function formatProviders(model, endpoints, timestamp, all = false) {
+  const view = layout(endpoints, model.compat?.openRouterRouting?.order ?? [], all);
+  const { order, shown, excluded } = view;
   const lines = [
     `OpenRouter: ${clean(model.id)} · ${timestamp}`,
     "Цены: USD за 1M токенов. Скорость: p50 за последние 30 минут, токен/с.",
@@ -53,8 +70,8 @@ export function formatProviders(model, endpoints, timestamp, all = false) {
     ["Провайдер".padEnd(20), all ? "Тип".padEnd(8) : "", "Кеш".padEnd(9), "Вход".padEnd(9), "Выход".padEnd(9), "Токен/с".padEnd(8), "Маршрут"].filter(Boolean).join(" "),
   ];
   const absent = order.filter((tag) => !endpoints.some((entry) => entry.tag === tag));
-  for (const entry of shown) lines.push(row(entry));
-  if (all) lines.push("", ...excluded.map(row));
+  for (const entry of shown) lines.push(row(view, entry, all));
+  if (all) lines.push("", ...excluded.map((entry) => row(view, entry, all)));
   lines.push("");
   if (absent.length) lines.push(`Нет в свежем каталоге: ${absent.map(clean).join(", ")}.`);
   if (!order.length) lines.push("Маршрут: OpenRouter по умолчанию.");
@@ -63,7 +80,7 @@ export function formatProviders(model, endpoints, timestamp, all = false) {
   return lines.join("\n");
 }
 
-export async function loadProviders(model, fetcher = fetch, { apiKey, all = false } = {}) {
+export async function loadEndpoints(model, fetcher = fetch, { apiKey } = {}) {
   if (model?.provider !== "openrouter") throw new Error("Команда доступна для активной модели OpenRouter.");
   const slug = model.id.split("/").map(encodeURIComponent).join("/");
   const response = await fetcher(`https://openrouter.ai/api/v1/models/${slug}/endpoints`, {
@@ -78,5 +95,10 @@ export async function loadProviders(model, fetcher = fetch, { apiKey, all = fals
     throw new Error("OpenRouter вернул некорректный список провайдеров.");
   }
   if (!endpoints.length) throw new Error("OpenRouter вернул пустой список провайдеров.");
+  return endpoints;
+}
+
+export async function loadProviders(model, fetcher = fetch, { apiKey, all = false } = {}) {
+  const endpoints = await loadEndpoints(model, fetcher, { apiKey });
   return formatProviders(model, endpoints, new Date().toISOString(), all);
 }
