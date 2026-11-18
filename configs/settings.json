@@ -1,8 +1,5 @@
 {
   "defaultProvider": "openai-codex",
   "defaultModel": "gpt-6.1-sol",
-  "defaultThinkingLevel": "medium",
-  "packages": [
-    "npm:pi-ssh-remote@0.1.15"
-  ]
+  "defaultThinkingLevel": "medium"
 }

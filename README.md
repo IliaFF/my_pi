@@ -1,18 +1,18 @@
 # my_pi — сборка Pi с маршрутизацией OpenRouter
 
-Установщик ставит ядро Pi 1.5.2 из npm и патченное расширение SSH-маршрутизации `pi-ssh-remote@0.1.15`. Репозиторий также содержит профиль живого стека, локальные расширения и ежечасное обновление маршрута DeepSeek на OpenRouter по цене кеш-чтения.
+Установщик подключает полный профиль расширений Pi 1.5.2: 15 npm-пакетов и два локальных расширения. Маршрутизация DeepSeek и её таймер включаются отдельным флагом.
 
 ## Состав
 
 | Путь | Назначение |
 | --- | --- |
-| `npm/package.json`, `npm/package-lock.json` | точные пины: `@earendil-works/pi-coding-agent@1.5.2`, `@earendil-works/pi-tui@1.5.2`, `pi-ssh-remote@0.1.15` |
+| `npm/package.json`, `npm/package-lock.json` | lockfile ядра Pi 1.5.2 и 15 пакетов |
 | `patches/pi-ssh-remote+0.1.15.patch` | патч расширения SSH-маршрутизации |
-| `configs/settings.json` | провайдер/модель по умолчанию и пакет `npm:pi-ssh-remote@0.1.15` |
-| `configs/extension-profile.json` | зафиксированные версии 15 пакетов живого стека; установщик этот профиль не читает |
+| `configs/settings.json` | настройки по умолчанию |
+| `configs/extension-profile.json` | зафиксированные версии 15 пакетов живого стека |
 | `configs/models.json` | override маршрута OpenRouter для `deepseek/deepseek-v4.1-flash-1017`: `order`, `allow_fallbacks: false`, `quantizations: ["fp8"]`, цены, `maxTokens: 65536`. Только провайдер `openrouter`, ключей и чужих провайдеров нет |
 | `configs/systemd/openrouter-cache-order.service`, `.timer` | ежечасный прогон `openrouter-cache-order.mjs`, `TimeoutStartSec=120` |
-| `configs/AGENTS.md` | локальные заметки о хостах этого ПК; в сборку не входят, `install.sh` копирует только при отсутствии `~/.pi/agent/AGENTS.md` |
+| `configs/AGENTS.md` | локальные заметки о хостах этого ПК; в сборку не входят, установщик их не копирует |
 | `extensions/providers/index.ts`, `data.mjs` | глобальная команда `/providers`: цены, скорость и маршрут апстримов текущей модели |
 | `extensions/auto-ultra-compact/index.ts` | автоуплотнение контекста |
 | `scripts/openrouter-cache-order.mjs` | пересобирает `compat.openRouterRouting`, `cost` и `maxTokens` в `~/.pi/agent/models.json` |
@@ -23,7 +23,7 @@
 
 ## Установленные расширения
 
-Состояние живого `~/.pi/agent`: 15 npm-пакетов из `settings.json` и два локальных расширения. `install.sh` из этого репозитория ставит только `pi-ssh-remote`; остальные пакеты подключаются отдельно. Версии зафиксированы в `configs/extension-profile.json`. Этот список не включает патчи или настройки живой системы.
+Установщик использует `npm ci` с lockfile и применяет патчи к `pi-ssh-remote` и `context-fold`.
 
 | Пакет | Версия | Назначение |
 | --- | --- | --- |
@@ -52,26 +52,21 @@
 
 ## Установка
 
-```bash
-./install.sh --dry-run                 # план без изменений
-./install.sh --install-core            # ядро Pi, пакеты, патч, конфиги, проверка remote
-./install.sh --preserve-settings       # не перезаписывать существующий settings.json
-./uninstall.sh --backup ~/.pi/my-pi-backups/<stamp>   # откат
-```
-
-`install.sh` не подключает локальные расширения, `models.json` и systemd-юниты. Для ручного подключения:
+Требования: Linux, Node.js 24+ и Pi 1.5.2. Если Pi ещё не установлен, добавьте `--install-core`.
 
 ```bash
-mkdir -p ~/.pi/agent/extensions
-ln -s "$PWD/extensions/auto-ultra-compact" ~/.pi/agent/extensions/auto-ultra-compact
-ln -s "$PWD/extensions/providers" ~/.pi/agent/extensions/providers
-cp configs/models.json ~/.pi/agent/models.json
-cp configs/systemd/openrouter-cache-order.* ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now openrouter-cache-order.timer
+./install.sh --dry-run
+./install.sh --install-core
+./install.sh --preserve-settings
+./install.sh --preserve-settings --with-openrouter
+./uninstall.sh
 ```
 
-`systemctl --user show openrouter-cache-order.service -p TimeoutStartUSec` должен показать `2min`.
+`--preserve-settings` сохраняет существующие параметры, сторонние записи пакетов и их фильтры. Версии пакетов из профиля фиксируются по lockfile. Без флага `settings.json` заменяется настройками сборки. Дерево `npm` пересобирается, сохранённые сторонние пакеты Pi подключит при следующем запуске с доступом к npm. Авторизация выполняется отдельно через `/login`.
+
+`--with-openrouter` обновляет только запись целевой модели в `models.json` и запускает пользовательский таймер systemd. Требуется активный пользовательский менеджер systemd. Если одноимённый юнит уже есть, установщик остановится до изменений. Обычная установка не меняет `models.json` и systemd.
+
+`uninstall.sh` восстанавливает последний резервный снимок изменённых файлов; `--backup DIR` выбирает конкретный снимок. Профиль проверяется через настоящий Pi RPC без вызова модели. Откат не снимает глобально установленное ядро Pi.
 
 ## Маршрут DeepSeek
 

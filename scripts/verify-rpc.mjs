@@ -28,13 +28,23 @@ try {
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
   assert.ok(commands.some(command => command.name === "remote"), "remote command missing");
-  const retired = ["queue", "ponytail", "bg", "tasks", "fast", "caveman", "fusion", "worktree", "profile"];
+  for (const name of ["providers", "clear-context"]) {
+    assert.ok(commands.some(command => command.name === name), `/${name} missing`);
+  }
+  const profile = JSON.parse(readFileSync(new URL("../configs/extension-profile.json", import.meta.url), "utf8"));
+  for (const spec of profile.packages) {
+    const pin = spec.lastIndexOf("@");
+    const name = spec.slice(4, pin);
+    const installed = JSON.parse(readFileSync(join(agent, "npm/node_modules", name, "package.json"), "utf8"));
+    assert.equal(installed.version, spec.slice(pin + 1), name);
+  }
+  const retired = ["queue", "caveman"];
   const leaked = commands.filter(command => retired.includes(command.name)).map(command => command.name);
   assert.deepEqual(leaked, [], "removed extension commands are still registered");
   assert.deepEqual(errors, [], "startup must not emit extension errors");
   assert.match(client.getStderr(), /REMOTE_PRESENT/, "real session_start must expose the remote tool");
   assert.doesNotMatch(client.getStderr(), /Failed to load extension|Error loading extension/i);
-  console.log(`PASS clean profile: ${commands.length} commands, remote tool and /remote present, no removed extensions, no model run`);
+  console.log(`PASS full profile: ${commands.length} commands, remote tool and /remote present, no removed extensions, no model run`);
 } finally {
   await client.stop();
   rmSync(probe, { recursive: true, force: true });
