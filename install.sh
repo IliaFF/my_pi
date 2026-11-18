@@ -52,7 +52,7 @@ if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN packages: 15 extensions from configs/extension-profile.json (npm ci)"
-  echo "DRY-RUN patches: pi-ssh-remote+0.1.15, context-fold+0.8.0"
+  echo "DRY-RUN patches: pi-ssh-remote+0.1.15, context-fold+0.8.0, pi-background-tasks+2.6.10"
   echo "DRY-RUN local extensions: providers, auto-ultra-compact"
   echo "DRY-RUN OpenRouter route and timer: $WITH_OPENROUTER"
   exit 0
@@ -118,7 +118,7 @@ cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
 cp "$ROOT/npm/package-lock.json" "$AGENT_DIR/npm/package-lock.json"
 npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
 
-for spec in pi-ssh-remote+0.1.15 context-fold+0.8.0; do
+for spec in pi-ssh-remote+0.1.15 context-fold+0.8.0 pi-background-tasks+2.6.10; do
   patch -d "$AGENT_DIR/npm/node_modules/${spec%+*}" -p1 --forward --batch < "$ROOT/patches/$spec.patch"
 done
 

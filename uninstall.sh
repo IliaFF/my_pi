@@ -54,6 +54,18 @@ if [[ -n "$BACKUP" ]]; then
       exit 1
     fi
   done
+  # Check and unpack the entire snapshot before touching the active installation.
+  stage="$(mktemp -d)"
+  trap 'rm -rf -- "$stage"' EXIT
+  tar -C "$stage" -xzf "$archive"
+  for dir in extensions scripts; do
+    [[ ! -L "$stage/$dir" ]] || { echo "FAIL snapshot contains a symlink parent: $dir" >&2; exit 1; }
+  done
+  if [[ ! -f "$BACKUP/managed-files" ]]; then
+    for item in settings.json AGENTS.md npm; do
+      if [[ -e "$stage/$item" || -L "$stage/$item" ]]; then managed+=("$item"); fi
+    done
+  fi
   if [[ -f "$BACKUP/systemd-dir" ]]; then
     systemd_dir="$(<"$BACKUP/systemd-dir")"
     if [[ -f "$systemd_dir/openrouter-cache-order.timer" ]]; then
@@ -64,8 +76,13 @@ if [[ -n "$BACKUP" ]]; then
     systemctl --user daemon-reload
   fi
   mkdir -p "$AGENT_DIR"
-  for item in "${managed[@]}"; do rm -rf -- "$AGENT_DIR/$item"; done
-  tar -C "$AGENT_DIR" -xzf "$archive"
+  for item in "${managed[@]}"; do
+    rm -rf -- "$AGENT_DIR/$item"
+    if [[ -e "$stage/$item" || -L "$stage/$item" ]]; then
+      mkdir -p -- "$(dirname -- "$AGENT_DIR/$item")"
+      cp -a -- "$stage/$item" "$AGENT_DIR/$item"
+    fi
+  done
   echo "PASS restored $archive into $AGENT_DIR"
   exit 0
 fi

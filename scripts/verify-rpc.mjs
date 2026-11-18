@@ -28,7 +28,7 @@ try {
   assert.equal(state.isStreaming, false);
   const commands = await client.getCommands();
   assert.ok(commands.some(command => command.name === "remote"), "remote command missing");
-  for (const name of ["providers", "clear-context"]) {
+  for (const name of ["providers", "clear-context", "bg"]) {
     assert.ok(commands.some(command => command.name === name), `/${name} missing`);
   }
   const profile = JSON.parse(readFileSync(new URL("../configs/extension-profile.json", import.meta.url), "utf8"));

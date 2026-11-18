@@ -22,7 +22,7 @@
 
 ## Установленные расширения
 
-Установщик использует `npm ci` с lockfile и применяет патчи к `pi-ssh-remote` и `context-fold`.
+Установщик использует `npm ci` с lockfile и применяет патчи к `pi-ssh-remote`, `context-fold` и `pi-background-tasks`.
 
 | Пакет | Версия | Назначение |
 | --- | --- | --- |
@@ -93,6 +93,7 @@ node scripts/providers.test.mjs                # PASS /providers: prices, throug
 node scripts/verify-cache-routing.mjs --config # PASS provider.order из живого models.json
 node scripts/verify-providers-command.mjs      # PASS команда /providers
 node scripts/verify-rpc.mjs ~/.pi/agent        # PASS установка и remote
+bash scripts/test-install.sh                   # чистая установка, фоновые задачи, контекст и откат
 ```
 
 ## Ограничения

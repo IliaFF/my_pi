@@ -19,6 +19,10 @@ export PATH="$tmp/bin:$PATH"
 test ! -e "$PI_CODING_AGENT_DIR"
 test ! -e "$SYSTEMCTL_LOG"
 ./install.sh
+node scripts/test-background-jobs.mjs "$PI_CODING_AGENT_DIR/npm/node_modules"
+node scripts/test-auto-ultra-compact.mjs "$PI_CODING_AGENT_DIR"
+node scripts/verify-fold-window.mjs "$PI_CODING_AGENT_DIR"
+python3 scripts/test-install-rollback.py
 ./uninstall.sh
 test ! -e "$PI_CODING_AGENT_DIR/npm"
 test ! -e "$PI_CODING_AGENT_DIR/extensions/providers"
