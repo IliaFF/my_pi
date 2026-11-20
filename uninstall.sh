@@ -37,7 +37,7 @@ if [[ -n "$BACKUP" ]]; then
     mapfile -t managed < "$BACKUP/managed-files"
     for item in "${managed[@]}"; do
       case "$item" in
-        settings.json|AGENTS.md|npm|extensions/providers|extensions/auto-ultra-compact|scripts/openrouter-cache-order.mjs|.my-pi-last-backup|models.json) ;;
+        settings.json|AGENTS.md|APPEND_SYSTEM.md|skills/cpp-styleguide|skills/grilling|skills/latex-simple-style|skills/writing-python|npm|extensions/providers|extensions/auto-ultra-compact|scripts/openrouter-cache-order.mjs|.my-pi-last-backup|models.json) ;;
         *) echo "FAIL unexpected backup path: $item" >&2; exit 1 ;;
       esac
     done
@@ -48,7 +48,7 @@ if [[ -n "$BACKUP" ]]; then
     tar -tzf "$archive" | sed 's/^/DRY-RUN   /'
     exit 0
   fi
-  for dir in extensions scripts; do
+  for dir in extensions scripts skills; do
     if [[ -L "$AGENT_DIR/$dir" ]]; then
       echo "FAIL refusing to restore through a symlink: $AGENT_DIR/$dir" >&2
       exit 1
@@ -70,7 +70,7 @@ if [[ -n "$BACKUP" ]]; then
   }
   trap cleanup EXIT
   tar -C "$stage" -xzf "$archive"
-  for dir in extensions scripts; do
+  for dir in extensions scripts skills; do
     [[ ! -L "$stage/$dir" ]] || { echo "FAIL snapshot contains a symlink parent: $dir" >&2; exit 1; }
   done
   if [[ ! -f "$BACKUP/managed-files" ]]; then

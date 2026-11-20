@@ -12,7 +12,7 @@
    client: SshClient;
    cwd: string;
    unavailableCwd?: string;
-@@ -183,8 +187,34 @@
+@@ -198,8 +202,34 @@
    return seconds;
  }
  
@@ -49,7 +49,7 @@
  }
  
  function configuredDisplayLines(config = loadRemoteConfig()): number {
-@@ -712,32 +742,46 @@
+@@ -733,32 +763,46 @@
    command: string,
    allowFailure = false,
    timeoutSeconds = DEFAULT_REMOTE_TIMEOUT_SECONDS,
@@ -72,6 +72,7 @@
 -      stream.once("error", (streamError: Error) => {
 -        cleanup();
 -        reject(streamError);
+-      });
 +    const stdout: Buffer[] = [];
 +    const stderr: Buffer[] = [];
 +    let bytes = 0;
@@ -99,7 +100,11 @@
 +      stream.on("data", (chunk: Buffer) => append(stdout, chunk));
 +      stream.stderr.on("data", (chunk: Buffer) => append(stderr, chunk));
 +      stream.on("error", fail);
-+      stream.on("close", (code: number | null) => {
+       stream.on("close", (code: number | null) => {
+-        cleanup();
+-        if (locallyTimedOut || code === 124 || code === 137) reject(new Error(`Remote command timed out after ${resolvedTimeout} seconds`));
+-        else if (!allowFailure && code !== 0) reject(new Error(Buffer.concat(stderr).toString().trim() || `Remote command exited with code ${code}`));
+-        else resolve(Buffer.concat(stdout));
 +        if (settled) return;
 +        if (shell === "posix" && (code === 124 || code === 137)) return fail(new Error(`Remote command timed out after ${resolvedTimeout} seconds`));
 +        if (!allowFailure && code !== 0) return fail(new Error(Buffer.concat(stderr).toString().trim() || `Remote command exited with code ${code}`));
@@ -107,103 +112,70 @@
 +        clearTimeout(timer);
 +        resolve(Buffer.concat(stdout));
        });
--      stream.on("close", (code: number | null) => {
--        cleanup();
--        if (locallyTimedOut || code === 124 || code === 137) reject(new Error(`Remote command timed out after ${resolvedTimeout} seconds`));
--        else if (!allowFailure && code !== 0) reject(new Error(Buffer.concat(stderr).toString().trim() || `Remote command exited with code ${code}`));
--        else resolve(Buffer.concat(stdout));
--      });
 -    });
 +    }); } catch (error) { fail(error as Error); }
    });
  }
  
-@@ -747,44 +791,44 @@
+@@ -803,14 +847,16 @@
+   onStdout: (chunk: Buffer) => void,
+   onStderr: (chunk: Buffer) => void,
+   signal?: AbortSignal,
++  shell: RemoteShell = "posix",
+ ): Promise<{ code: number | null; timedOut: boolean }> {
+   return new Promise((resolve, reject) => {
+     let timedOut = false;
+     let settled = false;
+     const timer = setTimeout(() => {
+       timedOut = true;
+-      stream.close();
+-    }, (timeoutSeconds + 8) * 1000);
++      if (shell === "cmd") settle(() => resolve({ code: null, timedOut }));
++      try { stream.close(); } catch (error) { settle(() => reject(error)); }
++    }, (timeoutSeconds + (shell === "posix" ? 8 : 0)) * 1000);
+     const settle = (finish: () => void) => {
+       if (settled) return;
+       settled = true;
+@@ -840,10 +886,11 @@
    timeoutSeconds: number,
    maxLines: number,
    maxBytes: number,
-+  shell: RemoteShell = "posix",
-+  signal?: AbortSignal,
++  shell: RemoteShell,
+   signal?: AbortSignal,
  ): Promise<ReturnType<RemoteExecAccumulator["finish"]>> {
    const resolvedTimeout = parseRemoteTimeout(timeoutSeconds);
-   return new Promise((resolve, reject) => {
--    client.exec(withRemoteTimeout(command, resolvedTimeout), (error, stream) => {
--      if (error) return reject(error);
--      const accumulator = new RemoteExecAccumulator(maxLines, maxBytes);
--      let locallyTimedOut = false;
--      let settled = false;
--      const timer = setTimeout(() => {
--        locallyTimedOut = true;
--        stream.close();
--      }, (resolvedTimeout + 8) * 1000);
--      const cleanup = () => clearTimeout(timer);
--      const fail = (failure: Error) => {
-+    const accumulator = new RemoteExecAccumulator(maxLines, maxBytes);
-+    let settled = false;
-+    let channel: ClientChannel | undefined;
-+    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); };
-+    const fail = (failure: Error) => {
-+      if (settled) return;
-+      settled = true;
-+      cleanup();
-+      accumulator.close();
-+      reject(failure);
-+      channel?.close();
-+    };
-+    const abort = () => fail(new Error("Remote command aborted"));
-+    const timer = setTimeout(() => fail(new Error(`Remote command timed out after ${resolvedTimeout} seconds`)),
-+      (resolvedTimeout + (shell === "posix" ? 8 : 0)) * 1000);
-+    signal?.addEventListener("abort", abort, { once: true });
-+    if (signal?.aborted) return abort();
-+    try { client.exec(withRemoteTimeout(command, resolvedTimeout, shell), (error, stream) => {
-+      if (error) return fail(error);
-+      if (settled) { stream.on("error", () => {}); stream.close(); return; }
-+      channel = stream;
-+      stream.on("data", (chunk: Buffer) => { if (!settled) accumulator.append(chunk); });
-+      stream.stderr.on("data", (chunk: Buffer) => { if (!settled) accumulator.appendStderr(chunk); });
-+      stream.on("error", fail);
-+      stream.on("close", (code: number | null) => {
-         if (settled) return;
-+        if (shell === "posix" && (code === 124 || code === 137)) return fail(new Error(`Remote command timed out after ${resolvedTimeout} seconds`));
-+        if (code !== 0) return fail(new Error(`Remote command exited with code ${code}: ${accumulator.errorMessage()}`));
-         settled = true;
-         cleanup();
--        accumulator.close();
--        reject(failure);
--      };
--      stream.on("data", (chunk: Buffer) => accumulator.append(chunk));
--      stream.stderr.on("data", (chunk: Buffer) => accumulator.appendStderr(chunk));
--      stream.once("error", (streamError: Error) => fail(streamError));
--      stream.on("close", (code: number | null) => {
--        if (settled) return;
--        cleanup();
--        if (locallyTimedOut || code === 124 || code === 137) {
--          fail(new Error(`Remote command timed out after ${resolvedTimeout} seconds`));
--          return;
--        }
--        if (code !== 0) {
--          fail(new Error(accumulator.errorMessage() || `Remote command exited with code ${code}`));
--          return;
--        }
--        settled = true;
-         resolve(accumulator.finish());
-       });
--    });
-+    }); } catch (error) { fail(error as Error); }
-   });
- }
- 
-@@ -859,7 +903,8 @@
-     const state = `SSH remote: ${remote ? "connected" : "disconnected"}; tool routing: ${routeRemoteTools ? "remote" : "local"}.`;
-     if (!command) return state;
-     const cwd = remote?.cwd ?? lastCwd ?? configuredCwd(command);
--    return `${state}\nSSH command: ${command}\nRemote cwd: ${cwd}\nResume: remote(action="reconnect")`;
-+    const shellInfo = remote?.shell === "cmd" ? "\nWindows cmd.exe: read/write/edit/bash remain local; use remote exec. Timeout closes the SSH channel but may leave the remote process running." : "";
-+    return `${state}${shellInfo}\nSSH command: ${command}\nRemote cwd: ${cwd}\nResume: remote(action="reconnect")`;
+-  const stream = await openAbortableExec(client, withRemoteTimeout(command, resolvedTimeout), signal);
++  const stream = await openAbortableExec(client, withRemoteTimeout(command, resolvedTimeout, shell), signal);
+   const accumulator = new RemoteExecAccumulator(maxLines, maxBytes);
+   let result: { code: number | null; timedOut: boolean };
+   try {
+@@ -853,13 +900,14 @@
+       (chunk) => accumulator.append(chunk),
+       (chunk) => accumulator.appendStderr(chunk),
+       signal,
++      shell,
+     );
+   } catch (error) {
+     accumulator.close();
+     throw error;
+   }
+   const { code, timedOut } = result;
+-  if (timedOut || code === 124 || code === 137) {
++  if (timedOut || (shell === "posix" && (code === 124 || code === 137))) {
+     accumulator.close();
+     throw new Error(`Remote command timed out after ${resolvedTimeout} seconds`);
+   }
+@@ -942,7 +990,8 @@
+     // While disconnected the prompt carries only this non-actionable status line: the remembered route
+     // belongs to the user's /remote command, not to the model (#13).
+     if (!remote) return state;
+-    return `${state}\nSSH command: ${remote.command}\nRemote cwd: ${remote.cwd}\nResume: remote(action="reconnect")`;
++    const shellInfo = remote.shell === "cmd" ? "\nWindows cmd.exe: read/write/edit/bash remain local; use remote exec. Timeout closes the SSH channel but may leave the remote process running." : "";
++    return `${state}${shellInfo}\nSSH command: ${remote.command}\nRemote cwd: ${remote.cwd}\nResume: remote(action="reconnect")`;
    };
  
    const connectionResult = (summary: string, extra: Record<string, unknown> = {}) => ({
-@@ -870,6 +915,7 @@
+@@ -953,6 +1002,7 @@
        command: remote?.command || lastCommand || undefined,
        cwd: remote?.cwd ?? lastCwd ?? (lastCommand ? configuredCwd(lastCommand) : undefined),
        toolRouting: routeRemoteTools ? "remote" : "local",
@@ -211,7 +183,7 @@
        ...extra,
      },
    });
-@@ -988,7 +1034,7 @@
+@@ -1081,7 +1131,7 @@
      currentCtx = ctx;
      if (!remote) ctx.ui.setStatus("ssh-remote", undefined);
      else if (routeRemoteTools) ctx.ui.setStatus("ssh-remote", ctx.ui.theme.fg("accent", endpointDisplayLabel(remote, remote.cwd)));
@@ -220,7 +192,7 @@
    };
  
    const attachClient = (state: RemoteState) => {
-@@ -1052,17 +1098,19 @@
+@@ -1145,17 +1195,19 @@
      let client: SshClient | undefined;
      try {
        client = await connectRoute(parsed, ctx);
@@ -237,24 +209,23 @@
          if (cwd === FALLBACK_REMOTE_CWD) throw error;
          unavailableCwd = cwd;
 -        resolved = (await execRemote(client, "cd -- ~ && pwd -P")).toString().trim();
--      }
--      const state = { ...parsed, client, cwd: resolved, ...(unavailableCwd ? { unavailableCwd } : {}) };
 +        resolved = (await resolveCwd(FALLBACK_REMOTE_CWD)).toString().trim();
-+      }
+       }
+-      const state = { ...parsed, client, cwd: resolved, ...(unavailableCwd ? { unavailableCwd } : {}) };
 +      const state = { ...parsed, client, shell, home, cwd: resolved, ...(unavailableCwd ? { unavailableCwd } : {}) };
        attachClient(state);
        return state;
      } catch (error) {
-@@ -1090,7 +1138,7 @@
+@@ -1184,7 +1236,7 @@
        const oldClient = remote?.client;
        const next = await establish(parsed, source.cwd);
        remote = next;
 -      routeRemoteTools = resumeRouting;
 +      routeRemoteTools = next.shell === "posix" && resumeRouting;
-       credentialCache.resume = { command: parsed.command, cwd: next.cwd, routeRemoteTools, forwards: credentialCache.resume?.forwards };
        lastCommand = parsed.command;
        lastCwd = next.cwd;
-@@ -1123,10 +1171,11 @@
+       const restartedForwards = await restartForwards(savedForwards);
+@@ -1219,10 +1271,11 @@
    const changeRemoteCwd = async (requested: string, ctx: any): Promise<string> => {
      if (!remote) throw new Error("SSH remote is not connected");
      const target = requested.trim() || FALLBACK_REMOTE_CWD;
@@ -268,7 +239,7 @@
      ))).toString().trim();
      remote.cwd = resolved;
      lastCommand = remote.command;
-@@ -1139,6 +1188,11 @@
+@@ -1235,6 +1288,11 @@
    };
  
    const standaloneCdTarget = (command: string): string | undefined => {
@@ -280,7 +251,7 @@
      try {
        const words = shellWords(command);
        if (words[0] !== "cd" || words.length > 3) return undefined;
-@@ -1170,7 +1224,7 @@
+@@ -1266,7 +1324,7 @@
        const next = await establish(parsed, targetCwd, ctx);
        const previous = remote?.client;
        remote = next;
@@ -289,7 +260,7 @@
        previous?.end();
        credentialCache.resume = { command, cwd: next.cwd, routeRemoteTools, forwards: [] };
        lastCommand = command;
-@@ -1179,6 +1233,7 @@
+@@ -1275,6 +1333,7 @@
        saveEndpointConfig(command, { remoteCwd: next.cwd }, true);
        status(ctx);
        persistSessionRemoteState();
@@ -297,16 +268,16 @@
        if (next.unavailableCwd) {
          ctx.ui.notify(`SSH remote directory unavailable: ${next.unavailableCwd}; connected in default directory ${next.cwd}`, "warning");
        } else {
-@@ -1245,7 +1300,7 @@
+@@ -1361,7 +1420,7 @@
      const command = saved.command!;
      const next = await connectInteractive(command, ctx, saved.cwd);
      if (!next) throw new Error(lastConnectionError || "SSH remote session restore was cancelled or failed");
 -    routeRemoteTools = saved.routeRemoteTools ?? true;
 +    routeRemoteTools = next.shell === "posix" && (saved.routeRemoteTools ?? true);
-     const specs = (saved.forwards ?? []).map(parseForwardSpec);
-     for (const spec of specs) await startForward(spec);
-     credentialCache.resume = { command, cwd: next.cwd, routeRemoteTools, forwards: [...forwardSpecs.values()].map(serializeForward) };
-@@ -1412,11 +1467,13 @@
+     const restarted = await restartForwards(saved.forwards ?? [], ctx);
+     credentialCache.resume = { command, cwd: next.cwd, routeRemoteTools, forwards: restarted };
+     status(ctx);
+@@ -1514,11 +1573,13 @@
  
    pi.registerTool({
      name: "remote",
@@ -320,7 +291,16 @@
        "Use remote with action chdir when the user asks to change the remote working directory; do not emulate a persistent directory change with action exec and a one-command cwd.",
        "Use remote with action memory to locate and inspect the current server-memory JSON file, then use read/edit/write on that exact local path for entry-level changes.",
        "Delete a server-memory JSON entry only after an explicit user request to delete, remove, or forget it. Read the file first, identify the exact entry id, and remove only that object with edit; ask the user if the target is ambiguous and never infer deletion from an update request.",
-@@ -1517,10 +1574,12 @@
+@@ -1610,7 +1671,7 @@
+       if (params.action === "exec") {
+         const state = await untilAborted(ensureConnected(ctx), signal);
+         if (!params.remoteCommand) throw new Error("remoteCommand is required for exec");
+-        const cdTarget = params.cwd === undefined ? standaloneCdTarget(params.remoteCommand) : undefined;
++        const cdTarget = state.shell === "cmd" && params.cwd === undefined ? standaloneCdTarget(params.remoteCommand) : undefined;
+         if (cdTarget !== undefined) {
+           const resolved = await changeRemoteCwd(cdTarget, ctx);
+           return { content: [{ type: "text", text: resolved }], details: { connected: true, cwd: resolved } };
+@@ -1620,10 +1681,11 @@
          const limits = configuredOutputLimits();
          const formatted = await withReconnect((client) => execRemoteLimited(
            client,
@@ -330,11 +310,10 @@
            limits.execMaxLines,
            limits.execMaxBytes,
 +          remote!.shell,
-+          _signal,
-         ));
+           signal,
+         ), signal);
          return limitRemoteToolResult({
-           content: [{ type: "text", text: formatted.text }],
-@@ -1721,13 +1780,20 @@
+@@ -1826,14 +1888,21 @@
              else timeoutSeconds = parseRemoteTimeout(option[2]);
              execInput = option[3]!;
            }
@@ -351,8 +330,10 @@
              timeoutSeconds,
              limits.execMaxLines,
              limits.execMaxBytes,
+-          ));
 +            remote!.shell,
 +            ctx.signal,
-           ));
++          ), ctx.signal);
            const preview = previewRemoteOutput(formatted.content, displayLines);
            const omitted = formatted.truncation.totalLines > displayLines
+             ? `\n\n[Showing last ${Math.min(displayLines, formatted.truncation.totalLines)} of ${formatted.truncation.totalLines} lines]`

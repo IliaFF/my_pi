@@ -2,8 +2,8 @@
 # Installs the pinned Pi extension stack.
 set -euo pipefail
 
-PI_VERSION="1.5.2"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+patches=("$ROOT"/patches/*.patch)
 AGENT_DIR="$(realpath -m -- "${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}")"
 SYSTEMD_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 BACKUP_ROOT="${PI_BACKUP_DIR:-$HOME/.pi/my-pi-backups}"
@@ -46,13 +46,15 @@ node -e 'const [M]=process.versions.node.split(".").map(Number); if (M<24) proce
   echo "FAIL Node $(node --version). Required >=24.0.0" >&2; exit 1;
 }
 
+PI_VERSION="$(node -p 'require(process.argv[1]).dependencies["@earendil-works/pi-coding-agent"]' "$ROOT/npm/package.json")"
 current_version=""
 if command -v pi >/dev/null 2>&1; then current_version="$(pi --version 2>/dev/null || true)"; fi
 if ((DRY_RUN)); then
   echo "DRY-RUN agent: $AGENT_DIR"
   echo "DRY-RUN Pi core: ${current_version:-missing} -> $PI_VERSION (install=$INSTALL_CORE)"
   echo "DRY-RUN packages: 15 extensions from configs/extension-profile.json (npm ci)"
-  echo "DRY-RUN patches: pi-ssh-remote+0.1.15, context-fold+0.8.0, pi-background-tasks+2.6.10"
+  printf 'DRY-RUN patch: %s\n' "${patches[@]##*/}"
+  echo "DRY-RUN profile: APPEND_SYSTEM.md and four portable skills"
   echo "DRY-RUN local extensions: providers, auto-ultra-compact"
   echo "DRY-RUN OpenRouter route and timer: $WITH_OPENROUTER"
   exit 0
@@ -72,7 +74,7 @@ if ((WITH_OPENROUTER)); then
     fi
   done
 fi
-for dir in npm extensions scripts; do
+for dir in npm extensions scripts skills; do
   if [[ -L "$AGENT_DIR/$dir" ]]; then
     echo "FAIL refusing to install through a symlink: $AGENT_DIR/$dir" >&2
     exit 1
@@ -84,6 +86,12 @@ mkdir -p "$BACKUP_ROOT"
 backup="$(mktemp -d "$BACKUP_ROOT/${stamp}.XXXXXX")"
 managed=(settings.json npm extensions/providers extensions/auto-ultra-compact scripts/openrouter-cache-order.mjs .my-pi-last-backup)
 if ((WITH_OPENROUTER)); then managed+=(models.json); fi
+resources=()
+for resource in APPEND_SYSTEM.md skills/{cpp-styleguide,grilling,latex-simple-style,writing-python}; do
+  if ((PRESERVE_SETTINGS)) && [[ -e "$AGENT_DIR/$resource" || -L "$AGENT_DIR/$resource" ]]; then continue; fi
+  resources+=("$resource")
+done
+managed+=("${resources[@]}")
 printf '%s\n' "${managed[@]}" > "$backup/managed-files"
 printf '%s\n' "$AGENT_DIR" > "$backup/agent-dir"
 present=()
@@ -118,8 +126,9 @@ cp "$ROOT/npm/package.json" "$AGENT_DIR/npm/package.json"
 cp "$ROOT/npm/package-lock.json" "$AGENT_DIR/npm/package-lock.json"
 npm ci --ignore-scripts --omit=dev --legacy-peer-deps --prefix "$AGENT_DIR/npm"
 
-for spec in pi-ssh-remote+0.1.15 context-fold+0.8.0 pi-background-tasks+2.6.10; do
-  patch -d "$AGENT_DIR/npm/node_modules/${spec%+*}" -p1 --forward --batch < "$ROOT/patches/$spec.patch"
+for file in "${patches[@]}"; do
+  spec="${file##*/}"
+  patch -d "$AGENT_DIR/npm/node_modules/${spec%+*}" -p1 --forward --batch < "$file"
 done
 
 mkdir -p "$AGENT_DIR/extensions" "$AGENT_DIR/scripts"
@@ -129,6 +138,11 @@ for extension in providers auto-ultra-compact; do
 done
 rm -f -- "$AGENT_DIR/scripts/openrouter-cache-order.mjs"
 cp -- "$ROOT/scripts/openrouter-cache-order.mjs" "$AGENT_DIR/scripts/"
+mkdir -p "$AGENT_DIR/skills"
+for resource in "${resources[@]}"; do
+  rm -rf -- "$AGENT_DIR/$resource"
+  cp -R -- "$ROOT/profile/$resource" "$AGENT_DIR/$resource"
+done
 node "$ROOT/scripts/configure-install.mjs" settings "$ROOT" "$AGENT_DIR" "$PRESERVE_SETTINGS"
 
 
